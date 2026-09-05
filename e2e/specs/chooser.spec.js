@@ -32,10 +32,12 @@ const TEXT_TYPES = ["text", "search", "url", "email", "tel", "password", "number
 
 /**
  * Every box a person types into. The rail's question is open only while it is asked; the current
- * line's text box and its two time fields are in the tools column whenever a document is (T5,
- * M2.7 E1). None of them holds a path, which is what the assertion below is about.
+ * line's text box, its two time fields and its speaker field are in the tools column whenever a
+ * document is (T5, M2.7 E1, edit-bar-first-tasks E2). None of them holds a path, which is what the
+ * assertion below is about.
  */
 const ALLOWED_TEXT_FIELDS = [
+  "currentline__actor",
   "currentline__text",
   "currentline__time currentline__end",
   "currentline__time currentline__start",

@@ -1408,6 +1408,8 @@ export default function App() {
                 }
                 onCommit={subtitle.setText}
                 onCommitTimes={subtitle.setTimes}
+                cues={subtitle.cues}
+                onCommitActor={(cue, value) => subtitle.setField(cue, "actor", value)}
               />
             </section>
           </div>

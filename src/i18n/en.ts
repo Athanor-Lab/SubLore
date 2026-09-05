@@ -391,8 +391,23 @@ export const en = {
       end: "End",
       /** In seconds, which is the scale a line's length is judged against. */
       duration: "Duration",
+      /** The longest line's length, beside the rate that measures the same text per second. */
+      characters: "Characters",
       cps: "CPS",
       text: "Text",
+      /** The ASS speaker field. Greyed on a document whose lines cannot hold one. */
+      actor: "Actor",
+      /** Opens the list of speakers this document already names. */
+      actorNames: "Names in this file",
+      /**
+       * Said by the field itself, before anything is sent, so the sentence names what is wrong with
+       * this value rather than the one shared refusal below. Keyed by `FieldRefusal`.
+       */
+      refusals: {
+        comma: "A comma separates the fields of a line, so a name cannot hold one.",
+        lineBreak: "A name is one line, so it cannot hold a line break.",
+        control: "A name cannot hold an invisible control character.",
+      },
     },
     reasons: {
       expectedTiming: "a timing line was expected here",
