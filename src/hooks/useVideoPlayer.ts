@@ -8,6 +8,8 @@ import {
   type VideoError,
   type VideoErrorCode,
   type VideoOpened,
+  type VideoPictureEvent,
+  type VideoPictureSize,
   type VideoPlayerState,
   type VideoPositionEvent,
   type VideoRegion,
@@ -35,6 +37,8 @@ function toErrorCode(error: unknown): VideoErrorCode {
 export type VideoPlayer = {
   state: VideoPlayerState;
   position: number;
+  /** The box the picture fills, or null while nothing is decoded and for a media with none. */
+  picture: VideoPictureSize | null;
   errorCode: VideoErrorCode | null;
   open: (path: string) => Promise<void>;
   togglePlayback: () => Promise<void>;
@@ -51,6 +55,7 @@ export type VideoPlayer = {
 export function useVideoPlayer(covered: boolean): VideoPlayer {
   const [state, setState] = useState<VideoPlayerState>(IDLE_STATE);
   const [position, setPosition] = useState(0);
+  const [picture, setPicture] = useState<VideoPictureSize | null>(null);
   const [errorCode, setErrorCode] = useState<VideoErrorCode | null>(null);
   // The rectangle keeps being measured while a layer is open; it stops being sent, so no `raise`
   // can restack the surface over the layer. It goes back with the uncover. See T8.
@@ -69,6 +74,11 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
       }),
       listen<VideoError>("video://error", (event) => {
         setErrorCode(event.payload.code);
+      }),
+      // Its own event, not a field on the state: the shape changes about once per file, and the
+      // state payload would then fire more often for nothing. See docs/video-aspect-tasks.md.
+      listen<VideoPictureEvent>("video://picture", (event) => {
+        setPicture(event.payload.picture);
       }),
     ]);
 
@@ -160,5 +170,15 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
       });
   }, [covered]);
 
-  return { state, position, errorCode, open, togglePlayback, seek, playRange, setRegion };
+  return {
+    state,
+    position,
+    picture,
+    errorCode,
+    open,
+    togglePlayback,
+    seek,
+    playRange,
+    setRegion,
+  };
 }

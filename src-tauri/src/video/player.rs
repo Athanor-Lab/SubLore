@@ -19,6 +19,7 @@ use crate::log;
 pub const EVENT_POSITION: &str = "video://position";
 pub const EVENT_STATE: &str = "video://state";
 pub const EVENT_ERROR: &str = "video://error";
+pub const EVENT_PICTURE: &str = "video://picture";
 
 const OPEN_TIMEOUT: Duration = Duration::from_secs(10);
 const POSITION_EVENT_INTERVAL: Duration = Duration::from_millis(100);
@@ -134,6 +135,51 @@ struct PositionPayload {
     position: f64,
 }
 
+/// The box the picture fills, in pixels, with the file's pixel aspect and its rotation both in it.
+/// Built from mpv's `dwidth` and `dheight` by `read_picture`; the storage size is a different
+/// number and is wrong for anamorphic and rotated media. See docs/video-aspect-tasks.md.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PictureSize {
+    pub width: i64,
+    pub height: i64,
+}
+
+/// Absence is `None` and never a zero size: a cap computed from a zero-wide picture is a cap of
+/// zero, so the block would collapse instead of falling back. See docs/video-aspect-tasks.md.
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PicturePayload {
+    picture: Option<PictureSize>,
+}
+
+/// The box a picture of this display size fills once `rotate`, the quarter turn the output still
+/// owes it, has been made. A zero is no box for a picture to fill, so it reads as absence.
+fn drawn_box(width: i64, height: i64, rotate: Option<i64>) -> Option<PictureSize> {
+    let (width, height) = match rotate {
+        Some(90) | Some(270) => (height, width),
+        _ => (width, height),
+    };
+    (width > 0 && height > 0).then_some(PictureSize { width, height })
+}
+
+/// The box mpv draws the picture in, read as one set so its parts can never come from different
+/// files. Absent for a media with no picture and until the first frame is decoded.
+///
+/// `dwidth` and `dheight` already carry the file's pixel aspect. They carry its rotation only when
+/// the output cannot turn the picture itself, which is why the turn is taken from
+/// `video-out-params/rotate`: that is the one the output has still to make, and it is zero exactly
+/// when the size is already turned. See docs/video-aspect-tasks.md.
+fn read_picture(mpv: &Mpv) -> Option<PictureSize> {
+    let width = mpv.get_property::<i64>("dwidth").ok()?;
+    let height = mpv.get_property::<i64>("dheight").ok()?;
+    drawn_box(
+        width,
+        height,
+        mpv.get_property::<i64>("video-out-params/rotate").ok(),
+    )
+}
+
 /// How the mpv core is wired to its output. `headless` exists for the integration tests;
 /// it is never reachable over IPC.
 pub struct PlayerConfig {
@@ -169,6 +215,9 @@ struct Shared {
     /// its A-B loop repeats or is ignored, and its own issue 9716 answers the same question by
     /// watching `time-pos`. The event thread does that, and it sees every frame.
     stop_at: Mutex<Option<f64>>,
+    /// The box the picture fills, as the interface was last told it. The event thread is the only
+    /// writer; `Player::picture` reads it for callers that have no `AppHandle`.
+    picture: Mutex<Option<PictureSize>>,
 }
 
 impl Shared {
@@ -186,6 +235,31 @@ impl Shared {
     fn emit_position(&self, position: f64) {
         if let Some(app) = &self.app {
             let _ = app.emit(EVENT_POSITION, PositionPayload { position });
+        }
+    }
+
+    /// Tell the interface the drawn size, and only when it moved. mpv reconfigures its output
+    /// several times per file and the shape almost never changes, so most calls send nothing.
+    fn tell_picture(&self, size: Option<PictureSize>) {
+        let Ok(mut told) = self.picture.lock() else {
+            return;
+        };
+        if *told == size {
+            return;
+        }
+        *told = size;
+        drop(told);
+        // One line per file, so the box is in the log an owner reads by hand. The absence is said
+        // at FileLoaded instead, which is where mpv can tell no picture from one not decoded yet.
+        if let Some(size) = size {
+            log::info!(
+                "video: the picture is drawn {} by {}",
+                size.width,
+                size.height
+            );
+        }
+        if let Some(app) = &self.app {
+            let _ = app.emit(EVENT_PICTURE, PicturePayload { picture: size });
         }
     }
 
@@ -317,6 +391,7 @@ impl Player {
             // Nothing is loaded yet, so nothing has been asked to play.
             asked_paused: AtomicBool::new(true),
             stop_at: Mutex::new(None),
+            picture: Mutex::new(None),
         });
         let stop = Arc::new(AtomicBool::new(false));
 
@@ -489,6 +564,12 @@ impl Player {
             .map_err(|error| from_mpv(error, "time-pos"))
     }
 
+    /// The box the picture fills, or nothing when the media has none and while the first frame of
+    /// one is still undecoded. The same value the interface is sent on `video://picture`.
+    pub fn picture(&self) -> Option<PictureSize> {
+        self.shared.picture.lock().ok().and_then(|told| *told)
+    }
+
     pub fn paused(&self) -> Result<bool, VideoError> {
         let mpv = self.handle()?;
         mpv.get_property::<bool>("pause")
@@ -633,6 +714,9 @@ impl Player {
         {
             self.shared.emit_state();
         }
+        // An open that never reached mpv leaves no StartFile behind, so the picture is cleared
+        // here too: nothing is on screen after a failed open.
+        self.shared.tell_picture(None);
     }
 
     fn loaded_duration(&self) -> Result<f64, VideoError> {
@@ -878,7 +962,33 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                 }
                 shared.emit_state();
             }
+            Some(Ok(Event::StartFile)) => {
+                // Measured: mpv leaves the last file's dwidth standing until the new one
+                // reconfigures, so the interface is told the size is unknown rather than left
+                // holding the file before's. See docs/video-aspect-tasks.md.
+                shared.tell_picture(None);
+            }
+            Some(Ok(Event::VideoReconfig)) => {
+                // mpv's own notice that its video output changed, and the one that arrives for
+                // every file: a `dwidth` property change does not, when the next file is drawn at
+                // the same size, and never says the picture went away at all.
+                //
+                // Only ever a size, never an absence. mpv reinitialises its output while a file
+                // plays and a read taken in that moment answers "unavailable" for a picture that
+                // has not gone anywhere, which was seen once as a stray null mid-playback. Losing
+                // the picture is a file boundary and the arm above owns it.
+                if let Some(size) = read_picture(mpv) {
+                    shared.tell_picture(Some(size));
+                }
+            }
             Some(Ok(Event::FileLoaded)) => {
+                // A media with no picture is as ordinary as one with no audio: said once, at info,
+                // never as an error. `video-format` is what mpv has here; the drawn size is not yet.
+                if mpv.get_property::<String>("video-format").is_err() {
+                    log::info!(
+                        "video: this media carries no picture, so there is no size to report"
+                    );
+                }
                 let outcome = match mpv.get_property::<f64>("duration") {
                     Ok(duration) if duration > 0.0 => Ok(duration),
                     Ok(duration) => Err(VideoError::open_failed(format!(
@@ -901,6 +1011,101 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod picture_tests {
+    use super::{drawn_box, PictureSize, Player, PlayerConfig};
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    /// Absence is absence: a size with a zero or a negative in it is not a box a picture fills,
+    /// and reporting it would hand the arithmetic a cap of zero. See docs/video-aspect-tasks.md.
+    #[test]
+    fn a_zero_or_a_negative_is_no_size_at_all() {
+        assert_eq!(drawn_box(0, 360, None), None);
+        assert_eq!(drawn_box(1280, 0, None), None);
+        assert_eq!(drawn_box(-1280, -360, None), None);
+        assert_eq!(
+            drawn_box(1280, 360, Some(0)),
+            Some(PictureSize {
+                width: 1280,
+                height: 360
+            })
+        );
+    }
+
+    /// Measured on both outputs the app builds: a renderer that turns the picture itself leaves
+    /// `dwidth` upright and owes a quarter turn, and one that cannot has had the turn made for it
+    /// in the filter chain and owes nothing. Both have to end at the same box.
+    #[test]
+    fn a_quarter_turn_the_output_still_owes_swaps_the_box_and_a_half_turn_does_not() {
+        let upright = Some(PictureSize {
+            width: 360,
+            height: 640,
+        });
+        assert_eq!(drawn_box(640, 360, Some(270)), upright);
+        assert_eq!(drawn_box(640, 360, Some(90)), upright);
+        assert_eq!(drawn_box(360, 640, Some(0)), upright);
+        assert_eq!(
+            drawn_box(640, 360, Some(180)),
+            Some(PictureSize {
+                width: 640,
+                height: 360
+            })
+        );
+        // A media with no picture has no rotation to read either, and that is not a turn.
+        assert_eq!(
+            drawn_box(640, 360, None),
+            Some(PictureSize {
+                width: 640,
+                height: 360
+            })
+        );
+    }
+
+    /// The whole path through a real mpv core: nothing before a file, the drawn size once the
+    /// first frame is decoded, and the same answer again for a second file drawn at the same size.
+    ///
+    /// That second open is the regression: mpv announces a property change only when the value
+    /// moves, so a build triggered by `dwidth` alone answers once and then goes silent for every
+    /// file after it. The anamorphic and rotated cases are checked by the E2E spec, which is where
+    /// their fixtures are.
+    #[test]
+    fn a_square_picture_is_reported_at_its_own_size_and_not_before() {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/video/sample.mkv");
+        assert!(
+            fixture.is_file(),
+            "missing fixture {}: run fixtures/video/make-sample.sh",
+            fixture.display()
+        );
+        let player = Player::new(PlayerConfig::headless(), None)
+            .expect("headless player should start; is libmpv installed?");
+        assert_eq!(player.picture(), None, "nothing is loaded yet");
+
+        player
+            .open(&fixture.to_string_lossy())
+            .expect("fixture should open");
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while player.picture().is_none() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let square = Some(PictureSize {
+            width: 640,
+            height: 360,
+        });
+        assert_eq!(player.picture(), square);
+
+        player
+            .open(&fixture.to_string_lossy())
+            .expect("fixture should open a second time");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while player.picture().is_none() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert_eq!(player.picture(), square, "the second open of the same file");
     }
 }
 
