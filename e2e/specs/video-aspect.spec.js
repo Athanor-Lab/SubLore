@@ -1,4 +1,4 @@
-/* global describe, it, before, console, document, window */
+/* global describe, it, before, afterEach, console, document, window */
 /**
  * docs/video-aspect-tasks.md: the interface can ask how wide a box the picture would fill, and the
  * answer is the box mpv draws rather than the frame the file stores.
@@ -205,6 +205,19 @@ describe("how wide a box the picture would fill", () => {
       message: "the app UI to render",
     });
     await watchVideoEvents();
+  });
+
+  // The battery does not put the application's log on its own output, but a spec can read it out of
+  // the data home. A failure here that is the app dying and one that is the app disagreeing look
+  // identical from the driver, which answers `WebDriverError: 1` to both, so the difference is
+  // printed rather than guessed at.
+  afterEach(function afterEachCheck() {
+    if (this.currentTest?.state !== "failed") {
+      return;
+    }
+    const alive = findToplevel() !== null;
+    const log = appLogSinceStart(dataHome()).split("\n").slice(-25).join("\n");
+    console.log(`the window is ${alive ? "still there" : "GONE"}; the app's last lines:\n${log}`);
   });
 
   it("reports a square picture at its own size, and says so once in the log", async () => {
