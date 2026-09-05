@@ -152,31 +152,53 @@ xvfb-run -a -s "-screen 0 1024x700x24" pnpm e2e:waveform-budget  # the waveform'
 pnpm e2e:no-display                          # no xvfb-run: this one proves what happens without a display
 ```
 
-### One run at a time, and how to tell
+### Two runs at once, and the port that stops them
 
-`xvfb-run -a` picks a free display number, so two runs start happily side by side and neither says
-so. They then share the machine, and every check with a clock in it is measuring the other one as
-much as itself: the frame budgets in `editor.spec.js`, `waveform-sash.spec.js` and
-`waveform-follow.spec.js` fail or pass for the wrong reason, in either direction. A number produced
-while two runs overlapped is void, not flaky, and re-running past it hides the problem rather than
-answering it.
+`xvfb-run -a` picks a free display number, so two runs start happily side by side. What they collide
+on is not the screen, it is a port. `e2e/lib/driver.js` reads
 
-Waiting for a run to finish has a trap in it that has already cost this repository an evening.
-`pgrep -f` searches whole command lines, so this never finishes:
+```js
+export const driverPort = Number(process.env.E2E_PORT ?? 4444);
+const nativePort = driverPort + 1;
+```
+
+so every checkout drives `tauri-driver` on the same machine wide `127.0.0.1:4444`, and tauri-driver
+serves one session at a time. The second run does not fail with anything that says "port": it gets a
+session error that surfaces as a wall of `before all` hook failures, and reads exactly like a flaky
+machine. Three batteries collapsed that way in one evening and were nearly written off as load.
+
+The fix is already in that file. Give each checkout its own port, at least two apart because the
+native port is `driverPort + 1`:
+
+```sh
+E2E_PORT=4446 xvfb-run -a -s "-screen 0 1920x1080x24" pnpm e2e
+```
+
+Two worktrees do not need to take turns. A battery run this way alongside another checkout's came
+back 32 spec files green in under ten minutes.
+
+What is still true about overlapping runs: they share the machine, so a check with a clock in it can
+measure the other one. If a timed check fails while another battery was up, that number is void
+rather than flaky, and re-running past it hides the question instead of answering it. The mocha
+per-test timeout is the first thing to go.
+
+Waiting for a run to finish, when you do need to, has a trap in it that cost an evening. `pgrep -f`
+searches whole command lines, so this never finishes:
 
 ```sh
 while pgrep -f "@wdio/cli/bin/wdio.js" >/dev/null; do sleep 15; done   # WRONG: matches itself
 ```
 
-The shell running that loop has the pattern in its own command line, so the loop finds itself and
-waits for ever, whether or not a battery is running. Two of these will also wait for each other.
-Filter the shells out:
+The shell running that loop has the pattern in its own command line, so it finds itself and waits
+for ever. Two of them will also wait for each other. Filter the shells out:
 
 ```sh
 while pgrep -af "@wdio/cli/bin/wdio.js" | grep -vE "zsh|bash|sh -c" | grep -q .; do sleep 15; done
 ```
 
-Check it once by hand with nothing running and confirm it prints nothing, before relying on it.
+And never sweep processes by worktree path to clean up after yourself: `pkill -f worktrees/<name>`
+matches another agent's `rustc`, `cc` and `collect2` as readily as your own, and has already killed
+a build that was not its author's.
 
 Two more have prerequisites no headless runner has, so they are run by hand and are not CI steps:
 
