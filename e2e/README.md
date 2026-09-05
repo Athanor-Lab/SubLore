@@ -152,6 +152,32 @@ xvfb-run -a -s "-screen 0 1024x700x24" pnpm e2e:waveform-budget  # the waveform'
 pnpm e2e:no-display                          # no xvfb-run: this one proves what happens without a display
 ```
 
+### One run at a time, and how to tell
+
+`xvfb-run -a` picks a free display number, so two runs start happily side by side and neither says
+so. They then share the machine, and every check with a clock in it is measuring the other one as
+much as itself: the frame budgets in `editor.spec.js`, `waveform-sash.spec.js` and
+`waveform-follow.spec.js` fail or pass for the wrong reason, in either direction. A number produced
+while two runs overlapped is void, not flaky, and re-running past it hides the problem rather than
+answering it.
+
+Waiting for a run to finish has a trap in it that has already cost this repository an evening.
+`pgrep -f` searches whole command lines, so this never finishes:
+
+```sh
+while pgrep -f "@wdio/cli/bin/wdio.js" >/dev/null; do sleep 15; done   # WRONG: matches itself
+```
+
+The shell running that loop has the pattern in its own command line, so the loop finds itself and
+waits for ever, whether or not a battery is running. Two of these will also wait for each other.
+Filter the shells out:
+
+```sh
+while pgrep -af "@wdio/cli/bin/wdio.js" | grep -vE "zsh|bash|sh -c" | grep -q .; do sleep 15; done
+```
+
+Check it once by hand with nothing running and confirm it prints nothing, before relying on it.
+
 Two more have prerequisites no headless runner has, so they are run by hand and are not CI steps:
 
 ```sh
