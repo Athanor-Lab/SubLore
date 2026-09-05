@@ -621,6 +621,52 @@ describe("the current line's bands", () => {
     });
   });
 
+  it("warns at forty-three and not at forty-two, which is where the limit sits", async () => {
+    const copy = workingCopy("ass/clean/basic.ass");
+    const bytes = readFileSync(copy);
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    await watchCommands();
+
+    await clickElement(toplevel, ".currentline__text");
+    await waitFor(
+      () =>
+        browser.execute(
+          () => document.activeElement?.classList.contains("currentline__text") === true,
+        ),
+      { timeout: 15000, message: "the current-line box to take the keyboard" },
+    );
+    // The row is 37, so five more characters is exactly the limit and six is one past it. Both
+    // readings are needed: a check that only ever looks at 45 passes with the limit set anywhere
+    // between 42 and 44, which is what moving it to 43 proved.
+    typeText("12345");
+    const at = await waitFor(
+      async () => {
+        const band = await bandOne();
+        return band.characters === 42 ? band : null;
+      },
+      { timeout: 15000, message: "the count to reach 42" },
+    );
+    expect({ characters: at.characters, over: at.over }).toEqual({ characters: 42, over: false });
+
+    typeText("6");
+    const past = await waitFor(
+      async () => {
+        const band = await bandOne();
+        return band.characters === 43 ? band : null;
+      },
+      { timeout: 15000, message: "the count to reach 43" },
+    );
+    expect({ characters: past.characters, over: past.over }).toEqual({
+      characters: 43,
+      over: true,
+    });
+
+    pressKey("Escape");
+    expect(await takeCommands()).toEqual([]);
+    expect(readFileSync(copy).equals(bytes)).toBe(true);
+  });
+
   it("draws the speaker greyed and in its place on a document that cannot hold one", async () => {
     // Two formats that have no such field, and two ASS files whose own Format line declares none.
     // The last is the one that says the control reads the field list and not the format name.
