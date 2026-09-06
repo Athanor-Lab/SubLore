@@ -5,9 +5,15 @@ import { listen } from "@tauri-apps/api/event";
 export type Preview = {
   /** Whether View has the document on the video. On from the start (decision 7). */
   shown: boolean;
+  /**
+   * Whether the frame draws the document being read instead of the one being written. Off from the
+   * start: a translator checks the translation against the picture. See side-by-side-tasks.md S3.
+   */
+  source: boolean;
   /** Set while the backend could not put the document on the frame. */
   failed: boolean;
   toggle: () => void;
+  toggleSource: () => void;
 };
 
 /**
@@ -18,6 +24,7 @@ export type Preview = {
  */
 export function usePreview(): Preview {
   const [shown, setShown] = useState(true);
+  const [source, setSource] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -41,7 +48,14 @@ export function usePreview(): Preview {
     invoke("preview_set_shown", { shown }).catch(() => setFailed(true));
   }, [shown]);
 
-  const toggle = useCallback(() => setShown((was) => !was), []);
+  // Sent on mount for the same reason the one above is, and separately: the two toggles are two
+  // answers and neither should have to be re-sent because the other moved.
+  useEffect(() => {
+    invoke("preview_set_source", { source }).catch(() => setFailed(true));
+  }, [source]);
 
-  return { shown, failed, toggle };
+  const toggle = useCallback(() => setShown((was) => !was), []);
+  const toggleSource = useCallback(() => setSource((was) => !was), []);
+
+  return { shown, source, failed, toggle, toggleSource };
 }

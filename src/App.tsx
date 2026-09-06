@@ -1175,6 +1175,15 @@ export default function App() {
       run: () => preview.toggle(),
     },
     {
+      id: "video.show-source-on-video",
+      label: en.menu.view.sourceOnVideo,
+      checked: preview.source,
+      // Greyed with no source open, because there would be nothing else to draw. It is the one
+      // toggle here that names a second document rather than a way of drawing the one (S3).
+      enabled: source.summary !== null,
+      run: () => preview.toggleSource(),
+    },
+    {
       id: "view.waveform-panel",
       label: en.menu.view.waveform,
       checked: waveformShown,
@@ -1352,6 +1361,7 @@ export default function App() {
       title: en.menu.view.title,
       items: [
         "video.toggle-subtitle-overlay",
+        "video.show-source-on-video",
         "view.waveform-panel",
         "wave.center-on-cue",
         "wave.toggle-autoscroll",

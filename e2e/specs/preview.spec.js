@@ -225,6 +225,41 @@ async function toggleSubtitles(toplevel) {
   return !before;
 }
 
+/** The state of View's other toggle: which of the two documents the frame draws. See S3. */
+async function sourceOnVideo(toplevel) {
+  await clickElement(toplevel, ".menubar__title--view");
+  await waitFor(() => present(".menubar__item--video-show-source-on-video"), {
+    timeout: 15000,
+    message: "the View menu to open on its source item",
+  });
+  return browser.execute(() => {
+    const item = document.querySelector(".menubar__item--video-show-source-on-video");
+    return item === null
+      ? null
+      : { checked: item.getAttribute("aria-checked") === "true", disabled: item.disabled === true };
+  });
+}
+
+/** Open View and choose the source toggle, answering with the state it moves to. */
+async function toggleSource(toplevel) {
+  const before = await sourceOnVideo(toplevel);
+  await clickElement(toplevel, ".menubar__item--video-show-source-on-video");
+  return !before.checked;
+}
+
+/** Open a second document to read from, through the File menu. */
+async function openSource(toplevel, file) {
+  await clickElement(toplevel, ".menubar__title--file");
+  await waitFor(() => present(".menubar__item--file-open-source"), {
+    timeout: 15000,
+    message: "the File menu to open on its source item",
+  });
+  await clickElement(toplevel, ".menubar__item--file-open-source");
+  const chooser = await waitForChooser("Choose a subtitle");
+  await answerChooser(chooser, file, "subtitle");
+  focusWindow(toplevel.id);
+}
+
 describe("the document on the video frame", () => {
   let toplevel = null;
   let working = null;
@@ -323,6 +358,35 @@ describe("the document on the video frame", () => {
     );
     // Turning it back on is not a re-open: the item is marked again and nothing was reloaded.
     expect(await subtitlesChecked(toplevel)).toBe(true);
+    await clickElement(toplevel, ".menubar__title--view");
+  });
+
+  it("draws the source on the frame while the toggle asks for it, and the translation again after", async () => {
+    // Greyed until there is a second document: there would be nothing else to draw (S3).
+    expect(await sourceOnVideo(toplevel)).toEqual({ checked: false, disabled: true });
+    pressKey("Escape");
+
+    await openSource(toplevel, longCopy);
+    await waitFor(
+      async () => ((await textOf(".statusbar__document"))?.includes("Source:") === true ? 1 : null),
+      { timeout: 20000, message: "the source to open beside the document being written" },
+    );
+    expect(await sourceOnVideo(toplevel)).toEqual({ checked: false, disabled: false });
+    pressKey("Escape");
+
+    // Both first cues start at zero, so the playhead is inside each of them and the length on the
+    // frame is the whole of what changes: 21 characters of the edited line, 34 of the source's.
+    expect(await toggleSource(toplevel)).toBe(true);
+    await waitForDrawn(
+      drawing(LONG_FIRST_CUE.length),
+      `the source's ${LONG_FIRST_CUE.length} characters on the frame`,
+    );
+
+    expect(await toggleSource(toplevel)).toBe(false);
+    await waitForDrawn(
+      drawing(EDITED_FIRST_CUE.length),
+      `the translation's ${EDITED_FIRST_CUE.length} characters back on the frame`,
+    );
     await clickElement(toplevel, ".menubar__title--view");
   });
 

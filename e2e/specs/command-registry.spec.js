@@ -85,6 +85,7 @@ const DECLARED = [
   "subtitle-merge",
   "help-about",
   "video-toggle-subtitle-overlay",
+  "video-show-source-on-video",
   "view-waveform-panel",
   "wave-center-on-cue",
   "wave-toggle-autoscroll",
