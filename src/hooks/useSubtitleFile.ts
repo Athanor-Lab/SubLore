@@ -105,6 +105,8 @@ export type SubtitleFile = {
   /** One inline style flag over a stretch of a cue's text, in the bytes of the text as the file
    * spells it. Equal offsets are a caret rather than a selection. See edit-bar-tasks.md B11. */
   toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
+  /** Several override tags at one caret, as one undo step: a font is a family and a size. B12. */
+  setOverrideTags: (cue: number, tags: [string, string][], at: number) => Promise<void>;
   /** Empty one line. `keepTags` leaves the braced runs and drops only the words. See B13. */
   clearText: (cue: number, keepTags: boolean) => Promise<void>;
   /** Begin a translation from the source: same cues, same timings, nothing written yet. See S2. */
@@ -424,6 +426,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const setOverrideTags = useCallback(
+    (cue: number, tags: [string, string][], at: number) =>
+      command("subtitle_set_override_tags", { cue, write: { tags, at } }),
+    [command],
+  );
+
   const clearText = useCallback(
     (cue: number, keepTags: boolean) => command("subtitle_clear_text", { cue, keepTags }),
     [command],
@@ -525,6 +533,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setComment,
     toggleStyle,
     setOverrideTag,
+    setOverrideTags,
     newTranslation,
     clearText,
     insertCue,

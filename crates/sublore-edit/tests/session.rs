@@ -1076,6 +1076,91 @@ fn a_numbered_colour_replaces_the_one_already_in_the_block_rather_than_joining_i
 }
 
 #[test]
+fn two_tags_written_at_one_caret_land_beside_each_other_and_undo_together() {
+    // A font picker names the family and the size, which is one thing a translator did.
+    let mut session = session("ass/clean/basic.ass");
+    let text = raw_text(&session, 0);
+    session
+        .apply(
+            &Edit::SetOverrideTags {
+                cue: 0,
+                tags: vec![
+                    ("\\fn".to_owned(), "Gentium Book".to_owned()),
+                    ("\\fs".to_owned(), "48".to_owned()),
+                ],
+                at: 0,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("two tags at one caret");
+    assert_eq!(
+        raw_text(&session, 0),
+        format!("{{\\fnGentium Book\\fs48}}{text}")
+    );
+
+    // One step, not two: the second undo has nothing to take back.
+    session.undo().expect("a step to undo").expect("a patch");
+    assert_eq!(raw_text(&session, 0), text);
+    assert!(!session.can_undo(), "the pair was one step");
+}
+
+#[test]
+fn two_tags_written_where_a_note_stands_stay_in_one_block() {
+    // A tag written at a caret sitting on a note goes in front of the note, and the second one has
+    // to join the first rather than opening a block of its own: one pick is one block, wherever the
+    // caret was. B12.
+    let mut session = session("ass/clean/basic.ass");
+    session
+        .apply(
+            &Edit::SetText {
+                cue: 0,
+                text: "{note}word".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("a line whose braced run is a note");
+
+    session
+        .apply(
+            &Edit::SetOverrideTags {
+                cue: 0,
+                tags: vec![
+                    ("\\fn".to_owned(), "Gentium".to_owned()),
+                    ("\\fs".to_owned(), "48".to_owned()),
+                ],
+                at: 6,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("two tags at a caret sitting on a note");
+    assert_eq!(raw_text(&session, 0), "{\\fnGentium\\fs48}{note}word");
+}
+
+#[test]
+fn a_list_with_one_bad_tag_in_it_writes_none_of_them() {
+    let mut session = session("ass/clean/basic.ass");
+    let before = session.to_bytes();
+    session
+        .apply(
+            &Edit::SetOverrideTags {
+                cue: 0,
+                tags: vec![
+                    ("\\fn".to_owned(), "Gentium Book".to_owned()),
+                    ("\\fs".to_owned(), "48}x{".to_owned()),
+                ],
+                at: 0,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect_err("a value that could close the block refuses the whole list");
+    assert_eq!(session.to_bytes(), before, "a refusal writes nothing");
+}
+
+#[test]
 fn a_tag_name_that_is_not_a_name_and_a_value_that_could_close_a_block_are_both_refused() {
     let mut session = session("ass/clean/basic.ass");
     let before = session.to_bytes();

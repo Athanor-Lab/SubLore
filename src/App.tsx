@@ -29,6 +29,7 @@ import { useModulePanels } from "./hooks/useModulePanels";
 import { useModuleWork } from "./hooks/useModuleWork";
 import { useModules, refusalLine } from "./hooks/useModules";
 import { useSearch, type SearchOutcome } from "./hooks/useSearch";
+import { useFonts } from "./hooks/useFonts";
 import { useSourceFile } from "./hooks/useSourceFile";
 import { useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
@@ -212,6 +213,8 @@ export default function App() {
   // The document being read from while translating, held apart from the one being written so that
   // no edit can reach it. See side-by-side-tasks.md S1.
   const source = useSourceFile();
+  // Read once and only when the font picker asks, because it costs a few hundred file reads (B12).
+  const fonts = useFonts();
   // The user's own expression never runs on this thread: it runs where it can be killed (F4a).
   const search = useSearch();
   // Read once at startup; the scan itself ran before this window existed (module-abi.md 3.5).
@@ -1668,6 +1671,15 @@ export default function App() {
                 canComment={subtitle.summary?.format === "ass"}
                 onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
                 canWriteTag={writesAtCaret}
+                caretAt={writesAtCaret && caret !== null ? caret.offset : null}
+                fonts={fonts.families}
+                fontsLoading={fonts.loading}
+                onLoadFonts={fonts.load}
+                onSetOverrideTags={async (tags, at) => {
+                  if (writesAtCaret && selection.active !== null) {
+                    await subtitle.setOverrideTags(selection.active, tags, at);
+                  }
+                }}
                 onSetOverrideTag={async (tag, value) => {
                   // The same rule the button greys on, read again here: a greyed command must not
                   // run, and a picker left open on a row the cursor has left must not write to it.

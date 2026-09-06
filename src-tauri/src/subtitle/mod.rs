@@ -476,6 +476,33 @@ pub async fn subtitle_clear_text(
     .await
 }
 
+/// Several override tags at one caret, as one step. A font picker names the family and the size,
+/// which is one thing a translator did. See side-by-side-tasks.md and edit-bar-tasks.md B12.
+#[derive(Debug, Deserialize)]
+pub struct OverrideTagsWrite {
+    /// `(tag, value)` in the order they are written.
+    pub tags: Vec<(String, String)>,
+    pub at: usize,
+}
+
+#[tauri::command]
+pub async fn subtitle_set_override_tags(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    write: OverrideTagsWrite,
+) -> Result<CuePatchDto, SubtitleError> {
+    let OverrideTagsWrite { tags, at } = write;
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::SetOverrideTags { cue, tags, at },
+    )
+    .await
+}
+
 /// One override tag with a value the caller chose, over the same stretch a style toggle works on.
 /// The name and the value are checked by the planner, which refuses anything that could close the
 /// block it is written into. See edit-bar-tasks.md B12.
