@@ -65,10 +65,17 @@ const CONTROLS = [
  * number to be looked at again. What it waits on is `MIN_CURRENT_LINE` and the stored waveform
  * height in `src/App.tsx`, which this change may not touch. See edit-bar-first-tasks.md E5.6.
  */
+/**
+ * What the panel does not show at once, as measured, pinned so it cannot grow in silence. It shrank
+ * when the block's default grew from 13.5rem to 17.5rem for the drawing order and the three
+ * margins: at 90 per cent at the narrowest window, and at 150 per cent at 1920, the text box used
+ * to be out of reach and now is not, and at 150 per cent at the narrowest window the End field used
+ * to go with it. Every control is drawn and every control is reachable through the panel's scroll.
+ */
 const SHORTFALL = {
-  90: { floor: [".currentline__text"], wide: [] },
+  90: { floor: [], wide: [] },
   110: { floor: [".currentline__text"], wide: [] },
-  150: { floor: [".currentline__end", ".currentline__text"], wide: [".currentline__text"] },
+  150: { floor: [".currentline__text"], wide: [] },
 };
 
 /**
@@ -180,6 +187,50 @@ function speaker() {
       openerDisabled: opener === null ? null : opener.disabled,
       refusal: refusal === null ? null : refusal.textContent,
     };
+  });
+}
+
+/** The four numeric fields, read as one so a failure says which of them was wrong. */
+function numberFields() {
+  return browser.execute(() => {
+    const read = (css) => {
+      const field = document.querySelector(css);
+      if (field === null) {
+        return { drawn: false };
+      }
+      return {
+        drawn: true,
+        value: field.value,
+        disabled: field.disabled,
+        invalid: field.classList.contains("currentline__time--invalid"),
+      };
+    };
+    return {
+      layer: read(".currentline__layer"),
+      marginL: read(".currentline__marginl"),
+      marginR: read(".currentline__marginr"),
+      marginV: read(".currentline__marginv"),
+    };
+  });
+}
+
+/** Replace what one numeric field holds, the way a person would: click it, select all, type. */
+async function typeIntoNumber(toplevel, field, value) {
+  const css = `.currentline__${field.toLowerCase()}`;
+  await clickElement(toplevel, css);
+  await waitFor(
+    () => browser.execute((selector) => document.activeElement?.matches(selector) === true, css),
+    { timeout: 15000, message: `the ${field} field to take the keyboard` },
+  );
+  pressKey("ctrl+a");
+  if (value === "") {
+    pressKey("BackSpace");
+  } else {
+    typeText(value);
+  }
+  await waitFor(async () => ((await numberFields())[field].value === value ? 1 : null), {
+    timeout: 15000,
+    message: `the ${field} field to hold exactly "${value}"`,
   });
 }
 
@@ -323,7 +374,6 @@ function reachedByScrolling(wanted) {
     return outOfReach;
   }, wanted);
 }
-
 /**
  * Whether the panel offers the scroll it needs. A panel whose content is taller than its box and
  * which cannot be scrolled has drawn a control where no gesture reaches it, which is the audio
@@ -543,7 +593,7 @@ describe("the current line's bands", () => {
     // order is part of the criterion: a control in the right band and the wrong place is a defect.
     expect(await bandOrder()).toEqual([
       { band: "identity", parts: ["Actor", "Characters", "CPS"] },
-      { band: "times", parts: ["Start", "End", "Duration"] },
+      { band: "times", parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"] },
     ]);
   });
 
@@ -689,7 +739,10 @@ describe("the current line's bands", () => {
       // The band does not change shape around it, and the readings beside it still work.
       expect(await bandOrder()).toEqual([
         { band: "identity", parts: ["Actor", "Characters", "CPS"] },
-        { band: "times", parts: ["Start", "End", "Duration"] },
+        {
+          band: "times",
+          parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"],
+        },
       ]);
     }
 
@@ -1024,6 +1077,121 @@ describe("the current line's bands", () => {
     await goToRow(toplevel, 1);
   });
 
+  it("draws the drawing order and the three margins greyed where a line cannot hold them", async () => {
+    const empty = { drawn: true, value: "", disabled: true, invalid: false };
+    for (const fixture of ["srt/clean/basic-lf.srt", "vtt/clean/basic.vtt"]) {
+      await openSubtitle(toplevel, workingCopy(fixture));
+      await goToRow(toplevel, 1);
+      expect({ fixture, ...(await numberFields()) }).toEqual({
+        fixture,
+        layer: empty,
+        marginL: empty,
+        marginR: empty,
+        marginV: empty,
+      });
+    }
+
+    // Field by field and not format by format: this fixture's own `Format:` line declares Layer and
+    // no margin, so the one control is alive and the three beside it are greyed in the same panel.
+    await openSubtitle(toplevel, workingCopy("ass/clean/minimal-fields.ass"));
+    await goToRow(toplevel, 1);
+    expect(await numberFields()).toEqual({
+      layer: { drawn: true, value: "0", disabled: false, invalid: false },
+      marginL: empty,
+      marginR: empty,
+      marginV: empty,
+    });
+
+    // And alive in place on a file whose Format line declares them, in the same session.
+    await openSubtitle(toplevel, workingCopy("ass/clean/speakers.ass"));
+    await goToRow(toplevel, 1);
+    const zero = { drawn: true, value: "0", disabled: false, invalid: false };
+    expect(await numberFields()).toEqual({
+      layer: zero,
+      marginL: zero,
+      marginR: zero,
+      marginV: zero,
+    });
+  });
+
+  it("writes a layer into the file and gives it back in one undo", async () => {
+    const copy = workingCopy("ass/clean/speakers.ass");
+    const before = readFileSync(copy);
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+
+    await typeIntoNumber(toplevel, "layer", "7");
+    pressKey("Return");
+    await waitFor(async () => ((await numberFields()).layer.value === "7" ? 1 : null), {
+      timeout: 15000,
+      message: "the layer field to hold the committed value",
+    });
+    // A commit is not a save, exactly as it is not one for the speaker.
+    expect(readFileSync(copy).equals(before)).toBe(true);
+
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(
+      () =>
+        readFileSync(copy, "utf8").includes(
+          "Dialogue: 7,0:00:01.34,0:00:03.98,Default,Ingrid,0,0,0,,The harbour freezes over by December.",
+        )
+          ? 1
+          : null,
+      { timeout: 20000, message: "the saved file to carry the layer on its first event line" },
+    );
+    // Only that field moved: every other byte is what the file was opened as.
+    expect(readFileSync(copy, "utf8")).toBe(
+      before.toString("utf8").replace("Dialogue: 0,0:00:01.34", "Dialogue: 7,0:00:01.34"),
+    );
+
+    // One undo, not two: setting a field is a single step the way a text edit is.
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await numberFields()).layer.value === "0" ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to put the layer back",
+    });
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(() => (readFileSync(copy).equals(before) ? 1 : null), {
+      timeout: 20000,
+      message: "the saved file to be byte for byte what it was opened as",
+    });
+  });
+
+  it("clamps a number past its range, refuses one that is not a number, and reads an empty one as zero", async () => {
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 2);
+
+    // Past the range the control has: the reference clamps rather than refusing, so 5000 lands on
+    // the ceiling and the file never receives what the field showed while it was being typed.
+    await typeIntoNumber(toplevel, "layer", "5000");
+    pressKey("Return");
+    await waitFor(async () => ((await numberFields()).layer.value === "999" ? 1 : null), {
+      timeout: 15000,
+      message: "the layer to be clamped to the top of its range",
+    });
+
+    // Not a number at all: the field says so where it stands and nothing is sent, which is what
+    // the time fields already do.
+    await typeIntoNumber(toplevel, "marginL", "12a");
+    pressKey("Return");
+    await waitFor(async () => ((await numberFields()).marginL.invalid === true ? 1 : null), {
+      timeout: 15000,
+      message: "the left margin to mark itself as holding something that is not a number",
+    });
+
+    // Emptied: the format's own default from style is zero, so clearing the field is an edit and
+    // commits zero rather than leaving the field on nothing.
+    await typeIntoNumber(toplevel, "marginV", "");
+    // Left rather than confirmed: the document already holds zero, so there is nothing to send and
+    // what the criterion asks is that the field goes back to what the file has. See C6.4.
+    await clickElement(toplevel, ".currentline__layer");
+    await waitFor(async () => ((await numberFields()).marginV.value === "0" ? 1 : null), {
+      timeout: 15000,
+      message: "the vertical margin to read zero after being cleared",
+    });
+  });
+
   it("answers a click on every control it draws, at each size and at both window widths", async () => {
     // Its own document and its own cursor: a panel with no row draws one sentence and no controls,
     // and a sweep over that would report five missing rather than a layout fault.
@@ -1078,21 +1246,24 @@ describe("the current line's bands", () => {
       ]) {
         toplevel = await resizeTo(toplevel.id, size.width, size.height);
         const at = `with a waveform, at ${percent} per cent in ${size.width}x${size.height}`;
+        // Nothing clipped and nothing to scroll to. This used to pin a shortfall instead: with a
+        // waveform above it the panel was given 84 pixels and the text box was out of reach at
+        // every size, and at 150 per cent in the narrowest window the End field went with it. The
+        // block now grows until the current line reaches its own floor rather than stopping at the
+        // height it was stored at, so there is no shortfall left to pin. See E5.6.
         const wide = size.width === WIDE_WIDTH;
-        // The shortfall as measured, pinned so it cannot grow in silence. Every control is drawn
-        // and every control is reachable through the panel's scroll; these are the ones the 84px
-        // the shell gives the panel does not show at once. See E5.6.
         expect({ at, ...(await panelOutOfReach(CONTROLS)) }).toEqual({
           at,
           swept: CONTROLS.length,
           missing: [],
           outOfReach: SHORTFALL[percent][wide ? "wide" : "floor"],
         });
-        // What the panel does owe at that height: the scroll that reaches them, and every control
-        // answering once it is scrolled to.
-        expect({ at, ...(await panelScroll()) }).toEqual({
+        // What the panel owes wherever it does not show everything: the scroll that reaches them,
+        // and every control answering once it is scrolled to. Whether it clips at all is not
+        // asserted: it depends on the size and the pin above is what says which controls it costs.
+        const scroll = await panelScroll();
+        expect({ at, unreachable: scroll.unreachable, sideways: scroll.sideways }).toEqual({
           at,
-          clips: true,
           unreachable: false,
           sideways: false,
         });

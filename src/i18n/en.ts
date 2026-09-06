@@ -399,6 +399,19 @@ export const en = {
       actor: "Actor",
       /** Opens the list of speakers this document already names. */
       actorNames: "Names in this file",
+      /** The ASS drawing order. Greyed on a document whose lines cannot hold one. */
+      layer: "Layer",
+      /**
+       * The three ASS margins, in the order the format declares them. One letter each: the
+       * reference gives them no written label at all and Sublore's bands always carry one, so this
+       * is the shortest label that still says which is which. The spoken name is the long one.
+       */
+      marginL: "L",
+      marginR: "R",
+      marginV: "V",
+      marginLName: "Left margin",
+      marginRName: "Right margin",
+      marginVName: "Vertical margin",
       /**
        * Said by the field itself, before anything is sent, so the sentence names what is wrong with
        * this value rather than the one shared refusal below. Keyed by `FieldRefusal`.

@@ -303,11 +303,12 @@ export default function App() {
         toolsWidth: column.clientWidth,
         toolsHeight: column.clientHeight,
         lineHeight: line === null ? 0 : line.clientHeight,
-        // What the current line would take if nothing stretched it: itself, with the text box at
-        // the few lines a translator writes into rather than at whatever it was given. Neither
-        // `scrollHeight` nor `clientHeight` can say this: the first never reports less than the
-        // box it is in, so a stretched box always looks full.
-        lineContent: line === null || text === null ? 0 : line.clientHeight - textSlack(text),
+        // What the current line would take if nothing stretched it: its own content, with the text
+        // box at the few lines a translator writes into rather than at whatever it was given.
+        // `scrollHeight` so that a panel with more controls than room says how much more it wants,
+        // and the text box's slack taken off so that a panel with room to spare does not report the
+        // room as content, which would make this rise every time it was answered.
+        lineContent: line === null || text === null ? 0 : line.scrollHeight - textSlack(text),
         topWidth: top.clientWidth,
         railWidth: rail === null ? 0 : rail.getBoundingClientRect().width,
         gridHeight: grid.clientHeight,
@@ -1468,7 +1469,7 @@ export default function App() {
                 onCommit={subtitle.setText}
                 onCommitTimes={subtitle.setTimes}
                 cues={subtitle.cues}
-                onCommitActor={(cue, value) => subtitle.setField(cue, "actor", value)}
+                onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
               />
             </section>
           </div>

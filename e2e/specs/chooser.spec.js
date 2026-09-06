@@ -38,6 +38,10 @@ const TEXT_TYPES = ["text", "search", "url", "email", "tel", "password", "number
  */
 const ALLOWED_TEXT_FIELDS = [
   "currentline__actor",
+  "currentline__number currentline__layer",
+  "currentline__number currentline__marginl",
+  "currentline__number currentline__marginr",
+  "currentline__number currentline__marginv",
   "currentline__text",
   "currentline__time currentline__duration",
   "currentline__time currentline__end",
