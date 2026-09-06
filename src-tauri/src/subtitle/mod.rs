@@ -37,17 +37,28 @@ const BACKUP_DIR: &str = "backups";
 /// so the guard is never held across an await.
 pub type SessionSlot = Mutex<Option<EditSession>>;
 
+/// The two documents a translator has open: the one being written, and the one being read from.
+///
+/// They are two slots and not one with a flag, so that no edit can reach the source by taking the
+/// wrong branch: every mutating command asks for `slot()` and there is no command anywhere that
+/// asks for `source_slot()` and then writes. See side-by-side-tasks.md S1.
 #[derive(Default)]
 pub struct SubtitleState {
     session: Arc<SessionSlot>,
+    source: Arc<SessionSlot>,
 }
 
 impl SubtitleState {
     /// A handle the blocking half of a command can own, as `VideoState` hands out its player.
     // TODO(M2.6): narrow back to private. Public only so the close gate in `lib.rs` can read the
-    // session; M2.6 reshapes this signature for two documents anyway (owner ruling 2026-08-29).
+    // session.
     pub fn slot(&self) -> Arc<SessionSlot> {
         Arc::clone(&self.session)
+    }
+
+    /// The document being read from. Opened and closed and never written to.
+    fn source_slot(&self) -> Arc<SessionSlot> {
+        Arc::clone(&self.source)
     }
 }
 
@@ -205,6 +216,26 @@ pub async fn subtitle_open(
     // and one that failed after clearing the session leaves nothing (decision 7).
     crate::preview::refresh(&app).await;
     opened
+}
+
+/// Open the document to read from, beside the one being written. It is never edited and never
+/// saved, so it has no dirty state to guard and replacing it loses nothing. See S1.
+#[tauri::command]
+pub async fn subtitle_open_source(
+    state: State<'_, SubtitleState>,
+    path: String,
+) -> Result<SubtitleOpened, SubtitleError> {
+    let slot = state.source_slot();
+    blocking(move || open_session(&slot, &path)).await
+}
+
+/// Close the document being read from. The frame draws the target, so nothing on screen moves with
+/// it, and the target is left exactly as it was.
+#[tauri::command]
+pub async fn subtitle_close_source(state: State<'_, SubtitleState>) -> Result<(), SubtitleError> {
+    let slot = state.source_slot();
+    // Discarding is free here and not a choice made for the user: nothing ever wrote to it.
+    blocking(move || close_session(&slot, true)).await
 }
 
 #[tauri::command]

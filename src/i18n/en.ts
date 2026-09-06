@@ -10,6 +10,9 @@ export const en = {
     file: {
       title: "File",
       openSubtitle: "Open subtitle…",
+      /** The document to read from while translating. It is never written to. */
+      openSource: "Open source subtitle…",
+      closeSource: "Close source subtitle",
       openVideo: "Open video…",
       save: "Save",
       saveCopy: "Save a copy…",
@@ -373,6 +376,8 @@ export const en = {
         "Those cues are gone: another transcription has started since. Run it again.",
       commandFailed: "Sublore could not finish that action. Restart Sublore if it happens again.",
     },
+    /** Said on the status bar while a second document is open to read from. See S1. */
+    sourceOpen: "Source: {document}",
     cueList: {
       label: "Cues",
       empty: "This file has no cues.",
@@ -381,6 +386,8 @@ export const en = {
       start: "Start",
       end: "End",
       text: "Text",
+      /** The document being read from. Drawn only while one is open. See side-by-side-tasks S1. */
+      source: "Source",
       /** The ASS style the event names. Drawn only when some cue in the list names one. */
       style: "Style",
       /** The ASS `Name` field, under the word every editor puts on the column. */

@@ -29,6 +29,7 @@ import { useModulePanels } from "./hooks/useModulePanels";
 import { useModuleWork } from "./hooks/useModuleWork";
 import { useModules, refusalLine } from "./hooks/useModules";
 import { useSearch, type SearchOutcome } from "./hooks/useSearch";
+import { useSourceFile } from "./hooks/useSourceFile";
 import { useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
 import { useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
@@ -196,6 +197,9 @@ export default function App() {
   // Every HTML layer registers here while it is open, and the video surface hides for as long as
   // the set is not empty (decision 1, T8).
   const layers = useLayerRegistry();
+  // The document being read from while translating, held apart from the one being written so that
+  // no edit can reach it. See side-by-side-tasks.md S1.
+  const source = useSourceFile();
   // The user's own expression never runs on this thread: it runs where it can be killed (F4a).
   const search = useSearch();
   // Read once at startup; the scan itself ran before this window existed (module-abi.md 3.5).
@@ -877,6 +881,19 @@ export default function App() {
       run: () => void pick("subtitle", undefined, (path) => void subtitle.open(path)),
     },
     {
+      id: "file.open-source",
+      label: en.menu.file.openSource,
+      // A source is read beside a target, so there has to be a target to read it beside.
+      enabled: !choosing && subtitle.summary !== null,
+      run: () => void pick("subtitle", undefined, (path) => void source.open(path)),
+    },
+    {
+      id: "file.close-source",
+      label: en.menu.file.closeSource,
+      enabled: source.summary !== null,
+      run: () => void source.close(),
+    },
+    {
       id: "video.open",
       label: en.menu.file.openVideo,
       accelerator: en.menu.keys.openVideo,
@@ -1250,6 +1267,8 @@ export default function App() {
       title: en.menu.file.title,
       items: [
         "file.open-subtitle",
+        "file.open-source",
+        "file.close-source",
         "video.open",
         "file.save",
         "file.save-copy",
@@ -1583,6 +1602,7 @@ export default function App() {
           <CueList
             key={subtitle.openId}
             cues={subtitle.cues}
+            sourceCues={source.cues}
             selection={selection}
             multiline={subtitle.summary?.format !== "ass"}
             flushRef={flushGrid}
@@ -1666,11 +1686,14 @@ export default function App() {
         )}
         <StatusBar
           summary={subtitle.summary}
+          sourceSummary={source.summary}
           dirty={dirty}
           truncated={subtitle.truncated}
           saved={subtitle.saved}
           savedInPlace={subtitle.savedInPlace}
-          subtitleError={subtitle.error}
+          // One sink for both documents: a source that could not be read is refused for the same
+          // reasons a target is, and the bar already says each of them in the user's words.
+          subtitleError={subtitle.error ?? source.error}
           videoErrorCode={errorCode}
           projectDeleted={project.deleted}
           projectError={project.error}

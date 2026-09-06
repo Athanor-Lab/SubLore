@@ -163,6 +163,11 @@ body {
   font-weight: 600;
 }
 
+/* The document being read from, said quieter than the one being written. See S1. */
+.statusbar__source {
+  color: var(--ink-muted);
+}
+
 .statusbar__error,
 .statusbar__video-error,
 .statusbar__chrome-error {
