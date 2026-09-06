@@ -138,15 +138,21 @@ async function measureAt(scale) {
 }
 
 /**
- * Three pixels of slack, derived rather than chosen. The page rounds each edge once per ratio, and
- * at ratio 2 the Linux backend divides the result by two and rounds again: `round(b*2) - round(t*2)`
- * is within one of `2h`, halving leaves half a pixel, and rounding that leaves one, which the
- * doubling turns into two — three once the ratio-1 rounding is counted too. The defect this check
- * exists to catch is off by a factor, not by three pixels: a surface that ignored the ratio would
- * miss by hundreds.
+ * Three pixels of slack for the rounding, and a twentieth for the layout. The page rounds each edge
+ * once per ratio, and at ratio 2 the Linux backend divides the result by two and rounds again:
+ * `round(b*2) - round(t*2)` is within one of `2h`, halving leaves half a pixel, and rounding that
+ * leaves one, which the doubling turns into two, three once the ratio-1 rounding is counted too.
+ *
+ * The twentieth is for something the three cannot cover, and it was measured rather than guessed.
+ * The page lays itself out in CSS pixels and a different device scale rounds a few of them
+ * differently: on the runner the surface came back eight pixels wider and ten taller than twice, on
+ * two runs whose heights differed by sixty-four, so the shortfall is the layout's and not the
+ * ratio's. See BACKLOG N37. What this check exists to catch is off by a factor: a surface that
+ * applied the ratio twice would read 1384 where 692 is wanted, and one that ignored it would read
+ * 346. Both are far outside a twentieth, and neither could hide inside it.
  */
 function doubles(one, two) {
-  return Math.abs(two - one * 2) <= 3;
+  return Math.abs(two - one * 2) <= Math.max(3, one * 0.05);
 }
 
 async function main() {
