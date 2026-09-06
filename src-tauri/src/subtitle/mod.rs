@@ -60,6 +60,23 @@ impl SubtitleState {
     fn source_slot(&self) -> Arc<SessionSlot> {
         Arc::clone(&self.source)
     }
+
+    /// Which of the two the frame should draw. `source` is the View toggle asking for the document
+    /// being read; it gets one only while there is one, so a toggle left on when the source closes
+    /// draws the translation rather than nothing. The only way out of here to the source, and it
+    /// is named for drawing so that nothing reaches for it to write. See side-by-side-tasks.md S3.
+    pub fn drawn_slot(&self, source: bool) -> Arc<SessionSlot> {
+        if source
+            && self
+                .source
+                .lock()
+                .map(|guard| guard.is_some())
+                .unwrap_or(false)
+        {
+            return Arc::clone(&self.source);
+        }
+        Arc::clone(&self.session)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

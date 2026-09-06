@@ -80,6 +80,10 @@ pub struct Preview {
     dir: Option<PathBuf>,
     /// View's toggle, on from the start: a translator opens a video to see the lines on it.
     shown: AtomicBool,
+    /// Whether the frame draws the document being read instead of the one being written. Off from
+    /// the start, because the translation is what a translator is checking against the picture.
+    /// See side-by-side-tasks.md S3 and BACKLOG.md M2.6, decision 7.
+    source: AtomicBool,
     /// The last shadow written. Holding the bytes is what makes an unchanged document cost no
     /// write and no re-read, so a View toggle does not churn the file.
     written: Mutex<Option<Shadow>>,
@@ -109,6 +113,7 @@ impl Preview {
             player,
             dir,
             shown: AtomicBool::new(true),
+            source: AtomicBool::new(false),
             written: Mutex::new(None),
             failing: AtomicBool::new(false),
         }
@@ -248,7 +253,23 @@ fn refresh_now(app: &AppHandle) {
     ) else {
         return;
     };
-    preview.preview().refresh(&subtitle.slot());
+    // The toggle asks for the source; whether it gets one is the source being open. A toggle left
+    // on when the source closes draws the translation rather than an empty frame (S3).
+    let wants_source = preview.preview().source.load(Ordering::Relaxed);
+    let slot = subtitle.drawn_slot(wants_source);
+    preview.preview().refresh(&slot);
+}
+
+/// Which of the two open documents the frame draws. Nothing is written to either: the shadow the
+/// frame reads is Sublore's own copy, as it already was. See side-by-side-tasks.md S3.
+#[tauri::command]
+pub async fn preview_set_source(app: AppHandle, source: bool) {
+    {
+        if let Some(state) = app.try_state::<PreviewState>() {
+            state.preview.source.store(source, Ordering::Relaxed);
+        }
+    }
+    refresh(&app).await;
 }
 
 /// View's toggle. mpv keeps decoding the document either way, so turning it back on costs no read.

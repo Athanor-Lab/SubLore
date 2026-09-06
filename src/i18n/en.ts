@@ -69,6 +69,8 @@ export const en = {
       centreOnCue: "Centre the waveform on the current line",
       followCue: "Follow the current line",
       subtitles: "Subtitles on video",
+      /** Draws the document being read on the frame instead of the one being written. See S3. */
+      sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
       scale: "{percent}%",
     },

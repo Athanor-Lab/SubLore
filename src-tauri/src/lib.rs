@@ -192,6 +192,7 @@ pub fn run() -> tauri::Result<()> {
             layout::layout_set_minimum_width,
             layout::layout_write,
             preview::preview_set_shown,
+            preview::preview_set_source,
             project::project_add_episode,
             project::project_attach_file,
             project::project_close,
