@@ -63,6 +63,9 @@ pub struct SubtitleSummary {
     /// "lf" | "crlf" | "mixed" | "none".
     pub newline: String,
     pub byte_length: u64,
+    /// The names the ASS styles section declares, in its own order. Empty for every other format,
+    /// and for an ASS with no styles section: a control that offers them is greyed on both.
+    pub styles: Vec<String>,
 }
 
 /// A row of the cue list. Its index is its position in the list, so a patch that moves rows can
@@ -920,6 +923,7 @@ pub fn summarize(path: Option<&str>, document: &SubtitleDocument) -> SubtitleSum
         has_bom: source.has_bom(),
         newline: newline_str(source.newline()).to_owned(),
         byte_length: source.byte_len() as u64,
+        styles: document.ass_style_names(),
     }
 }
 

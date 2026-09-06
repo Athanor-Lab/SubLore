@@ -54,7 +54,7 @@ body {
 .shell__body {
   display: flex;
   flex: none;
-  height: 19.5rem;
+  height: 21rem;
 }
 
 /* 6.5rem is the mockup's 104px at the default root size, and the tree is what fits in it: T2 held

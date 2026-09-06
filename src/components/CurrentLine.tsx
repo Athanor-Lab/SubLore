@@ -44,6 +44,8 @@ type CurrentLineProps = {
   onCommitField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
   /** The command registry, so the panel's own buttons grey and run by the same rule (decision 24). */
   commands: CommandRegistry;
+  /** The names the document's styles section declares, in its own order. See edit-bar-tasks C5. */
+  styles: string[];
 };
 
 /** The ASS fields the panel holds as a number: the drawing order and the three margins. */
@@ -151,6 +153,7 @@ export default function CurrentLine({
   cues,
   onCommitField,
   commands,
+  styles,
 }: CurrentLineProps) {
   const text = cue?.text ?? "";
   const startMs = cue?.startMs ?? 0;
@@ -617,6 +620,43 @@ export default function CurrentLine({
     );
   }
 
+  /**
+   * The style the line names, picked from the ones the document declares. A closed list: a name the
+   * file does not define is still shown, because the file holds it, and cannot be chosen. Drawn and
+   * greyed on a row whose `Format:` line cannot hold one, never absent (E3.1).
+   */
+  function styleField() {
+    const label = en.subtitle.currentLine.style;
+    const can = cue !== null && cue.declaredFields.includes("style");
+    const held = cue?.style ?? "";
+    // The held name first when the file does not declare it: the control may never show a value the
+    // document does not have, and never invent one it does not. See C6.1.
+    const options = held === "" || styles.includes(held) ? styles : [held, ...styles];
+    return (
+      <span className="currentline__field">
+        <span className="currentline__label">{label}</span>
+        <select
+          className="currentline__style"
+          aria-label={label}
+          data-document-editor=""
+          disabled={!can || options.length === 0}
+          value={held}
+          onChange={(event) => {
+            if (index !== null) {
+              void onCommitField(index, "style", event.target.value);
+            }
+          }}
+        >
+          {options.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </span>
+    );
+  }
+
   /** One command from the registry, drawn as a button that greys and runs by the registry's rule. */
   function commandButton(id: CommandId) {
     const command = commands[id];
@@ -688,6 +728,7 @@ export default function CurrentLine({
       {/* Band 1, identity. The two measures of the text sit at its right end, where a translator
         glances rather than reaches. See edit-bar-first-tasks.md section 2. */}
       <div className="currentline__band currentline__identity">
+        {styleField()}
         {comboField("actor", en.subtitle.currentLine.actor, en.subtitle.currentLine.actorNames)}
         {comboField("effect", en.subtitle.currentLine.effect, en.subtitle.currentLine.effectValues)}
         <span className="currentline__field">

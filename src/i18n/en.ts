@@ -397,6 +397,8 @@ export const en = {
       characters: "Characters",
       cps: "CPS",
       text: "Text",
+      /** The ASS style the line names. Greyed on a document whose lines cannot hold one. */
+      style: "Style",
       /** The ASS speaker field. Greyed on a document whose lines cannot hold one. */
       actor: "Actor",
       /** Opens the list of speakers this document already names. */

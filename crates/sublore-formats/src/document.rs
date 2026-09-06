@@ -162,6 +162,17 @@ impl SubtitleDocument {
             })
     }
 
+    /// The names the styles section declares, in the order it declares them, trimmed the way a
+    /// cue's own style field is so the two can be compared. Empty for every other format and for an
+    /// ASS with no styles section.
+    pub fn ass_style_names(&self) -> Vec<String> {
+        let body = self.source.body();
+        self.ass_styles
+            .iter()
+            .filter_map(|style| body.get(style.name.range()).map(str::to_owned))
+            .collect()
+    }
+
     /// Every cue a player would draw: ASS `Comment:` events excluded. This is the number the UI
     /// shows.
     pub fn displayed_cue_count(&self) -> usize {

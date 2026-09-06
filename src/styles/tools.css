@@ -99,6 +99,22 @@
   font: inherit;
 }
 
+/* The style the line names: a closed list, so the field is the picker itself. */
+.currentline__style {
+  flex: 1 1 7em;
+  min-width: 3em;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.currentline__style:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
 /* The commands the panel carries, drawn from the registry like the toolbar's own and greyed by the
    same rule: a command that exists is drawn, and one that cannot run is greyed (decision 24). */
 .currentline__command {
