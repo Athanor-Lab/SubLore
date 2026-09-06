@@ -63,9 +63,27 @@ pub struct SubtitleSummary {
     /// "lf" | "crlf" | "mixed" | "none".
     pub newline: String,
     pub byte_length: u64,
-    /// The names the ASS styles section declares, in its own order. Empty for every other format,
-    /// and for an ASS with no styles section: a control that offers them is greyed on both.
-    pub styles: Vec<String>,
+    /// The styles the ASS section declares, in its own order. Empty for every other format, and for
+    /// an ASS with no styles section: a control that offers them is greyed on both.
+    pub styles: Vec<AssStyleDto>,
+}
+
+/// One declared style as an editor reads it: every value the file's own spelling, and the four
+/// flags as booleans because that is what a line's override tags start from. See edit-bar B9.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssStyleDto {
+    pub name: String,
+    pub fontname: String,
+    pub fontsize: String,
+    pub primary: String,
+    pub secondary: String,
+    pub outline: String,
+    pub back: String,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strikeout: bool,
 }
 
 /// A row of the cue list. Its index is its position in the list, so a patch that moves rows can
@@ -942,7 +960,27 @@ pub fn summarize(path: Option<&str>, document: &SubtitleDocument) -> SubtitleSum
         has_bom: source.has_bom(),
         newline: newline_str(source.newline()).to_owned(),
         byte_length: source.byte_len() as u64,
-        styles: document.ass_style_names(),
+        styles: document
+            .ass_styles()
+            .iter()
+            .map(|style| {
+                let [name, fontname, fontsize, primary, secondary, outline, back] =
+                    document.ass_style_text(style);
+                AssStyleDto {
+                    name: name.to_owned(),
+                    fontname: fontname.to_owned(),
+                    fontsize: fontsize.to_owned(),
+                    primary: primary.to_owned(),
+                    secondary: secondary.to_owned(),
+                    outline: outline.to_owned(),
+                    back: back.to_owned(),
+                    bold: style.bold,
+                    italic: style.italic,
+                    underline: style.underline,
+                    strikeout: style.strikeout,
+                }
+            })
+            .collect(),
     }
 }
 

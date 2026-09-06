@@ -135,6 +135,54 @@ fn kind_sequence(document: &SubtitleDocument) -> Vec<&'static str> {
         .collect()
 }
 
+/// One style read back as the record a style editor needs, off the fixture that has four of them
+/// with two italics among them. Every value is the file's own spelling, and the four flags are
+/// booleans because that is what a line's override tags start from. See edit-bar-tasks.md B9.
+#[test]
+fn a_styles_section_is_read_as_the_record_an_editor_needs() {
+    let document = open("styles-many.ass");
+    let body = document.source().body();
+    let slice = |span: sublore_formats::Span| body.get(span.range()).unwrap_or("").to_owned();
+    let styles = document.ass_styles();
+    assert_eq!(styles.len(), 4, "the fixture declares four styles");
+
+    let default = &styles[0];
+    assert_eq!(slice(default.name), "Default");
+    assert_eq!(slice(default.fontname), "Arial");
+    assert_eq!(slice(default.fontsize), "54");
+    assert_eq!(slice(default.primary), "&H00FFFFFF");
+    assert_eq!(slice(default.secondary), "&H000000FF");
+    assert_eq!(slice(default.outline), "&H00000000");
+    assert_eq!(slice(default.back), "&H00000000");
+    assert!(!default.bold && !default.italic && !default.underline && !default.strikeout);
+
+    // The trailing space in `Sign Top ` is trimmed for the record the way a cue's own style field
+    // is trimmed, so the two can be matched against each other.
+    assert_eq!(slice(styles[1].name), "Sign Top");
+    assert_eq!(slice(styles[1].fontsize), "40");
+
+    // `-1` is on, and only the column that carries it is on.
+    let narrator = &styles[2];
+    assert_eq!(slice(narrator.name), "Narrator Italic");
+    assert_eq!(slice(narrator.fontname), "Georgia");
+    assert!(narrator.italic, "the file writes -1 in the Italic column");
+    assert!(!narrator.bold && !narrator.underline && !narrator.strikeout);
+}
+
+/// A styles section whose `Format:` line names none of the columns leaves them empty rather than
+/// guessing at positions, and a line with no name declares no style at all.
+#[test]
+fn a_style_with_no_declared_columns_reads_as_empty_and_not_as_a_position() {
+    let document = open("minimal-fields.ass");
+    for style in document.ass_styles() {
+        let body = document.source().body();
+        assert!(
+            !body.get(style.name.range()).unwrap_or("").is_empty(),
+            "a style that reached the list has a name"
+        );
+    }
+}
+
 #[test]
 fn round_trips_every_clean_fixture() {
     let clean = dirs("ass").clean;

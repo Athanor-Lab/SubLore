@@ -4,6 +4,24 @@ export type SubtitleFormatName = "srt" | "vtt" | "ass";
 
 export type SubtitleNewline = "lf" | "crlf" | "mixed" | "none";
 
+/**
+ * One declared style as an editor reads it: every value the file's own spelling, and the four flags
+ * as booleans because that is what a line's own override tags start from.
+ */
+export type AssStyle = {
+  name: string;
+  fontname: string;
+  fontsize: string;
+  primary: string;
+  secondary: string;
+  outline: string;
+  back: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikeout: boolean;
+};
+
 export type SubtitleSummary = {
   /** Where the document came from, or null while it has never had a file. */
   path: string | null;
@@ -13,8 +31,8 @@ export type SubtitleSummary = {
   hasBom: boolean;
   newline: SubtitleNewline;
   byteLength: number;
-  /** The names the ASS styles section declares, in its own order. Empty for every other format. */
-  styles: string[];
+  /** The styles the ASS section declares, in its own order. Empty for every other format. */
+  styles: AssStyle[];
 };
 
 /** One row of the cue list. Its index is its position in the array, never a field of its own. */

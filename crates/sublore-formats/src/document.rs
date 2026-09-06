@@ -103,6 +103,22 @@ pub struct AssStyle {
     /// [`crate::ass::trim_field`], which is the same trim a grid column gives a cue's style. The
     /// two must match or a declared style reads as unknown.
     pub name: Span,
+    /// The typeface the style names, and the size beside it. Spans rather than parsed values: a
+    /// reader may not invent a number the file does not hold, and a size a hand wrote as `20.5`
+    /// belongs to the file. Empty where the section's `Format:` line declares no such column.
+    pub fontname: Span,
+    pub fontsize: Span,
+    /// The four colours as the file spells them, `&HAABBGGRR` and whatever else a hand left there.
+    pub primary: Span,
+    pub secondary: Span,
+    pub outline: Span,
+    pub back: Span,
+    /// The four flags a line's own override tags start from. ASS writes `-1` for on and `0` for
+    /// off, and a value that is neither is off, which is what a renderer makes of it.
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strikeout: bool,
 }
 
 /// A parsed file: the bytes it came from, and the ordered segments that tile them.
@@ -162,15 +178,21 @@ impl SubtitleDocument {
             })
     }
 
-    /// The names the styles section declares, in the order it declares them, trimmed the way a
-    /// cue's own style field is so the two can be compared. Empty for every other format and for an
-    /// ASS with no styles section.
-    pub fn ass_style_names(&self) -> Vec<String> {
+    /// One declared style's spans resolved against the source, in the order the section declares
+    /// them. Every value is the file's own spelling, trimmed the way a cue's own style field is so
+    /// the two can be compared. Empty for every other format and for an ASS with no styles section.
+    pub fn ass_style_text(&self, style: &AssStyle) -> [&str; 7] {
         let body = self.source.body();
-        self.ass_styles
-            .iter()
-            .filter_map(|style| body.get(style.name.range()).map(str::to_owned))
-            .collect()
+        let read = |span: Span| body.get(span.range()).unwrap_or("");
+        [
+            read(style.name),
+            read(style.fontname),
+            read(style.fontsize),
+            read(style.primary),
+            read(style.secondary),
+            read(style.outline),
+            read(style.back),
+        ]
     }
 
     /// Every cue a player would draw: ASS `Comment:` events excluded. This is the number the UI

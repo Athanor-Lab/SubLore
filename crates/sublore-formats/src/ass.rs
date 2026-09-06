@@ -19,6 +19,8 @@ struct Section {
     /// A styles section, the only place a `Style:` line names a style. See [`is_styles_header`].
     is_styles: bool,
     format: Option<FieldFormat>,
+    /// The same line read as a styles section's, which names different columns. See B9.
+    style_format: Option<StyleFormat>,
 }
 
 /// What a section's `Format:` line declared, plus where it sits: a Format line without timing
@@ -29,9 +31,6 @@ struct FieldFormat {
     end_index: Option<usize>,
     style_index: Option<usize>,
     name_index: Option<usize>,
-    /// Where a styles section's `Format:` line puts `Name`. Not `name_index`, which also accepts
-    /// `Actor`: that spelling belongs to an event line and names no style.
-    style_name_index: Option<usize>,
     effect_index: Option<usize>,
     layer_index: Option<usize>,
     margin_l_index: Option<usize>,
@@ -49,6 +48,7 @@ pub(crate) fn parse(source: SourceText) -> Result<SubtitleDocument, ParseError> 
         is_events: false,
         is_styles: false,
         format: None,
+        style_format: None,
     };
     let mut blank: Option<Span> = None;
 
@@ -90,6 +90,7 @@ pub(crate) fn parse(source: SourceText) -> Result<SubtitleDocument, ParseError> 
                 is_events: name.eq_ignore_ascii_case("events"),
                 is_styles: is_styles_header(name),
                 format: None,
+                style_format: None,
             };
             segments.push(Segment {
                 span,
@@ -141,11 +142,16 @@ pub(crate) fn parse(source: SourceText) -> Result<SubtitleDocument, ParseError> 
                 if descriptor.eq_ignore_ascii_case("format") {
                     let names = source.body().get(remainder.range()).unwrap_or("");
                     section.format = Some(field_format(names, at));
-                // The line stays opaque metadata; only its name is read. See
-                // styles-and-fields-tasks.md S2.
+                    if section.is_styles {
+                        section.style_format = Some(style_format(names));
+                    }
+                // The line stays opaque metadata; what is read off it is the record a style editor
+                // needs and nothing else. See styles-and-fields-tasks.md S2 and edit-bar-tasks B9.
                 } else if section.is_styles && descriptor.eq_ignore_ascii_case("style") {
-                    if let Some(name) = style_name(&source, section.format.as_ref(), remainder) {
-                        styles.push(AssStyle { name });
+                    if let Some(style) =
+                        style_record(&source, section.style_format.as_ref(), remainder)
+                    {
+                        styles.push(style);
                     }
                 }
                 segments.push(Segment {
@@ -195,17 +201,123 @@ pub fn trim_field(body: &str, span: Span) -> Span {
 /// so a line with too few fields simply has nothing at that index and names nothing, and a name
 /// holding a comma reads as the piece before it, which is all the format can express.
 /// See styles-and-fields-tasks.md S3.
-fn style_name(source: &SourceText, format: Option<&FieldFormat>, remainder: Span) -> Option<Span> {
-    let at = format?.style_name_index?;
+/// One `Style:` line as the record a style editor reads. `None` when the line names no style,
+/// which is a line nothing could offer or match against.
+fn style_record(
+    source: &SourceText,
+    format: Option<&StyleFormat>,
+    remainder: Span,
+) -> Option<AssStyle> {
+    let format = format?;
     let body = source.body();
+    let name = style_field(body, remainder, format.name);
+    if name.is_empty() {
+        return None;
+    }
+    Some(AssStyle {
+        name,
+        fontname: style_field(body, remainder, format.fontname),
+        fontsize: style_field(body, remainder, format.fontsize),
+        primary: style_field(body, remainder, format.primary),
+        secondary: style_field(body, remainder, format.secondary),
+        outline: style_field(body, remainder, format.outline),
+        back: style_field(body, remainder, format.back),
+        bold: style_flag(body, style_field(body, remainder, format.bold)),
+        italic: style_flag(body, style_field(body, remainder, format.italic)),
+        underline: style_flag(body, style_field(body, remainder, format.underline)),
+        strikeout: style_flag(body, style_field(body, remainder, format.strikeout)),
+    })
+}
+
+/// Where a styles section's `Format:` line puts the columns a style editor needs. Read apart from
+/// the events section's own indices: the two sections share a `Format:` grammar and nothing else,
+/// and a name that means one thing in one means another in the other. See edit-bar-tasks.md B9.
+struct StyleFormat {
+    name: Option<usize>,
+    fontname: Option<usize>,
+    fontsize: Option<usize>,
+    primary: Option<usize>,
+    secondary: Option<usize>,
+    outline: Option<usize>,
+    back: Option<usize>,
+    bold: Option<usize>,
+    italic: Option<usize>,
+    underline: Option<usize>,
+    strikeout: Option<usize>,
+}
+
+/// Read a styles section's `Format:` field list. The first match of each name wins, as it does for
+/// an events section.
+fn style_format(names: &str) -> StyleFormat {
+    let mut format = StyleFormat {
+        name: None,
+        fontname: None,
+        fontsize: None,
+        primary: None,
+        secondary: None,
+        outline: None,
+        back: None,
+        bold: None,
+        italic: None,
+        underline: None,
+        strikeout: None,
+    };
+    for (index, name) in names.split(',').enumerate() {
+        let name = name.trim_matches([' ', '\t', '\r']);
+        let slot = if name.eq_ignore_ascii_case("name") {
+            &mut format.name
+        } else if name.eq_ignore_ascii_case("fontname") {
+            &mut format.fontname
+        } else if name.eq_ignore_ascii_case("fontsize") {
+            &mut format.fontsize
+        } else if name.eq_ignore_ascii_case("primarycolour") {
+            &mut format.primary
+        } else if name.eq_ignore_ascii_case("secondarycolour") {
+            &mut format.secondary
+        } else if name.eq_ignore_ascii_case("outlinecolour") {
+            &mut format.outline
+        } else if name.eq_ignore_ascii_case("backcolour") {
+            &mut format.back
+        } else if name.eq_ignore_ascii_case("bold") {
+            &mut format.bold
+        } else if name.eq_ignore_ascii_case("italic") {
+            &mut format.italic
+        } else if name.eq_ignore_ascii_case("underline") {
+            &mut format.underline
+        } else if name.eq_ignore_ascii_case("strikeout") {
+            &mut format.strikeout
+        } else {
+            continue;
+        };
+        if slot.is_none() {
+            *slot = Some(index);
+        }
+    }
+    format
+}
+
+/// One field of a style line, by its index in the section's `Format:` order. Empty where the line
+/// is shorter than the format says or the column was never declared.
+fn style_field(body: &str, remainder: Span, at: Option<usize>) -> Span {
+    let Some(at) = at else {
+        return Span::new(remainder.start, remainder.start);
+    };
     let mut start = remainder.start;
     for _ in 0..at {
-        start = find_comma(body, start, remainder.end)?.saturating_add(1);
+        match find_comma(body, start, remainder.end) {
+            Some(comma) => start = comma.saturating_add(1),
+            None => return Span::new(remainder.end, remainder.end),
+        }
     }
     let end = find_comma(body, start, remainder.end).unwrap_or(remainder.end);
-    let name = trim_field(body, Span::new(start, end));
-    // A line whose name field is empty declares no style a control could offer or match against.
-    (!name.is_empty()).then_some(name)
+    trim_field(body, Span::new(start, end))
+}
+
+/// ASS writes `-1` for a flag that is on and `0` for one that is off. Anything else is off, which
+/// is what a renderer makes of it.
+fn style_flag(body: &str, span: Span) -> bool {
+    body.get(span.range())
+        .is_some_and(|value| value.trim().parse::<i64>().is_ok_and(|number| number != 0))
 }
 
 /// Whether a section header names a styles section, under any spacing a hand edit may leave in it:
@@ -247,7 +359,6 @@ fn field_format(names: &str, offset: usize) -> FieldFormat {
     let mut end_index = None;
     let mut style_index = None;
     let mut name_index = None;
-    let mut style_name_index = None;
     let mut effect_index = None;
     let mut layer_index = None;
     let mut margin_l_index = None;
@@ -256,10 +367,6 @@ fn field_format(names: &str, offset: usize) -> FieldFormat {
     for (index, name) in names.split(',').enumerate() {
         count = index + 1;
         let name = name.trim_matches([' ', '\t', '\r']);
-        // A styles section names its style `Name` and never `Actor`. See styles-and-fields-tasks S2.
-        if style_name_index.is_none() && name.eq_ignore_ascii_case("name") {
-            style_name_index = Some(index);
-        }
         let slot = if name.eq_ignore_ascii_case("start") {
             &mut start_index
         } else if name.eq_ignore_ascii_case("end") {
@@ -296,7 +403,6 @@ fn field_format(names: &str, offset: usize) -> FieldFormat {
         end_index,
         style_index,
         name_index,
-        style_name_index,
         effect_index,
         layer_index,
         margin_l_index,
