@@ -254,7 +254,7 @@ Environment knobs:
 Neither entry point builds anything. A missing binary or fixture fails immediately with the command
 to run, because a silent four-minute rebuild inside a test hook is worse than a red line.
 
-## Four ways to make a run tell you nothing
+## Five ways to make a run tell you nothing
 
 Each of these produced a failure that meant nothing, and cost a re-run to find out.
 
@@ -278,11 +278,27 @@ ten minutes of a wall clock on 2026-09-05 and it has cost a whole mutation run b
 the mutation was never applied and the green that followed meant nothing. Copy with
 `python3 -c "import shutil; shutil.copyfile(a, b)"` in anything that is not typed by hand.
 
+**A mutation is not a mutation until the build has carried it.** Three runs on 2026-09-06 said the
+old ceiling was still green, and all three were measuring the new code: the source was mutated, the
+linter complained about it, and the binary was the one built before it. The run that finally went
+red is the one where `Compiling sublore` appeared and the printed numbers changed. Before believing
+a green mutation run, look for the compile in the log, and print a number the mutation moves. A
+green whose build was never seen proves nothing at all, and it is much easier to produce than a red.
+
 **`cargo test -p <crate>` stops at the first failing test binary.** A mutation that reddens
 `tests/mutation.rs` leaves `tests/session.rs` unrun, so the report undercounts what the mutation
 actually broke. Use `--no-fail-fast` whenever the point of the run is to see the full blast radius.
 
-## Four ways the instrument lied, all found by running it
+## Five ways the instrument lied, all found by running it
+
+**A drag cannot reach a stop that is below the window's bottom edge.** `dragSash` clamps its
+destination to `inside(mid + delta, toplevel.height)`, because `xdotool` refuses a pointer off the
+screen and the failure would read as an edge that stopped where it was told to. So an edge whose
+ceiling needs more travel than the window has left is never pushed onto it, and worse, the pointer
+and the edge chase each other: pressing at the edge and asking for the window's bottom moved the top
+block _up_ by 231 pixels. When a check is about where an edge stops, drive it with the keyboard
+route the edge carries, which steps eight pixels a press and clamps onto the stop exactly, and read
+the stop off `aria-valuemax` rather than off where a drag happened to land.
 
 **`xdotool` cannot press a function key by name on this X server.** `xdotool key F3` presses Alt
 before the key, with or without `--clearmodifiers`, and the webview is told `altKey` is true, so the

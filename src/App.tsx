@@ -117,6 +117,28 @@ const MIN_WAVEFORM_HEIGHT = 64;
 const MIN_CURRENT_LINE = 72;
 
 /**
+ * How many lines of its own type the current line's text box asks for. A translator writes one or
+ * two and reads a third; past that the box is taking height nothing in it uses. Fixed here for the
+ * same reason CPS is fixed at 21: there is no preferences surface to hold it (decision 24 A8).
+ */
+const TEXT_BOX_LINES = 3;
+
+/** What the text box was given over the lines it asks for, which is height nothing is using. */
+function textSlack(text: Element): number {
+  const style = getComputedStyle(text);
+  const line = Number.parseFloat(style.lineHeight);
+  // A line height left at `normal` has no pixel count to multiply, so claim no slack rather than
+  // claim the whole box: too little ceiling is a defect, too much is only the ceiling we had.
+  if (!Number.isFinite(line) || line <= 0) {
+    return 0;
+  }
+  // `clientHeight` counts the padding, so the height the box asks for has to count it too.
+  const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+  const wanted = line * TEXT_BOX_LINES + (Number.isFinite(padding) ? padding : 0);
+  return Math.max(0, text.clientHeight - wanted);
+}
+
+/**
  * The narrowest tools column whose current line still fits the height the column gives it: at 176
  * the times row wraps onto three rows and the line needs the 84px it has, at 160 it wraps onto four
  * and needs 94. The fourth row arrives at 157 at 90 per cent and at 258 at 150, and the scaled
@@ -195,9 +217,13 @@ export default function App() {
   const [transportFloor, setTransportFloor] = useState<number | null>(null);
   const [frame, setFrame] = useState({
     videoWidth: 0,
+    videoHeight: 0,
+    stageWidth: 0,
+    stageHeight: 0,
     toolsWidth: 0,
     toolsHeight: 0,
     lineHeight: 0,
+    lineContent: 0,
     topWidth: 0,
     railWidth: 0,
     gridHeight: 0,
@@ -206,7 +232,7 @@ export default function App() {
   const centreOnCue = useRef<() => void>(() => {});
   /** The pair a hand is holding on the panel, so playing the selection plays where it is now. */
   const liveTimes = useRef<LiveTimes>(null);
-  const { state, position, errorCode, open, togglePlayback, seek, playRange, setRegion } =
+  const { state, position, picture, errorCode, open, togglePlayback, seek, playRange, setRegion } =
     useVideoPlayer(layers.covered);
   const audio = useAudioTracks(state.path, state.status === "ready");
   // The two states the grid indexes by row live below, so the patch that moves rows reaches them
@@ -257,6 +283,12 @@ export default function App() {
     }
     const line = column.querySelector(".currentline");
     const video = top.querySelector(".shell__video");
+    // The picture's own box inside the video panel, so the panel's chrome can be told from the
+    // part a picture can grow into.
+    const stage = top.querySelector(".stage");
+    // The one box in the column that grows to fill what it is given, so the only one whose own
+    // content has to be asked for separately.
+    const text = column.querySelector(".currentline__text");
     // The one panel in the block whose width is fixed rather than dragged, and the one the window's
     // own floor has to leave room for beside the two that are.
     const rail = top.parentElement?.querySelector(".shell__rail") ?? null;
@@ -265,15 +297,23 @@ export default function App() {
     const measure = () =>
       setFrame({
         videoWidth: video === null ? 0 : video.clientWidth,
+        videoHeight: video === null ? 0 : video.clientHeight,
+        stageWidth: stage === null ? 0 : stage.clientWidth,
+        stageHeight: stage === null ? 0 : stage.clientHeight,
         toolsWidth: column.clientWidth,
         toolsHeight: column.clientHeight,
         lineHeight: line === null ? 0 : line.clientHeight,
+        // What the current line would take if nothing stretched it: itself, with the text box at
+        // the few lines a translator writes into rather than at whatever it was given. Neither
+        // `scrollHeight` nor `clientHeight` can say this: the first never reports less than the
+        // box it is in, so a stretched box always looks full.
+        lineContent: line === null || text === null ? 0 : line.clientHeight - textSlack(text),
         topWidth: top.clientWidth,
         railWidth: rail === null ? 0 : rail.getBoundingClientRect().width,
         gridHeight: grid.clientHeight,
       });
     const observer = new ResizeObserver(measure);
-    for (const element of [column, top, grid, line, video, rail]) {
+    for (const element of [column, top, grid, line, text, video, stage, rail]) {
       if (element !== null) {
         observer.observe(element);
       }
@@ -350,7 +390,26 @@ export default function App() {
     MIN_TOP_HEIGHT * scale,
     frame.toolsHeight - Math.max(0, frame.lineHeight - minCurrentLine),
   );
-  const maxTopHeight = Math.max(minTopHeight, frame.toolsHeight + frame.gridHeight - minGridHeight);
+  // What the tools column can use: itself, less the slack the current line has over the height its
+  // own content asks for. A block taller than this makes the text box taller and nothing else.
+  const usableTools = frame.toolsHeight - Math.max(0, frame.lineHeight - frame.lineContent);
+  // What the stage can use: at this width the picture fills a box of exactly this height, and every
+  // pixel of block above it is a band beside the picture rather than more picture. Null while
+  // nothing is decoded and for a media with no picture, where there is no shape to ask about.
+  const usableStage =
+    picture === null || picture.width <= 0 || picture.height <= 0 || frame.stageWidth <= 0
+      ? null
+      : (frame.stageWidth * picture.height) / picture.width +
+        Math.max(0, frame.videoHeight - frame.stageHeight);
+  // The grid keeps its own minimum whatever else is true, and inside that the block stops where
+  // the last thing that could use the height stops using it. See grid-columns-tasks.md, answer D.
+  const maxTopHeight = Math.max(
+    minTopHeight,
+    Math.min(
+      frame.toolsHeight + frame.gridHeight - minGridHeight,
+      Math.max(usableTools, usableStage ?? 0),
+    ),
+  );
   const activeCue: CueRow | null =
     selection.active === null ? null : (subtitle.cues[selection.active] ?? null);
   // Saving writes the document, so it has to include the text sitting in either editor, and text

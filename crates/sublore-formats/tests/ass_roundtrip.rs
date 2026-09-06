@@ -14,7 +14,7 @@ use sublore_formats::{
 const FORMAT: SubtitleFormat = SubtitleFormat::Ass;
 
 /// Guards against a green suite that tests nothing: deleting fixtures must turn CI red.
-const MIN_CLEAN: usize = 17;
+const MIN_CLEAN: usize = 20;
 const MIN_MALFORMED: usize = 7;
 
 /// `.ssa` is the legacy spelling of the same grammar and lives in the same tree.

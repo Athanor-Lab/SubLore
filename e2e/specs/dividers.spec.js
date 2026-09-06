@@ -17,7 +17,14 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
-import { clickAt, dragAt, focusWindow, pressAndTravel, releaseButton } from "../lib/input.js";
+import {
+  clickAt,
+  dragAt,
+  focusWindow,
+  pressAndTravel,
+  pressKey,
+  releaseButton,
+} from "../lib/input.js";
 import { repoRoot, requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
 import { waitForSurfaceOnStage } from "../lib/surface.js";
@@ -47,6 +54,9 @@ const MIN_CURRENT_LINE = 72;
  * up to a whole pixel, and a share of a row stored and multiplied back lands on a fraction of one.
  */
 const ROUNDING_PX = 2;
+
+/** One row of the grid, so the margin below is a row a person can see and not a number. */
+const ROW_HEIGHT = 28;
 
 /** What the two edges open at: 38% of the top row, and 13.5rem at the default root size. */
 const DEFAULT_VIDEO_FRACTION = 0.38;
@@ -113,6 +123,33 @@ async function dragSash(toplevel, selector, dx, dy) {
   const toY = toplevel.absY + inside(sash.midY + dy, toplevel.height);
   dragAt(fromX, fromY, toX, toY);
   // The release is what stores the size, so this reads a settled layout, never a mid-drag one.
+  await browser.pause(250);
+}
+
+/** The ceiling the grid edge declares, which is the height it stops the block at. */
+function declaredCeiling() {
+  return browser.execute(() =>
+    Number(document.querySelector(".sash--grid")?.getAttribute("aria-valuemax") ?? 0),
+  );
+}
+
+/**
+ * Walks the grid edge down with the keyboard route the edge itself carries. A drag cannot be used
+ * here: `dragSash` keeps the pointer inside the window, so an edge whose stop is further down than
+ * the pointer may travel is never reached, and the two chase each other.
+ */
+async function walkGridEdgeDown(toplevel) {
+  focusWindow(toplevel.id);
+  await browser.execute(() => {
+    const sash = document.querySelector(".sash--grid");
+    if (sash instanceof window.HTMLElement) {
+      sash.focus();
+    }
+  });
+  // Eight pixels a press, and the last one lands on the stop rather than past it.
+  for (let press = 0; press < 80; press += 1) {
+    pressKey("Down");
+  }
   await browser.pause(250);
 }
 
@@ -360,9 +397,43 @@ describe("the shell's three edges", () => {
     expect(atCeiling.grid).toBeGreaterThanOrEqual(MIN_GRID_HEIGHT - 1);
     // A grid at its floor still shows its header and rows under it, not a header alone.
     expect(await present(".cuelist__row")).toBe(true);
+    // And the ceiling is no longer wherever the grid runs out. The block stops where the last
+    // thing in it stops being able to use the height, so the grid keeps well more than its floor
+    // rather than being squeezed onto it by a text box growing for nothing. See
+    // grid-columns-tasks.md, answer D.
+    expect(atCeiling.grid).toBeGreaterThan(MIN_GRID_HEIGHT + ROW_HEIGHT);
+    // Pushing again moves nothing: the ceiling is a ceiling.
+    await dragSash(toplevel, GRID_SASH, 0, 2000);
+    expect(Math.round((await shellSizes()).block)).toBe(Math.round(atCeiling.block));
 
     await dragSash(toplevel, GRID_SASH, 0, -2000);
     await dragSash(toplevel, GRID_SASH, 0, 70);
+  });
+
+  it("ends the top block sooner when the video is narrow than when it is wide", async () => {
+    // The block stops where the last thing in it stops being able to use the height. A wide video
+    // keeps turning height into picture, a narrow one runs out of it and the rest would be a band
+    // beside the picture, so the edge ends higher. The old ceiling was the grid's floor, which the
+    // video's width cannot move. See grid-columns-tasks.md, answer D.
+    await dragSash(toplevel, VIDEO_SASH, 2000, 0);
+    const wide = await declaredCeiling();
+    await walkGridEdgeDown(toplevel);
+    const wideBlock = (await shellSizes()).block;
+
+    await dragSash(toplevel, VIDEO_SASH, -2000, 0);
+    const narrow = await declaredCeiling();
+    await walkGridEdgeDown(toplevel);
+    const narrowBlock = (await shellSizes()).block;
+
+    expect(narrow).toBeLessThan(wide);
+    // And each is where the edge actually ends, not only what it says: pushed past its stop, the
+    // block sits on the ceiling it declared.
+    expect(Math.round(wideBlock)).toBe(wide);
+    expect(Math.round(narrowBlock)).toBe(narrow);
+
+    await dragSash(toplevel, GRID_SASH, 0, -2000);
+    await dragSash(toplevel, GRID_SASH, 0, 70);
+    await dragSash(toplevel, VIDEO_SASH, 200, 0);
   });
 
   it("moves the native surface with the video edge", async () => {
