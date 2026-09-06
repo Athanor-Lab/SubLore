@@ -9,10 +9,33 @@ import { type CueRow } from "../types/subtitle";
 
 /** Reading rate a line is flagged above, fixed and not configurable in v1. Decision 24 A8. */
 export const CPS_LIMIT = 21;
+/**
+ * Characters a line is flagged above, fixed and not configurable either. It is the rate above held
+ * for the two seconds a line is on screen, so the two numbers in the band say the same thing in two
+ * units. See edit-bar-first-tasks.md D2.
+ */
+export const CHARACTER_LIMIT = 42;
 /** The markup A8 does not count: ASS override blocks and HTML-style tags. */
 const MARKUP = /\{[^}]*\}|<[^>]*>/g;
 /** Line breaks in both spellings a cue holds: a real one, and the `\N` of an ASS field. */
 const LINE_BREAKS = /\r\n|[\r\n]|\\[Nn]/g;
+/** A drawing's scale inside an override block. Non-zero makes what follows coordinates, `\p0` text. */
+const DRAWING_SCALE = /\\p(\d+)/g;
+
+type Graphemes = { segment: (input: string) => Iterable<{ segment: string }> };
+type SegmenterCtor = new (locale: undefined, options: { granularity: "grapheme" }) => Graphemes;
+
+/**
+ * Graphemes and not code units: the count is of what a reader sees, so an astronaut built from two
+ * joined code points counts one. See edit-bar-first-tasks.md D1.
+ *
+ * `Intl.Segmenter` is ES2022 and this project compiles against the ES2020 library. Its shape is
+ * named here rather than by widening `lib`, which every other file would inherit; the cast reaches
+ * the one constructor used below and nothing wider.
+ */
+const GRAPHEMES = new (Intl as unknown as { Segmenter: SegmenterCtor }).Segmenter(undefined, {
+  granularity: "grapheme",
+});
 
 /**
  * Whether a field edits the open document. Both editors carry `data-document-editor`, so Ctrl+Z
@@ -37,6 +60,141 @@ export function readingRate(cue: CueRow): number | null {
     return null;
   }
   return cue.text.replace(MARKUP, "").replace(LINE_BREAKS, "").length / seconds;
+}
+
+/**
+ * The lines a reader sees, with the markup gone. Both spellings of a break divide them, `\h` is the
+ * one character it draws as, and a drawing's coordinates are not text. A `{` with no `}` after it
+ * opens no block: it and the rest of the line are counted, brace included.
+ *
+ * Walked rather than stripped by pattern, because `\p` carries state across the block that holds it
+ * and a regex cannot say where the drawing stops. See edit-bar-first-tasks.md D1.
+ */
+function visibleLines(text: string): string[] {
+  const lines: string[] = [];
+  let line = "";
+  let drawing = false;
+  let at = 0;
+  while (at < text.length) {
+    const here = text[at];
+    // Structural whatever is being drawn: a break ends the line it is on, coordinates or not.
+    if (here === "\r" || here === "\n") {
+      at += here === "\r" && text[at + 1] === "\n" ? 2 : 1;
+      lines.push(line);
+      line = "";
+      continue;
+    }
+    if (here === "\\" && (text[at + 1] === "N" || text[at + 1] === "n")) {
+      at += 2;
+      lines.push(line);
+      line = "";
+      continue;
+    }
+    if (here === "{") {
+      const close = text.indexOf("}", at + 1);
+      // No closing brace, so this opened nothing: the brace is one character of text and the walk
+      // carries on, so a later break still divides the lines it was hiding.
+      if (close === -1) {
+        at += 1;
+        if (!drawing) {
+          line += here;
+        }
+        continue;
+      }
+      const scales = text.slice(at + 1, close).match(DRAWING_SCALE);
+      if (scales !== null) {
+        drawing = Number(scales[scales.length - 1].slice(2)) !== 0;
+      }
+      at = close + 1;
+      continue;
+    }
+    if (here === "<") {
+      const close = text.indexOf(">", at + 1);
+      // An unclosed angle bracket is no tag, so it falls through and counts as the text it is.
+      if (close !== -1) {
+        at = close + 1;
+        continue;
+      }
+    }
+    if (here === "\\" && text[at + 1] === "h") {
+      at += 2;
+      if (!drawing) {
+        line += " ";
+      }
+      continue;
+    }
+    at += 1;
+    if (!drawing) {
+      line += here;
+    }
+  }
+  lines.push(line);
+  return lines;
+}
+
+/**
+ * How long the cue's longest line is, in the characters a reader sees. The longest and not the sum:
+ * a limit is about what fits across one row, and a total cannot tell two lines of thirty from one
+ * of sixty-one. See edit-bar-first-tasks.md D3.
+ */
+export function characterCount(text: string): number {
+  return visibleLines(text).reduce(
+    (longest, line) => Math.max(longest, Array.from(GRAPHEMES.segment(line)).length),
+    0,
+  );
+}
+
+/**
+ * The speakers the open document already names, in the order its rows first use them.
+ *
+ * First appearance and not sorted: the list is a record of who has spoken so far, and the name
+ * wanted next is usually the one used last. See edit-bar-first-tasks.md D6.
+ */
+export function actorNames(cues: CueRow[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const cue of cues) {
+    if (cue.actor !== "" && !seen.has(cue.actor)) {
+      seen.add(cue.actor);
+      names.push(cue.actor);
+    }
+  }
+  return names;
+}
+
+/**
+ * A field value as the panel both shows it and writes it: the padding the document's reader drops
+ * on the way in, dropped here on the way out. A control that displayed a value trimmed one way and
+ * committed it another would write bytes the panel never drew. Mirrors `ass::trim_field`.
+ * See edit-bar-first-tasks.md E4.7.
+ */
+export function trimmedFieldValue(value: string): string {
+  return value.replace(/^[ \t]+/, "").replace(/[ \t\r]+$/, "");
+}
+
+/** Why a single-line ASS field cannot hold a value. One key per sentence the field says. */
+export type FieldRefusal = "comma" | "lineBreak" | "control";
+
+/**
+ * Whether an ASS event field can hold this value, tested here so the refusal names what is wrong
+ * where the field stands and so nothing is sent. The same three the plan refuses, in the same
+ * order, because a line break is also a control character and its failure is the structural one.
+ * See edit-bar-first-tasks.md E4 and ass-field-write-tasks.md 5.8.
+ */
+export function refusedFieldValue(value: string): FieldRefusal | null {
+  if (value.includes(",")) {
+    return "comma";
+  }
+  if (value.includes("\n") || value.includes("\r")) {
+    return "lineBreak";
+  }
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code <= 0x1f || code === 0x7f) {
+      return "control";
+    }
+  }
+  return null;
 }
 
 /** hh:mm:ss.mmm. Separators are punctuation, not translatable copy. */

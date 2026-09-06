@@ -4,6 +4,13 @@
  * so the current line starts at the top of the column rather than under an empty box. See T5.
  */
 
+/*
+ * The panel scrolls as one, never a band on its own: the bands travel together, so a control is
+ * either inside this box or it is scrolled to, and nothing is ever painted over the grid below.
+ * No `min-height` of its own, because the sash floor is `MIN_CURRENT_LINE` in `src/App.tsx` and a
+ * panel that refused to be shorter than its contents would move it. See edit-bar-first-tasks.md
+ * section 2.
+ */
 .currentline {
   display: flex;
   flex: 1;
@@ -12,15 +19,20 @@
   min-width: 0;
   min-height: 0;
   padding: 0.4rem 0.75rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-/* Wraps rather than clips: the column is narrower than the window and has to hold this row at
-   1024x700. */
-.currentline__times {
+/* One band of the panel, holding one row of controls. Wraps rather than clips and never scrolls
+   sideways: the column is narrower than the window, a control pushed past its edge cannot be
+   clicked, and a sideways scroll hides the last control behind a gesture nobody guesses. One type
+   size across every band, so a label is the same height whichever band it sits in. */
+.currentline__band {
   display: flex;
   flex: none;
   flex-wrap: wrap;
   gap: 0 0.9rem;
+  min-width: 0;
   font-size: 0.8125rem;
 }
 
@@ -36,6 +48,7 @@
 .currentline__start,
 .currentline__end,
 .currentline__duration,
+.currentline__chars,
 .currentline__cps {
   font-variant-numeric: tabular-nums;
 }
@@ -61,10 +74,102 @@
   color: var(--ink-warn);
 }
 
+/* Over the 42 of edit-bar-first-tasks.md D2, in the same ink: nothing is refused, the panel is
+   telling the translator something they may have meant. */
+.currentline__chars--over {
+  color: var(--ink-warn);
+}
+
+/* The speaker field and the control that opens its list, which travel together and shrink together:
+   the column is narrow by construction and a field that would not shrink would push the two
+   readings beside it off the band. */
+.currentline__combo {
+  display: flex;
+  min-width: 0;
+}
+
+.currentline__actor {
+  flex: 1 1 7em;
+  min-width: 3em;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+/* A disabled field is drawn in its place and greyed, never absent: the document simply cannot hold
+   a speaker (E3.1). */
+.currentline__actor:disabled,
+.currentline__actor-open:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
+/* The opener carries its own arrow rather than a word, so the band keeps its width in every
+   language. It is a real control and answers a click at its own centre. */
+.currentline__actor-open {
+  flex: none;
+  width: 1.4em;
+  border: 1px solid var(--line);
+  border-left: none;
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}
+
+.currentline__actor-open::after {
+  content: "\25be";
+}
+
+/* Drawn outside the panel's flow so the panel's own scroll cannot clip it, at coordinates taken
+   from the field when it opened. It closes on a scroll or a resize rather than following them. */
+.currentline__actor-list {
+  position: fixed;
+  z-index: 30;
+  max-height: 12rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.currentline__actor-name {
+  display: block;
+  width: 100%;
+  padding: 0.15rem 0.5rem;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.currentline__actor-name--on {
+  background: var(--accent-bg);
+}
+
+/* Said where the field stands, in the ink this panel keeps for "nothing was sent". */
+.currentline__refusal {
+  flex: none;
+  margin: 0;
+  color: var(--ink-error);
+  font-size: 0.8125rem;
+}
+
+/* Gives up height before the bands do, down to one line of its own type: a box shrunk past that is
+   not a box, and below it the panel scrolls instead. The floor is `em`, so it is one line of this
+   element's own size at every interface size, plus its padding and its two borders. */
 .currentline__text {
   flex: 1;
   min-width: 0;
-  min-height: 0;
+  min-height: calc(1.5em + 0.5rem + 2px);
   padding: 0.25rem 0.4rem;
   border: 1px solid var(--line-strong);
   background: var(--bg-sunken);

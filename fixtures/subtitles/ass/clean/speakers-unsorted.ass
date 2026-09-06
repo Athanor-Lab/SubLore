@@ -1,0 +1,19 @@
+[Script Info]
+Title: Nordic Line - Episode 05, speakers in the order they arrive
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,54,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,60,60,40,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.00,Default,Marek,0,0,0,,The ferry leaves before the tide turns.
+Dialogue: 0,0:00:03.20,0:00:05.40,Default,Bo,0,0,0,,Then somebody should wake the engineer.
+Dialogue: 0,0:00:05.60,0:00:07.80,Default,Marek,0,0,0,,He has been awake since Tuesday.
+Dialogue: 0,0:00:08.00,0:00:10.20,Default,Ingrid,0,0,0,,That explains the coffee bill.
+Dialogue: 0,0:00:10.40,0:00:12.60,Default,,0,0,0,,Nobody signed for the delivery.

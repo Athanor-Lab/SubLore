@@ -7,6 +7,7 @@ import { type PublishedPanel } from "./useModulePanels";
 import { type RowRef } from "../types/chrome";
 import {
   isSubtitleError,
+  type AssFieldName,
   type CuePatch,
   type CueRow,
   type SubtitleError,
@@ -94,6 +95,9 @@ export type SubtitleFile = {
   /** Many cues in one call, and so one undo step whatever the count. See find-replace-tasks F1. */
   setTexts: (edits: { cue: number; text: string }[]) => Promise<void>;
   setTimes: (cue: number, startMs: number, endMs: number) => Promise<void>;
+  /** One ASS event field of one cue. A field the row does not declare is refused, so its control
+   * greys itself off `declaredFields` rather than asking. See edit-bar-first-tasks.md E2. */
+  setField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
   /** `before === cues.length` appends; the four below carry the backend's own argument names. */
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
   deleteCue: (cue: number) => Promise<void>;
@@ -359,6 +363,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const setField = useCallback(
+    (cue: number, field: AssFieldName, value: string) =>
+      command("subtitle_set_field", { cue, field, value }),
+    [command],
+  );
+
   const insertCue = useCallback(
     (before: number, startMs: number, endMs: number, text: string) =>
       command("subtitle_insert", { before, startMs, endMs, text }),
@@ -451,6 +461,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setText,
     setTexts,
     setTimes,
+    setField,
     insertCue,
     deleteCue,
     splitCue,
