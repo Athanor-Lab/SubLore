@@ -72,6 +72,7 @@ const DECLARED = [
   "time-end-earlier",
   "time-end-later",
   "subtitle-insert",
+  "subtitle-next-line",
   "subtitle-delete",
   "subtitle-split",
   "subtitle-merge",
@@ -118,9 +119,10 @@ const EDIT_ITEMS = [
   { id: "asr-transcribe", disabled: false },
 ];
 
-/** Subtitles with nothing open: all four cue edits need a document, so all four are greyed. */
+/** Subtitles with nothing open: every cue edit needs a document, so all of them are greyed. */
 const SUBTITLE_ITEMS = [
   { id: "subtitle-insert", disabled: true },
+  { id: "subtitle-next-line", disabled: true },
   { id: "subtitle-delete", disabled: true },
   { id: "subtitle-split", disabled: true },
   { id: "subtitle-merge", disabled: true },
@@ -498,6 +500,7 @@ describe("the command registry", () => {
       { route: "menu", id: "edit-find", disabled: false },
       { route: "menu", id: "edit-replace", disabled: false },
       { route: "menu", id: "subtitle-insert", disabled: false },
+      { route: "menu", id: "subtitle-next-line", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous

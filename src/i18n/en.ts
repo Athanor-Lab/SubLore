@@ -66,6 +66,8 @@ export const en = {
     subtitles: {
       title: "Subtitles",
       insert: "Insert cue",
+      /** Goes to the next cue, and makes one when the cursor is on the last. */
+      nextLine: "Next line",
       delete: "Delete cue",
       split: "Split cue",
       merge: "Merge with next",
