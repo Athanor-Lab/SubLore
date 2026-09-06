@@ -59,6 +59,13 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
   const [errorCode, setErrorCode] = useState<VideoErrorCode | null>(null);
   // The rectangle keeps being measured while a layer is open; it stops being sent, so no `raise`
   // can restack the surface over the layer. It goes back with the uncover. See T8.
+  /**
+   * Which file the commands in flight belong to. Every open moves it on, and an answer that comes
+   * back carrying an older one is dropped rather than written: a command sent against the file
+   * that was open cannot say anything true about the file that is open now, and a refusal from it
+   * would put a sentence on the status bar about a document nobody asked about. See BACKLOG N40.
+   */
+  const opening = useRef(0);
   const held = useRef<VideoRegion | null>(null);
   const covering = useRef(covered);
   const transitions = useRef<Promise<void>>(Promise.resolve());
@@ -92,9 +99,14 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
   }, []);
 
   const open = useCallback(async (path: string) => {
+    opening.current += 1;
+    const mine = opening.current;
     setErrorCode(null);
     try {
       const opened = await invoke<VideoOpened>("video_open", { path });
+      if (mine !== opening.current) {
+        return;
+      }
       setPosition(0);
       setState({
         status: "ready",
@@ -103,7 +115,9 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
         paused: true,
       });
     } catch (error) {
-      setErrorCode(toErrorCode(error));
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
     }
   }, []);
 
@@ -111,33 +125,44 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     // Store the value we asked for, never a flip: a video://state event may land first and a
     // relative toggle would then undo it.
     const paused = !state.paused;
+    const mine = opening.current;
     setErrorCode(null);
     try {
       await invoke(paused ? "video_pause" : "video_play");
-      setState((current) => ({ ...current, paused }));
+      if (mine === opening.current) {
+        setState((current) => ({ ...current, paused }));
+      }
     } catch (error) {
-      setErrorCode(toErrorCode(error));
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
     }
   }, [state.paused]);
 
   const seek = useCallback(async (target: number) => {
+    const mine = opening.current;
     setErrorCode(null);
     setPosition(target);
     try {
       await invoke("video_seek", { position: target });
     } catch (error) {
-      setErrorCode(toErrorCode(error));
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
     }
   }, []);
 
   const playRange = useCallback(async (from: number, to: number) => {
+    const mine = opening.current;
     setErrorCode(null);
     // The position is not set here the way `seek` sets it: playback is about to move it anyway,
     // and drawing the start for one frame before the first event would fight the player.
     try {
       await invoke("video_play_range", { from, to });
     } catch (error) {
-      setErrorCode(toErrorCode(error));
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
     }
   }, []);
 
@@ -148,8 +173,11 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
       return;
     }
     // Fire and forget: a region update the backend rejects must not block layout.
+    const mine = opening.current;
     void invoke("video_set_region", { region }).catch((error: unknown) => {
-      setErrorCode(toErrorCode(error));
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
     });
   }, []);
 
