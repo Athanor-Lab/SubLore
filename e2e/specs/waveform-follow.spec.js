@@ -4,9 +4,9 @@
  * following it.
  *
  * The playhead is found by its own colour in the canvas, so what is asserted is what was drawn.
- * Where the window sits is worked out by seeking to two known times while playback is stopped and
- * reading the two columns: the view does not follow while it is paused, so that calibration is
- * independent of the arithmetic it is used to check.
+ * Where the window sits is read off the panel, which is the only reading that stays true while
+ * following moves it: a mapping worked out from two earlier seeks describes the window those seeks
+ * were in and not the one the head is in now.
  */
 import { browser, expect } from "@wdio/globals";
 
@@ -104,16 +104,30 @@ async function seekTo(seconds) {
 }
 
 /** Two seeks while stopped give the window's left edge and its scale, in milliseconds per column. */
+/**
+ * The window the panel is drawing, read off the panel itself. It used to be inferred from two
+ * seeks, which is only right while the view holds still: following moves it, so a mapping taken
+ * before a seek describes a window the head is no longer in. See N28.
+ */
 async function calibrate() {
-  await seekTo(5);
-  const first = await playheadColumn();
-  await seekTo(25);
-  const second = await playheadColumn();
-  if (first < 0 || second < 0 || first === second) {
-    throw new Error(`the playhead was not drawn at both calibration times: ${first} and ${second}`);
+  const view = await browser.execute(() => {
+    const panel = document.querySelector(".waveform");
+    const canvas = document.querySelector(".waveform__canvas");
+    if (panel === null || canvas === null) {
+      return null;
+    }
+    const from = Number(panel.dataset.fromMs);
+    const perPx = Number(panel.dataset.msPerPx);
+    if (!Number.isFinite(from) || !Number.isFinite(perPx) || perPx <= 0) {
+      return null;
+    }
+    // A column is a device pixel of the backing store, which is what `playheadColumn` counts in.
+    return { fromMs: from, msPerColumn: perPx / (canvas.width / canvas.clientWidth) };
+  });
+  if (view === null) {
+    throw new Error("the waveform panel is not saying which window it is drawing");
   }
-  const msPerColumn = (25000 - 5000) / (second - first);
-  return { fromMs: 5000 - first * msPerColumn, msPerColumn };
+  return view;
 }
 
 /** Steps of the zoom, in wheel notches with ctrl held. */
@@ -186,11 +200,21 @@ describe("the waveform follows the playhead", () => {
     });
   });
 
-  it("draws the playhead where the seek put it, without waiting for a position event", async () => {
-    const view = await calibrate();
+  it("draws the playhead where the seek put it, even once following has moved the view", async () => {
     await seekTo(40);
+
+    // Read after the seek, off the panel: following moves the window, so the mapping has to be the
+    // one the panel is drawing now and not one worked out before the head went anywhere. See N28.
+    const view = await calibrate();
     const column = await playheadColumn();
     const drawn = view.fromMs + column * view.msPerColumn;
+    console.log(
+      `W7 seek: drawn ${Math.round(drawn)} ms, asked 40000 ms, ` +
+        `column ${column} of ${view.msPerColumn.toFixed(1)} ms each`,
+    );
+    // Found at all, first: a head nobody drew reports -1, and the arithmetic below would then be
+    // measuring where the window starts rather than where the head is.
+    expect(column).toBeGreaterThanOrEqual(0);
     expect(Math.abs(drawn - 40000)).toBeLessThanOrEqual(view.msPerColumn);
   });
 
