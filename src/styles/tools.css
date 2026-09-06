@@ -88,7 +88,8 @@
   min-width: 0;
 }
 
-.currentline__actor {
+.currentline__actor,
+.currentline__effect {
   flex: 1 1 7em;
   min-width: 3em;
   padding: 0.05rem 0.25rem;
@@ -119,14 +120,17 @@
 /* A disabled field is drawn in its place and greyed, never absent: the document simply cannot hold
    a speaker (E3.1). */
 .currentline__actor:disabled,
-.currentline__actor-open:disabled {
+.currentline__effect:disabled,
+.currentline__actor-open:disabled,
+.currentline__effect-open:disabled {
   color: var(--ink-faint);
   background: var(--bg-panel);
 }
 
 /* The opener carries its own arrow rather than a word, so the band keeps its width in every
    language. It is a real control and answers a click at its own centre. */
-.currentline__actor-open {
+.currentline__actor-open,
+.currentline__effect-open {
   flex: none;
   width: 1.4em;
   border: 1px solid var(--line);
@@ -137,7 +141,8 @@
   line-height: 1;
 }
 
-.currentline__actor-open::after {
+.currentline__actor-open::after,
+.currentline__effect-open::after {
   content: "\25be";
 }
 

@@ -399,6 +399,10 @@ export const en = {
       actor: "Actor",
       /** Opens the list of speakers this document already names. */
       actorNames: "Names in this file",
+      /** The ASS effect field. Greyed on a document whose lines cannot hold one. */
+      effect: "Effect",
+      /** Opens the list of effects this document already uses. */
+      effectValues: "Effects in this file",
       /** The ASS drawing order. Greyed on a document whose lines cannot hold one. */
       layer: "Layer",
       /**
