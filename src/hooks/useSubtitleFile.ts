@@ -105,6 +105,8 @@ export type SubtitleFile = {
   /** One inline style flag over a stretch of a cue's text, in the bytes of the text as the file
    * spells it. Equal offsets are a caret rather than a selection. See edit-bar-tasks.md B11. */
   toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
+  /** Begin a translation from the source: same cues, same timings, nothing written yet. See S2. */
+  newTranslation: () => Promise<void>;
   /** One override tag with a value the caller chose, over the stretch a flag is flipped on. B12. */
   setOverrideTag: (
     cue: number,
@@ -306,6 +308,25 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [applyOpened, serialize],
   );
 
+  /**
+   * Begin a translation from the document being read: the same cues and timings with nothing
+   * written yet, and no file behind it until the first save. See side-by-side-tasks.md S2.
+   */
+  const newTranslation = useCallback(
+    () =>
+      serialize(async () => {
+        setError(null);
+        setSaved(null);
+        try {
+          applyOpened(await invoke<SubtitleOpened>("subtitle_new_translation"));
+          setAdoptedRunId(null);
+        } catch (failure) {
+          setError(toSubtitleError(failure));
+        }
+      }),
+    [applyOpened, serialize],
+  );
+
   /** Every mutating command has the same shape: send the revision, take back a patch. */
   const command = useCallback(
     (name: string, args: Record<string, unknown>) =>
@@ -497,6 +518,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setComment,
     toggleStyle,
     setOverrideTag,
+    newTranslation,
     insertCue,
     deleteCue,
     splitCue,

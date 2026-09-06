@@ -238,6 +238,21 @@ pub async fn subtitle_close_source(state: State<'_, SubtitleState>) -> Result<()
     blocking(move || close_session(&slot, true)).await
 }
 
+/// A translation that starts from the source: every cue and every timing carried over, all the
+/// text empty, and no file behind it until the first save. See side-by-side-tasks.md S2.
+#[tauri::command]
+pub async fn subtitle_new_translation(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+) -> Result<SubtitleOpened, SubtitleError> {
+    let source = state.source_slot();
+    let target = state.slot();
+    let made = blocking(move || new_translation(&source, &target)).await;
+    // A new document is a new thing to draw on the frame, whether it was made or refused.
+    crate::preview::refresh(&app).await;
+    made
+}
+
 #[tauri::command]
 pub async fn subtitle_close(
     app: AppHandle,
@@ -713,6 +728,57 @@ pub fn open_session(slot: &SessionSlot, path: &str) -> Result<SubtitleOpened, Su
         } else {
             "whole"
         }
+    );
+    *guard = Some(session);
+    Ok(opened)
+}
+
+/// Make the target from the source: the same cues and the same timings, with nothing written yet.
+///
+/// The emptying happens on a scratch session and the result is parsed again, so the document the
+/// translator gets has nothing to undo: the first Ctrl+Z takes back their own first word, never
+/// the source's line. See side-by-side-tasks.md S2.
+pub fn new_translation(
+    source: &SessionSlot,
+    target: &SessionSlot,
+) -> Result<SubtitleOpened, SubtitleError> {
+    let (format, bytes) = {
+        let guard = lock(source)?;
+        let session = guard.as_ref().ok_or_else(|| {
+            SubtitleError::new(
+                SubtitleErrorCode::NoDocument,
+                "no source file is open to translate from",
+            )
+        })?;
+        (session.document().format(), session.to_bytes())
+    };
+
+    let mut guard = lock(target)?;
+    if guard.as_ref().is_some_and(EditSession::dirty) {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnsavedChanges,
+            "the open file has edits that are not on disk",
+        ));
+    }
+
+    let mut scratch =
+        EditSession::untitled(parse(format, &bytes).map_err(SubtitleError::from_parse)?);
+    let count = scratch.views().len();
+    if count > 0 {
+        let edits = (0..count).map(|at| (at, String::new())).collect();
+        scratch
+            .apply(&Edit::SetTexts { edits }, Run::New, Instant::now())
+            .map_err(SubtitleError::from_edit)?;
+    }
+    let document = parse(format, &scratch.to_bytes()).map_err(SubtitleError::from_parse)?;
+    let summary = summarize(None, &document);
+    let session = EditSession::untitled(document);
+    let opened = opened_payload(&session, summary);
+    // The third moment a document becomes the one on screen, said out loud for the reason the
+    // other two are: nothing outside the window can observe it.
+    crate::log::info!(
+        "subtitle: a translation begun from the source — {} cues, unsaved",
+        opened.cues.len()
     );
     *guard = Some(session);
     Ok(opened)

@@ -262,7 +262,8 @@ describe("the menu bar and the toolbar", () => {
   });
 
   it("walks the items with the arrows and steps over the disabled ones", async () => {
-    // Nothing is open, so Save, Save a copy and Discard are the disabled run in the middle of File.
+    // Nothing is open, so File has two disabled runs to step over rather than one: the source's
+    // close and the translation it cannot make yet, then Save, Save a copy and Discard.
     pressKey("alt");
     await waitForCursor("file-open-subtitle");
     expect(
@@ -270,11 +271,15 @@ describe("the menu bar and the toolbar", () => {
     ).toBe(true);
 
     pressKey("Down");
+    await waitForCursor("file-open-source");
+    pressKey("Down");
     await waitForCursor("video-open");
     pressKey("Down");
     await waitForCursor("app-quit");
     pressKey("Up");
     await waitForCursor("video-open");
+    pressKey("Up");
+    await waitForCursor("file-open-source");
 
     pressKey("Escape");
     await waitForNoMenu();

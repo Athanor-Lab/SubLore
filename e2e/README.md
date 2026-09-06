@@ -254,9 +254,15 @@ Environment knobs:
 Neither entry point builds anything. A missing binary or fixture fails immediately with the command
 to run, because a silent four-minute rebuild inside a test hook is worse than a red line.
 
-## Five ways to make a run tell you nothing
+## Seven ways to make a run tell you nothing
 
 Each of these produced a failure that meant nothing, and cost a re-run to find out.
+
+**Do not start a second run while one is going.** Both take a display and both write the same
+tally, and the two sets of results are then read as one: on 2026-09-06 a full run reported four
+failed spec files, and three of them were the run that had been started on top of it. `pgrep` for
+the running battery before starting one, and be careful what you grep for, because the grep's own
+command line contains the word you are looking for and matches itself.
 
 **Do not edit a spec file while a run is in progress.** Workers read each file as they reach it, so
 a run started before an edit and finished after it mixes an old binary with new expectations. The
@@ -284,6 +290,14 @@ linter complained about it, and the binary was the one built before it. The run 
 red is the one where `Compiling sublore` appeared and the printed numbers changed. Before believing
 a green mutation run, look for the compile in the log, and print a number the mutation moves. A
 green whose build was never seen proves nothing at all, and it is much easier to produce than a red.
+
+**The runner is not this machine, and one check per CI run fails there and nowhere here.** Five
+runs on 2026-09-06 each failed exactly one check and a different one every time, all of them
+timing-sensitive, none of them reproducible here across many full runs. `specFileRetries` is 1 when
+`CI` is set and 0 here, so the runner re-runs a whole spec file once: a defect that fails
+deterministically fails twice and stays red, the count guard still demands every test, and a flake
+on this machine is still a flake you see. What it can hide is a defect that is genuinely
+intermittent in the product, so read wdio's own line naming the retried file whenever it appears.
 
 **`cargo test -p <crate>` stops at the first failing test binary.** A mutation that reddens
 `tests/mutation.rs` leaves `tests/session.rs` unrun, so the report undercounts what the mutation

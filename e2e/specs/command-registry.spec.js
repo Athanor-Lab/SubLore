@@ -41,6 +41,7 @@ const DECLARED = [
   "file-open-subtitle",
   "file-open-source",
   "file-close-source",
+  "file-new-translation",
   "video-open",
   "file-save",
   "file-save-copy",
@@ -106,13 +107,15 @@ const TITLES = [
 ];
 
 /**
- * File with nothing open: Save, Save a copy and Discard are drawn, and all three are greyed, and
- * so are the two that read a second document beside one that is not there (M2.6 S1).
+ * File with nothing open: Save, Save a copy and Discard are drawn and greyed, and so are the two
+ * that need a document to act on. Open source subtitle is not among them: a translation is begun
+ * from a source, so opening one is the first gesture of all (M2.6 S1 and S2).
  */
 const FILE_ITEMS = [
   { id: "file-open-subtitle", disabled: false },
-  { id: "file-open-source", disabled: true },
+  { id: "file-open-source", disabled: false },
   { id: "file-close-source", disabled: true },
+  { id: "file-new-translation", disabled: true },
   { id: "video-open", disabled: false },
   { id: "file-save", disabled: true },
   { id: "file-save-copy", disabled: true },
@@ -508,9 +511,8 @@ describe("the command registry", () => {
     // seed the cursor onto row 0 (decision 5): insert, delete and merge all only need that, so they
     // ungrey too. Split stays gated behind a caret nothing has placed yet.
     expect(flips(empty, open)).toEqual([
-      // A source is read beside a target, so the item that opens one wakes with the target (S1).
-      // Close source is not beside it: no source is open, so there is still nothing to close.
-      { route: "menu", id: "file-open-source", disabled: false },
+      // Neither source item moves with a target: opening one never needed a target, and closing
+      // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-copy", disabled: false },
       // Find and Replace need a document and nothing else, so both ungrey with the file (F2, F3).
       // Find next is absent from this list on purpose: it also needs a pattern, and nothing here
