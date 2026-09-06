@@ -216,8 +216,16 @@ describe("how wide a box the picture would fill", () => {
       return;
     }
     const alive = findToplevel() !== null;
-    const log = appLogSinceStart(dataHome()).split("\n").slice(-25).join("\n");
-    console.log(`the window is ${alive ? "still there" : "GONE"}; the app's last lines:\n${log}`);
+    const lines = appLogSinceStart(dataHome()).split("\n");
+    // The waveform talks far more than anything else here, so the chosen files and what the player
+    // made of them are pulled out beside the raw tail: an open that never happened is an absence,
+    // and an absence is invisible in a tail the peaks have filled.
+    const mine = lines.filter((line) => /chooser:|video:|preview:/.test(line)).slice(-20);
+    console.log(
+      `the window is ${alive ? "still there" : "GONE"}\n` +
+        `what it opened and drew:\n${mine.join("\n")}\n` +
+        `its last lines:\n${lines.slice(-12).join("\n")}`,
+    );
   });
 
   it("reports a square picture at its own size, and says so once in the log", async () => {
