@@ -237,10 +237,22 @@ export function parseTimecode(value: string): number | null {
 }
 
 /**
- * A cue's length in seconds, to the millisecond the product reasons in (decision 11). Shown as
- * seconds rather than as a timecode: a length is judged against the second, not against the hour.
+ * The largest instant `TYPED_TIME` admits, which is what a pair of typed times has to stay inside:
+ * a start and a length are added before the command sees them, and the sum of two times the pattern
+ * accepts does not fit the `u32` the command's parameter is. See M2.7 E1 and C2.7.
  */
-export function lengthLabel(cue: CueRow): string {
-  const milliseconds = cue.endMs - cue.startMs;
+export const MAX_TIME_MS = 999 * 3_600_000 + 59 * 60_000 + 59 * 1000 + 999;
+
+/**
+ * A span in seconds, to the millisecond the product reasons in (decision 11). Shown as seconds
+ * rather than as a timecode: a length is judged against the second, not against the hour.
+ */
+export function lengthOf(startMs: number, endMs: number): string {
+  const milliseconds = endMs - startMs;
   return (Number.isFinite(milliseconds) ? milliseconds / 1000 : 0).toFixed(3);
+}
+
+/** A cue's own length, by the same rule. */
+export function lengthLabel(cue: CueRow): string {
+  return lengthOf(cue.startMs, cue.endMs);
 }

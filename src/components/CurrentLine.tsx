@@ -7,7 +7,8 @@ import {
   CPS_LIMIT,
   actorNames,
   characterCount,
-  lengthLabel,
+  lengthOf,
+  MAX_TIME_MS,
   parseTimecode,
   readingRate,
   refusedFieldValue,
@@ -42,8 +43,18 @@ type CurrentLineProps = {
   onCommitActor: (cue: number, value: string) => Promise<void>;
 };
 
-/** Which of the two time fields a gesture is in. Duration and CPS are derived and stay read-only. */
-type TimeField = "start" | "end";
+/** Which of the three time fields a gesture is in. CPS stays derived and read-only. */
+type TimeField = "start" | "end" | "length";
+
+/**
+ * The class each time field carries. The length keeps the name it had as read-only text, because
+ * that is the selector the harness's contract lists and the value in it did not change.
+ */
+const TIME_CLASS: Record<TimeField, string> = {
+  start: "currentline__start",
+  end: "currentline__end",
+  length: "currentline__duration",
+};
 
 /** The field points at its list and at the name under the keyboard, so both are named once here. */
 const ACTOR_LIST_ID = "currentline-actor-list";
@@ -82,7 +93,11 @@ export default function CurrentLine({
   /** A row that does not declare the field cannot hold one, so its control is greyed (E3). */
   const canActor = cue !== null && cue.declaredFields.includes("actor");
   const [draft, setDraft] = useState(text);
-  const [times, setTimes] = useState({ start: timecode(startMs), end: timecode(endMs) });
+  const [times, setTimes] = useState({
+    start: timecode(startMs),
+    end: timecode(endMs),
+    length: lengthOf(startMs, endMs),
+  });
   /** What the box last drew, so a cursor move or a change from elsewhere re-seeds it. */
   const [shown, setShown] = useState({ index, text });
   /** The same for the two time fields, tracked apart so committing one never re-seeds the other. */
@@ -114,7 +129,11 @@ export default function CurrentLine({
   }
   if (shownTimes.index !== index || shownTimes.startMs !== startMs || shownTimes.endMs !== endMs) {
     setShownTimes({ index, startMs, endMs });
-    setTimes({ start: timecode(startMs), end: timecode(endMs) });
+    setTimes({
+      start: timecode(startMs),
+      end: timecode(endMs),
+      length: lengthOf(startMs, endMs),
+    });
   }
   // Tracked apart from the times for the same reason they are tracked apart from the text: an undo
   // elsewhere, or the cursor moving, re-seeds this field without disturbing the others.
@@ -180,7 +199,10 @@ export default function CurrentLine({
     };
   }, [listAt]);
 
-  const timesEdited = times.start !== timecode(startMs) || times.end !== timecode(endMs);
+  const timesEdited =
+    times.start !== timecode(startMs) ||
+    times.end !== timecode(endMs) ||
+    times.length !== lengthOf(startMs, endMs);
   // The speaker counts the same way the times do, and by the same rule: text in a field the
   // document does not hold is unsaved work whether or not it can be written yet. See E4.8.
   const actorEdited = actorDraft !== actor;
@@ -204,6 +226,21 @@ export default function CurrentLine({
 
   function onTypeTime(field: TimeField, value: string) {
     const next = { ...times, [field]: value };
+    const typedStart = parseTimecode(next.start);
+    // The command takes the pair, so the third field is carried onto one of the two rather than
+    // sent on its own: a typed length moves the end and leaves the start where it is (C2.1), and a
+    // typed start or end moves the length the same way round.
+    if (field === "length") {
+      const span = parseTimecode(next.length);
+      if (typedStart !== null && span !== null && typedStart + span <= MAX_TIME_MS) {
+        next.end = timecode(typedStart + span);
+      }
+    } else {
+      const typedEnd = parseTimecode(next.end);
+      if (typedStart !== null && typedEnd !== null && typedEnd >= typedStart) {
+        next.length = lengthOf(typedStart, typedEnd);
+      }
+    }
     setTimes(next);
     const start = parseTimecode(next.start);
     const end = parseTimecode(next.end);
@@ -323,7 +360,11 @@ export default function CurrentLine({
     if (event.key === "Escape") {
       event.preventDefault();
       pendingTimes.current = null;
-      setTimes({ start: timecode(startMs), end: timecode(endMs) });
+      setTimes({
+        start: timecode(startMs),
+        end: timecode(endMs),
+        length: lengthOf(startMs, endMs),
+      });
       return;
     }
     if (event.key === "Enter") {
@@ -353,11 +394,27 @@ export default function CurrentLine({
     charClasses.push("currentline__chars--over");
   }
 
+  /**
+   * Whether the field holds something that cannot be sent. Not a time, or, for the length, a length
+   * that carries the end past what the command's parameter can hold (C2.7).
+   */
+  function timeRefused(field: TimeField, value: string): boolean {
+    const parsed = parseTimecode(value);
+    if (parsed === null) {
+      return true;
+    }
+    if (field !== "length") {
+      return false;
+    }
+    const from = parseTimecode(times.start);
+    return from === null || from + parsed > MAX_TIME_MS;
+  }
+
   /** A field that is not a time says so where it is, rather than in the line across the bottom. */
   function timeField(field: TimeField, label: string) {
     const value = times[field];
-    const bad = parseTimecode(value) === null;
-    const classes = ["currentline__time", `currentline__${field}`];
+    const bad = timeRefused(field, value);
+    const classes = ["currentline__time", TIME_CLASS[field]];
     if (bad) {
       classes.push("currentline__time--invalid");
     }
@@ -445,10 +502,7 @@ export default function CurrentLine({
       <div className="currentline__band currentline__times">
         {timeField("start", en.subtitle.currentLine.start)}
         {timeField("end", en.subtitle.currentLine.end)}
-        <span className="currentline__field">
-          <span className="currentline__label">{en.subtitle.currentLine.duration}</span>
-          <span className="currentline__duration">{lengthLabel(cue)}</span>
-        </span>
+        {timeField("length", en.subtitle.currentLine.duration)}
       </div>
       <textarea
         className="currentline__text"

@@ -39,6 +39,18 @@ const SECOND_START = "00:00:09.750";
 /** What the SRT writer puts on the third cue's timing line, before and after. */
 const THIRD_TIMING_LINE = "00:00:09,100 --> 00:00:11,760";
 const SECOND_TIMING_LINE = "00:00:09,750 --> 00:00:11,760";
+/** Typed into the duration field, over the timing the save above leaves standing. */
+const TYPED_DURATION = "3.000";
+const DURATION_END = "00:00:12.750";
+/**
+ * A duration the pattern accepts on its own and the pair cannot hold: added to the start above it
+ * passes 999:59:59.999, which is the ceiling the command's parameter is. See C2.7.
+ */
+const IMPOSSIBLE_DURATION = "999:59:59.999";
+/** Back to a length the pair can hold, so the refusal above can be counted rather than assumed. */
+const RECOVERY_DURATION = "4.000";
+const RECOVERY_END = "00:00:13.750";
+const RECOVERY_TIMING_LINE = "00:00:09,750 --> 00:00:13,750";
 
 function dataHome() {
   const home = process.env.SUBLORE_E2E_DATA_HOME;
@@ -128,15 +140,18 @@ function currentLine() {
   return browser.execute(() => {
     const box = document.querySelector(".currentline__text");
     const read = (css) => document.querySelector(css)?.textContent ?? null;
-    // Start and end are fields since M2.7 E1; duration and CPS are derived and are still text.
+    // Start, end and duration are fields; CPS is derived from them and is still text.
     const field = (css) => document.querySelector(css)?.value ?? null;
     const start = document.querySelector(".currentline__start");
+    const duration = document.querySelector(".currentline__duration");
     return {
       text: box === null ? null : box.value,
       start: field(".currentline__start"),
       end: field(".currentline__end"),
       startInvalid: start === null ? null : start.classList.contains("currentline__time--invalid"),
-      duration: read(".currentline__duration"),
+      durationInvalid:
+        duration === null ? null : duration.classList.contains("currentline__time--invalid"),
+      duration: field(".currentline__duration"),
       cps: read(".currentline__cps"),
       empty: read(".currentline__empty"),
     };
@@ -385,5 +400,72 @@ describe("the current line", () => {
     expect(written).not.toContain(THIRD_TIMING_LINE);
     // Round trip: what the file now holds is what the box shows, read back off the disk.
     expect((await currentLine()).start).toBe(SECOND_START);
+  });
+
+  it("moves the end when a duration is typed, and leaves the start where it is", async () => {
+    await watchCommands();
+    await typeIntoTime(toplevel, "duration", TYPED_DURATION);
+    key("Return");
+
+    await waitFor(async () => (await gridRow(3))?.end === DURATION_END, {
+      timeout: 20000,
+      message: "the third grid row to show the end the typed duration asks for",
+    });
+    // The same one command the two time fields send: a length is the pair, said the other way.
+    expect(await takeCommands()).toEqual(["subtitle_set_times"]);
+
+    const line = await currentLine();
+    expect(line.start).toBe(SECOND_START);
+    expect(line.end).toBe(DURATION_END);
+    expect(line.duration).toBe(TYPED_DURATION);
+    expect(line.durationInvalid).toBe(false);
+  });
+
+  it("sends nothing for a duration the pair cannot hold, and one command once it can", async () => {
+    await watchCommands();
+    await typeIntoTime(toplevel, "duration", IMPOSSIBLE_DURATION);
+    key("Return");
+
+    await waitFor(async () => ((await currentLine()).durationInvalid === true ? true : null), {
+      timeout: 15000,
+      message: "the duration field to mark itself as holding a length the pair cannot hold",
+    });
+    expect((await gridRow(3)).end).toBe(DURATION_END);
+
+    // The barrier the assertion above needs, the way the start field's refusal is counted: the
+    // same field holding a length that fits. A refusal that had sent anything lands here as two.
+    await typeIntoTime(toplevel, "duration", RECOVERY_DURATION);
+    key("Return");
+    await waitFor(async () => (await gridRow(3))?.end === RECOVERY_END, {
+      timeout: 20000,
+      message: "the third grid row to show the end the second duration asks for",
+    });
+    expect(await takeCommands()).toEqual(["subtitle_set_times"]);
+    expect((await currentLine()).durationInvalid).toBe(false);
+  });
+
+  it("gives the end back in one undo, and a save writes the length that stands", async () => {
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => (await gridRow(3))?.end === DURATION_END, {
+      timeout: 20000,
+      message: "one undo to put the third row back on the first typed duration",
+    });
+    expect((await currentLine()).duration).toBe(TYPED_DURATION);
+
+    await clickElement(toplevel, ".toolbar__edit-redo");
+    await waitFor(async () => (await gridRow(3))?.end === RECOVERY_END, {
+      timeout: 20000,
+      message: "the redo to bring the second typed duration back",
+    });
+
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(
+      () => {
+        const written = readFileSync(copy).toString("utf8");
+        return written.includes(RECOVERY_TIMING_LINE) ? written : null;
+      },
+      { timeout: 20000, message: `the saved file to carry ${RECOVERY_TIMING_LINE}` },
+    );
+    expect(readFileSync(copy).toString("utf8")).not.toContain(SECOND_TIMING_LINE);
   });
 });

@@ -39,6 +39,7 @@ const TEXT_TYPES = ["text", "search", "url", "email", "tel", "password", "number
 const ALLOWED_TEXT_FIELDS = [
   "currentline__actor",
   "currentline__text",
+  "currentline__time currentline__duration",
   "currentline__time currentline__end",
   "currentline__time currentline__start",
   "raildialog__field",
