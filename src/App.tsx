@@ -1507,6 +1507,7 @@ export default function App() {
                 cues={subtitle.cues}
                 onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
                 commands={commands}
+                styles={subtitle.summary?.styles ?? []}
               />
             </section>
           </div>

@@ -13,6 +13,8 @@ export type SubtitleSummary = {
   hasBom: boolean;
   newline: SubtitleNewline;
   byteLength: number;
+  /** The names the ASS styles section declares, in its own order. Empty for every other format. */
+  styles: string[];
 };
 
 /** One row of the cue list. Its index is its position in the array, never a field of its own. */
