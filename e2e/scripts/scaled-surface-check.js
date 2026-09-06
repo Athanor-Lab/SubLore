@@ -143,16 +143,20 @@ async function measureAt(scale) {
  * `round(b*2) - round(t*2)` is within one of `2h`, halving leaves half a pixel, and rounding that
  * leaves one, which the doubling turns into two, three once the ratio-1 rounding is counted too.
  *
- * The twentieth is for something the three cannot cover, and it was measured rather than guessed.
- * The page lays itself out in CSS pixels and a different device scale rounds a few of them
- * differently: on the runner the surface came back eight pixels wider and ten taller than twice, on
- * two runs whose heights differed by sixty-four, so the shortfall is the layout's and not the
- * ratio's. See BACKLOG N37. What this check exists to catch is off by a factor: a surface that
- * applied the ratio twice would read 1384 where 692 is wanted, and one that ignored it would read
- * 346. Both are far outside a twentieth, and neither could hide inside it.
+ * The fiftieth of the window is for something the three cannot cover, and it was measured rather
+ * than guessed. The page lays itself out in CSS pixels and a different device scale rounds a few of
+ * them differently: on the runner the surface came back eight pixels wider and ten taller than
+ * twice, and its corner twenty and ten away, on runs whose heights differed by sixty-four, so the
+ * shortfall is the layout's and not the ratio's. See BACKLOG N37.
+ *
+ * It is a share of the window rather than of the number being checked, because the corner is a
+ * small number that a fixed layout difference moves by a large fraction while the window it sits in
+ * has not moved at all. What this check exists to catch is off by a factor: a surface that applied
+ * the ratio twice would read 1384 where 692 is wanted, and one that ignored it would read 346. Both
+ * are more than twenty pixels out of a thousand and neither could hide inside it.
  */
-function doubles(one, two) {
-  return Math.abs(two - one * 2) <= Math.max(3, one * 0.05);
+function doubles(one, two, span) {
+  return Math.abs(two - one * 2) <= Math.max(3, span * 0.02);
 }
 
 async function main() {
@@ -186,8 +190,8 @@ async function main() {
   // would fail for a reason nobody could read.
   check(
     "GDK_SCALE reached the window: the toplevel doubled",
-    doubles(single.toplevel.width, double.toplevel.width) &&
-      doubles(single.toplevel.height, double.toplevel.height),
+    doubles(single.toplevel.width, double.toplevel.width, single.toplevel.width) &&
+      doubles(single.toplevel.height, double.toplevel.height, single.toplevel.height),
     `toplevel was ${single.toplevel.width}x${single.toplevel.height} at ratio 1 and ` +
       `${double.toplevel.width}x${double.toplevel.height} at ratio 2. If those are the same, the ` +
       `ratio never changed and this check proves nothing.`,
@@ -195,8 +199,8 @@ async function main() {
 
   check(
     "the surface doubled in size with the ratio",
-    doubles(single.surface.width, double.surface.width) &&
-      doubles(single.surface.height, double.surface.height),
+    doubles(single.surface.width, double.surface.width, single.toplevel.width) &&
+      doubles(single.surface.height, double.surface.height, single.toplevel.height),
     `surface was ${single.surface.width}x${single.surface.height} then ` +
       `${double.surface.width}x${double.surface.height}. Unchanged means the page's rectangle ` +
       `reached X without being resolved to native pixels, which is BACKLOG N2c.`,
@@ -204,8 +208,8 @@ async function main() {
 
   check(
     "the surface doubled in position with the ratio",
-    doubles(single.surface.relX, double.surface.relX) &&
-      doubles(single.surface.relY, double.surface.relY),
+    doubles(single.surface.relX, double.surface.relX, single.toplevel.width) &&
+      doubles(single.surface.relY, double.surface.relY, single.toplevel.height),
     `surface sat at ${single.surface.relX},${single.surface.relY} then ` +
       `${double.surface.relX},${double.surface.relY}`,
   );
