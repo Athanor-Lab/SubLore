@@ -221,9 +221,25 @@ function rulerSignature() {
   });
 }
 
-/** How tall the ruler band is, in device pixels, as the drawing itself sized it. */
-function rulerHeight() {
-  return browser.execute(() => document.querySelector(".waveform__ruler")?.height ?? null);
+/**
+ * Everything a band that came out wrong would need to be read against: what its backing store says,
+ * what the page gives it, and the panel it has to fit inside. A canvas nobody has sized reports 150
+ * whatever is around it, so a reading has to be told apart from that one. See N34.
+ */
+function bandReading() {
+  return browser.execute(() => {
+    const band = document.querySelector(".waveform__ruler");
+    const wave = document.querySelector(".waveform__canvas");
+    if (band === null || wave === null) {
+      return null;
+    }
+    return {
+      backing: band.height,
+      css: Math.round(band.getBoundingClientRect().height * window.devicePixelRatio),
+      wave: wave.height,
+      ratio: window.devicePixelRatio,
+    };
+  });
 }
 
 /** A wheel notch over the canvas, at its centre, with or without ctrl. Negative zooms or scrolls
@@ -329,12 +345,14 @@ describe("the waveform panel's ruler, strip and window", () => {
     expect(await present(".waveform__ruler")).toBe(true);
     // Measured off the type the band draws, never written down, so all this can say is that it is
     // a band rather than nothing and that it is not taller than the panel it sits in.
-    const band = await rulerHeight();
-    expect(band).toBeGreaterThan(0);
-    const panel = await browser.execute(
-      () => document.querySelector(".waveform__canvas")?.height ?? 0,
-    );
-    expect(band).toBeLessThan(panel);
+    const reading = await bandReading();
+    // Read as one object so a failure prints every number it took to get there rather than one.
+    expect({
+      drawn: reading !== null && reading.backing > 0,
+      inside: reading !== null && reading.backing < reading.wave,
+      sized: reading !== null && reading.backing === reading.css,
+      reading,
+    }).toEqual({ drawn: true, inside: true, sized: true, reading });
 
     const marks = await rulerSignature();
     expect(marks).not.toBe(null);

@@ -353,19 +353,27 @@ export default function Waveform({
       ? box.fontBoundingBoxDescent
       : box.actualBoundingBoxDescent;
     const line = ascent + descent;
+    // A canvas whose metrics come back empty used to leave the band undrawn for good, which is a
+    // ruler that is simply missing. The element's own size is always a number, so it stands in and
+    // the band is drawn either way. See N34.
+    const fallback = Number.parseFloat(style.fontSize) * ratio;
+    const usable = Number.isFinite(line) && line > 0 ? line : fallback;
     // A band read against type that has not arrived would be a band read once, so it is taken on
     // every paint and the state settles on the first that differs.
-    if (Number.isFinite(line) && line > 0) {
-      const wanted = Math.ceil(line) + Math.round(RULER_PADDING_CSS_PX * ratio);
-      if (wanted !== rulerPx) {
-        setRulerPx(wanted);
-        return;
-      }
+    const measured =
+      Number.isFinite(usable) && usable > 0
+        ? Math.ceil(usable) + Math.round(RULER_PADDING_CSS_PX * ratio)
+        : rulerPx;
+    // The state is what gives the element its height on the page, so it is still told. The drawing
+    // below uses the number measured here rather than waiting a render for that state to come
+    // back, which left the canvas at the size a canvas starts at until the next pass. See N34.
+    if (measured !== rulerPx) {
+      setRulerPx(measured);
     }
-    if (rulerPx <= 0) {
+    if (measured <= 0) {
       return;
     }
-    const [width, bandHeight] = fitBackingStore(element, rulerPx);
+    const [width, bandHeight] = fitBackingStore(element, measured);
     // The font is lost with the backing store, so it goes back on after the resize above.
     context.font = fontOf(style, ratio);
     const rulePx = Math.max(1, Math.round(ratio));
