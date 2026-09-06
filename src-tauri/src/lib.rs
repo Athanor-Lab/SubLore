@@ -215,6 +215,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_toggle_style,
             subtitle::subtitle_set_override_tags,
             subtitle::subtitle_clear_text,
+            subtitle::subtitle_set_style_field,
             fonts::fonts_installed,
             subtitle::subtitle_open_source,
             subtitle::subtitle_close_source,

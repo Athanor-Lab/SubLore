@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { choosePath, type ChooseKind } from "./chooser";
 import AboutDialog from "./components/AboutDialog";
+import StyleEditor from "./components/StyleEditor";
 import CueList from "./components/CueList";
 import CurrentLine from "./components/CurrentLine";
 import FindBar, { type FindMode } from "./components/FindBar";
@@ -486,6 +487,8 @@ export default function App() {
   // them all.
   const [choosing, setChoosing] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  /** Which declared style the editor is open over, or null while it is closed. See B10. */
+  const [editingStyle, setEditingStyle] = useState<number | null>(null);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   // The find band, and what it is looking for. The query outlives a close so reopening the band
@@ -1670,6 +1673,14 @@ export default function App() {
                 styles={subtitle.summary?.styles.map((style) => style.name) ?? []}
                 canComment={subtitle.summary?.format === "ass"}
                 onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
+                onEditStyle={() => {
+                  const at = (subtitle.summary?.styles ?? []).findIndex(
+                    (style) => style.name === activeCue?.style,
+                  );
+                  if (at >= 0) {
+                    setEditingStyle(at);
+                  }
+                }}
                 canWriteTag={writesAtCaret}
                 caretAt={writesAtCaret && caret !== null ? caret.offset : null}
                 fonts={fonts.families}
@@ -1806,6 +1817,18 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {/* The style the editor was opened over may go with an undo or a reopen, so the panel is
+          drawn only while the document still declares one at that place. */}
+        {editingStyle !== null && subtitle.summary?.styles[editingStyle] !== undefined && (
+          <StyleEditor
+            index={editingStyle}
+            style={subtitle.summary.styles[editingStyle]}
+            fonts={fonts.families}
+            onLoadFonts={fonts.load}
+            onCommit={(index, field, value) => subtitle.setStyleField(index, field, value)}
+            onClose={() => setEditingStyle(null)}
+          />
+        )}
       </div>
     </LayerContext.Provider>
   );

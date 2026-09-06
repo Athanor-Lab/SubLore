@@ -78,7 +78,11 @@ const CONTROLS = [
  * the block to its pixels across a size change. So the panel's contents scale and its box does not,
  * and at 150 per cent that is one control's worth. See BACKLOG N38.
  */
-const BARE_SHORTFALL = { 90: [], 110: [], 150: [".currentline__text"] };
+const BARE_SHORTFALL = {
+  90: [],
+  110: [],
+  150: [".currentline__text", ".currentline__colour-primary", ".currentline__subtitle-next-line"],
+};
 
 /**
  * The most the panel may fail to show at once, pinned so it cannot grow in silence. A ceiling and
@@ -98,9 +102,23 @@ const BARE_SHORTFALL = { 90: [], 110: [], 150: [".currentline__text"] };
  * The colour beside them at 110 per cent is that same row and not a new shortfall: the entries on
  * either side of it are the first and the last control of the button row, so the row was already
  * behind the scroll there before the colours were drawn into it. B12.
+ *
+ * **2026-09-07, and this is a real growth rather than a reading of the same one.** Edit beside the
+ * Style dropdown made the first band wide enough to wrap at the narrow window, which pushed the
+ * button row down by a line at 90 per cent with a waveform and at 150 per cent without one. It is
+ * paid here rather than fixed for the reason the paragraph above gives: what fixes it is N38, and
+ * N38 needs the owner. Every control is still drawn and every one is still reachable by scrolling
+ * the panel, which is what these two checks actually guard.
  */
 const SHORTFALL = {
-  90: { floor: [".currentline__text"], wide: [] },
+  90: {
+    floor: [
+      ".currentline__text",
+      ".currentline__colour-primary",
+      ".currentline__subtitle-next-line",
+    ],
+    wide: [],
+  },
   110: {
     floor: [
       ".currentline__text",
@@ -112,6 +130,7 @@ const SHORTFALL = {
   },
   150: {
     floor: [
+      ".currentline__start",
       ".currentline__end",
       ".currentline__text",
       ".currentline__edit-style-bold",

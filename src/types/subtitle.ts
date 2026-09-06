@@ -8,6 +8,22 @@ export type SubtitleNewline = "lf" | "crlf" | "mixed" | "none";
  * One declared style as an editor reads it: every value the file's own spelling, and the four flags
  * as booleans because that is what a line's own override tags start from.
  */
+/**
+ * Which column of a `Style:` line a write names. The name is not on it: renaming a style means
+ * rewriting every event that names it, which is a different operation. See edit-bar-tasks.md B10.
+ */
+export type AssStyleField =
+  | "fontname"
+  | "fontsize"
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "back"
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strikeout";
+
 export type AssStyle = {
   name: string;
   fontname: string;
@@ -107,6 +123,8 @@ export type CuePatch = {
   canRedo: boolean;
   dirty: boolean;
   truncated: boolean;
+  /** The styles as they stand: a style write changes no cue, so nothing else here would say it. */
+  styles: AssStyle[];
 };
 
 export type SubtitleSaved = {

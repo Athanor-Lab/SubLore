@@ -47,6 +47,8 @@ type CurrentLineProps = {
   commands: CommandRegistry;
   /** The names the document's styles section declares, in its own order. See edit-bar-tasks C5. */
   styles: string[];
+  /** Open the editor over the style the line names. Greyed on a row that names none (B10). */
+  onEditStyle: () => void;
   /** Whether the format has a descriptor at all: only ASS has one, so only ASS can be commented. */
   canComment: boolean;
   onCommitComment: (cue: number, comment: boolean) => Promise<void>;
@@ -258,6 +260,7 @@ export default function CurrentLine({
   fontsLoading,
   onLoadFonts,
   styles,
+  onEditStyle,
   canComment,
   onCommitComment,
 }: CurrentLineProps) {
@@ -1044,6 +1047,15 @@ export default function CurrentLine({
       <div className="currentline__band currentline__identity">
         {commentField()}
         {styleField()}
+        {/* Row one of the reference puts Edit right after the dropdown, not at the end (B10). */}
+        <button
+          type="button"
+          className="currentline__command currentline__style-edit"
+          disabled={cue === null || !styles.includes(cue.style)}
+          onClick={onEditStyle}
+        >
+          {en.subtitle.styleEditor.edit}
+        </button>
         {comboField("actor", en.subtitle.currentLine.actor, en.subtitle.currentLine.actorNames)}
         {comboField("effect", en.subtitle.currentLine.effect, en.subtitle.currentLine.effectValues)}
         <span className="currentline__field">

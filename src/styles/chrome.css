@@ -136,6 +136,81 @@
 
 /* Help > About. It covers the window rather than dimming it: every colour is a token and the
    palette has no scrim in it. */
+/* The style editor, over the shell like About and closed the same three ways. See B10. */
+.styleeditor {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.styleeditor__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: min(26rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.styleeditor__title {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.styleeditor__field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.styleeditor__label {
+  flex: none;
+  width: 9rem;
+  color: var(--ink-muted);
+}
+
+.styleeditor__value {
+  flex: 1;
+  min-width: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.styleeditor__value:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
+.styleeditor__flags {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 0.3rem;
+}
+
+.styleeditor__flag {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.styleeditor__close {
+  align-self: flex-end;
+  margin-top: 0.5rem;
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
 .about {
   position: fixed;
   z-index: 20;

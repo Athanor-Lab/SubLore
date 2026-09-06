@@ -385,6 +385,26 @@ export const en = {
         "Those cues are gone: another transcription has started since. Run it again.",
       commandFailed: "Sublore could not finish that action. Restart Sublore if it happens again.",
     },
+    /**
+     * What Edit beside the Style dropdown opens. Every field is one write and one undo step, and
+     * the name is not among them: renaming a style rewrites every line that names it. See B10.
+     */
+    styleEditor: {
+      /** The button beside the Style dropdown, which is where the reference's own row puts it. */
+      edit: "Edit",
+      title: "Style",
+      fontname: "Font",
+      fontsize: "Size",
+      primary: "Primary colour",
+      secondary: "Secondary colour",
+      outline: "Outline colour",
+      back: "Shadow colour",
+      bold: "Bold",
+      italic: "Italic",
+      underline: "Underline",
+      strikeout: "Strikeout",
+      close: "Close",
+    },
     /** Said while a list the interface asked for has not come back yet. */
     reading: "Reading…",
     /** Said on the status bar while a second document is open to read from. See S1. */

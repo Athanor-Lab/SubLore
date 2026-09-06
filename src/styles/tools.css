@@ -136,6 +136,11 @@
   background: var(--bg-panel);
 }
 
+/* Edit, beside the Style dropdown. Greyed on a row whose style the document does not declare. */
+.currentline__style-edit {
+  flex: none;
+}
+
 /* The four colours a line can override. They sit after the style buttons, which is where row three
    of the reference puts them, and they grey with no caret to write at. Each is a letter over a bar,
    the way the reference draws them: the bar names which colour the button sets and is fixed, never
