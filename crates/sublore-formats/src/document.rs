@@ -119,6 +119,12 @@ pub struct AssStyle {
     pub italic: bool,
     pub underline: bool,
     pub strikeout: bool,
+    /// Where each of those four sits, so an editor can write one back. Read apart from the
+    /// booleans above because a reader wants the meaning and a writer wants the bytes.
+    pub bold_field: Span,
+    pub italic_field: Span,
+    pub underline_field: Span,
+    pub strikeout_field: Span,
 }
 
 /// A parsed file: the bytes it came from, and the ordered segments that tile them.

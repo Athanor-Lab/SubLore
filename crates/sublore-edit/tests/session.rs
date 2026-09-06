@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use sublore_edit::diff::CuePatch;
 use sublore_edit::error::EditErrorKind;
 use sublore_edit::history::Run;
-use sublore_edit::plan::Edit;
+use sublore_edit::plan::{AssStyleField, Edit};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{AssField, SubtitleDocument, SubtitleFormat};
@@ -1137,6 +1137,78 @@ fn two_tags_written_where_a_note_stands_stay_in_one_block() {
         )
         .expect("two tags at a caret sitting on a note");
     assert_eq!(raw_text(&session, 0), "{\\fnGentium\\fs48}{note}word");
+}
+
+#[test]
+fn a_style_field_is_written_where_the_parser_found_it_and_no_cue_moves() {
+    let mut session = session("ass/clean/basic.ass");
+    let before = session.to_bytes();
+    let texts_before = texts(&session);
+
+    session
+        .apply(
+            &Edit::SetStyleField {
+                style: 0,
+                field: AssStyleField::Fontname,
+                value: "Gentium Book".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("a declared style takes a font");
+    let after = session.to_bytes();
+    assert_ne!(after, before, "the style line changed");
+    assert!(
+        String::from_utf8_lossy(&after).contains("Gentium Book"),
+        "the font is in the file"
+    );
+    // Not one cue moved: that is what the plan asserts and it is what a style write must never do.
+    assert_eq!(texts(&session), texts_before);
+
+    session.undo().expect("a step to undo").expect("a patch");
+    assert_eq!(session.to_bytes(), before, "undo restores the bytes");
+}
+
+#[test]
+fn a_style_field_refuses_a_comma_a_break_and_a_flag_that_is_neither_on_nor_off() {
+    let mut session = session("ass/clean/basic.ass");
+    let before = session.to_bytes();
+    for (field, value) in [
+        (AssStyleField::Fontname, "Gentium, Book"),
+        (AssStyleField::Fontname, "Gentium\nBook"),
+        (AssStyleField::Fontname, " Gentium"),
+        (AssStyleField::Bold, "1"),
+        (AssStyleField::Bold, "yes"),
+    ] {
+        session
+            .apply(
+                &Edit::SetStyleField {
+                    style: 0,
+                    field,
+                    value: value.to_owned(),
+                },
+                Run::New,
+                Instant::now(),
+            )
+            .expect_err("the value cannot be written into a style line");
+    }
+    assert_eq!(session.to_bytes(), before, "a refusal writes nothing");
+}
+
+#[test]
+fn a_style_the_document_does_not_declare_is_refused() {
+    let mut session = session("ass/clean/basic.ass");
+    session
+        .apply(
+            &Edit::SetStyleField {
+                style: 99,
+                field: AssStyleField::Fontname,
+                value: "Gentium".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect_err("there is no style 99");
 }
 
 #[test]

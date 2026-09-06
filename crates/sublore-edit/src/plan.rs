@@ -43,6 +43,14 @@ pub enum Edit {
         cue: usize,
         keep_tags: bool,
     },
+    /// One field of one declared style. The name is not among them: renaming a style means
+    /// rewriting every event that names it, which is a different operation and a different undo
+    /// step. See edit-bar-tasks.md and the style editor's own slice.
+    SetStyleField {
+        style: usize,
+        field: AssStyleField,
+        value: String,
+    },
     /// Several override tags written at one caret, as one undo step. A font picker names two, the
     /// family and the size, and a colour with its transparency names two more: neither is two
     /// things a translator did. Pairs are `(tag, value)` in the order they are written.
@@ -163,6 +171,11 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             to,
         } => plan_toggle_style(document, *cue, *flag, *from, *to),
         Edit::ClearText { cue, keep_tags } => plan_clear_text(document, *cue, *keep_tags),
+        Edit::SetStyleField {
+            style,
+            field,
+            value,
+        } => plan_set_style_field(document, *style, *field, value),
         Edit::SetOverrideTags { cue, tags, at } => {
             plan_set_override_tags(document, *cue, tags, *at)
         }
@@ -1147,6 +1160,165 @@ fn check_tag(tag: &str, value: &str) -> Result<(), EditError> {
         return Err(EditError::new(
             EditErrorKind::NotApplicable,
             "a tag value may not carry a brace or a backslash",
+        ));
+    }
+    Ok(())
+}
+
+/// Which column of a `Style:` line a write names. Closed on purpose, and the name is not on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AssStyleField {
+    Fontname,
+    Fontsize,
+    Primary,
+    Secondary,
+    Outline,
+    Back,
+    Bold,
+    Italic,
+    Underline,
+    Strikeout,
+}
+
+impl AssStyleField {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AssStyleField::Fontname => "fontname",
+            AssStyleField::Fontsize => "fontsize",
+            AssStyleField::Primary => "primary colour",
+            AssStyleField::Secondary => "secondary colour",
+            AssStyleField::Outline => "outline colour",
+            AssStyleField::Back => "shadow colour",
+            AssStyleField::Bold => "bold",
+            AssStyleField::Italic => "italic",
+            AssStyleField::Underline => "underline",
+            AssStyleField::Strikeout => "strikeout",
+        }
+    }
+
+    /// Where the field sits in the style the document read, or an empty span where the section's
+    /// own `Format:` line declares no such column.
+    fn span(self, style: &sublore_formats::AssStyle) -> Span {
+        match self {
+            AssStyleField::Fontname => style.fontname,
+            AssStyleField::Fontsize => style.fontsize,
+            AssStyleField::Primary => style.primary,
+            AssStyleField::Secondary => style.secondary,
+            AssStyleField::Outline => style.outline,
+            AssStyleField::Back => style.back,
+            AssStyleField::Bold => style.bold_field,
+            AssStyleField::Italic => style.italic_field,
+            AssStyleField::Underline => style.underline_field,
+            AssStyleField::Strikeout => style.strikeout_field,
+        }
+    }
+}
+
+/// Write one field of one declared style.
+///
+/// The same shape a cue's field write has, over a different line: the span the parser recorded is
+/// replaced and nothing else moves. A field the section's `Format:` line does not declare is
+/// refused rather than added, for the reason a cue's is: declaring one means rewriting every line
+/// under that header, including the ones nobody edited.
+fn plan_set_style_field(
+    document: &SubtitleDocument,
+    index: usize,
+    field: AssStyleField,
+    value: &str,
+) -> Result<Planned, EditError> {
+    let Some(style) = document.ass_styles().get(index) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!("no style {index} in this document"),
+        ));
+    };
+    let span = field.span(style);
+    if span.start == span.end && span.start == 0 {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!(
+                "the styles section's Format line declares no {}",
+                field.as_str()
+            ),
+        ));
+    }
+    validate_style_value(field, value)?;
+
+    let Some(segment_index) = document
+        .segments()
+        .iter()
+        .position(|segment| segment.span.start <= span.start && span.end <= segment.span.end)
+    else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the style line is not inside any segment of this document",
+        ));
+    };
+
+    let core = field_core(document, span);
+    Ok(Planned {
+        splice: Splice::new(
+            core.start,
+            document.slice(core).to_owned(),
+            value.to_owned(),
+        ),
+        label: EditLabel {
+            kind: EditKind::SetStyleField(field),
+            // A style is not a cue, and the history keys a run on the pair: a style write and a
+            // cue write must never coalesce, so this names a row no cue can have.
+            cue: usize::MAX,
+        },
+        expect: Expectation {
+            // No cue changes, which is the whole of what this asserts: every one of them is read
+            // back and compared, because a style line that swallowed a comma would move them all.
+            from: 0,
+            removed: 0,
+            cues: Vec::new(),
+            segments_from: segment_index,
+            segments_removed: 1,
+            segments_inserted: 1,
+        },
+    })
+}
+
+/// What a style's field may hold. The comma is the dangerous one, for the reason it is in an event.
+fn validate_style_value(field: AssStyleField, value: &str) -> Result<(), EditError> {
+    let unwritable = |detail: &str| EditError::new(EditErrorKind::UnwritableText, detail);
+    if value.contains(',') {
+        return Err(unwritable(
+            "a comma separates the fields of a style line, so a value may not hold one",
+        ));
+    }
+    if value.contains(['\n', '\r']) {
+        return Err(unwritable(
+            "a style line is one line, so a value may not break it",
+        ));
+    }
+    if value
+        .chars()
+        .any(|character| matches!(character, '\u{0}'..='\u{1f}' | '\u{7f}'))
+    {
+        return Err(unwritable(
+            "a control character cannot be written into a style field",
+        ));
+    }
+    if value.trim() != value {
+        return Err(unwritable(
+            "a style field's padding belongs to the file, so a value may not carry its own",
+        ));
+    }
+    // The four flags are what a renderer reads as on or off, and nothing else belongs there.
+    if matches!(
+        field,
+        AssStyleField::Bold
+            | AssStyleField::Italic
+            | AssStyleField::Underline
+            | AssStyleField::Strikeout
+    ) && value != "0"
+        && value != "-1"
+    {
+        return Err(unwritable(
+            "a style's flag is written -1 for on and 0 for off",
         ));
     }
     Ok(())

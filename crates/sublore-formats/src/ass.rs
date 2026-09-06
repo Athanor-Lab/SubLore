@@ -226,6 +226,10 @@ fn style_record(
         italic: style_flag(body, style_field(body, remainder, format.italic)),
         underline: style_flag(body, style_field(body, remainder, format.underline)),
         strikeout: style_flag(body, style_field(body, remainder, format.strikeout)),
+        bold_field: style_field(body, remainder, format.bold),
+        italic_field: style_field(body, remainder, format.italic),
+        underline_field: style_field(body, remainder, format.underline),
+        strikeout_field: style_field(body, remainder, format.strikeout),
     })
 }
 
