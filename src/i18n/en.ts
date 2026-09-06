@@ -428,6 +428,18 @@ export const en = {
       marginRName: "Right margin",
       marginVName: "Vertical margin",
       /**
+       * The four colours a line can override, spoken in full. Row three of the reference draws them
+       * as swatches with no words, and a button here says what it is.
+       */
+      colours: {
+        primary: "Primary colour",
+        secondary: "Secondary colour",
+        outline: "Outline colour",
+        shadow: "Shadow colour",
+      },
+      /** The picker's own field, which takes a colour written the way the web writes one. */
+      colourValue: "Colour, as #RRGGBB",
+      /**
        * Said by the field itself, before anything is sent, so the sentence names what is wrong with
        * this value rather than the one shared refusal below. Keyed by `FieldRefusal`.
        */

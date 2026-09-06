@@ -31,14 +31,21 @@ pub struct Block {
     pub span: Span,
 }
 
-/// Whether a braced run holds a tag. A tag is a backslash followed by a letter, and a run with none
-/// is a comment: `{note}` is a note and `{\b1}` is styling.
+/// Whether a braced run holds a tag. A tag is a backslash and a name, and a run with none is a
+/// comment: `{note}` is a note and `{\b1}` is styling.
 fn holds_a_tag(inside: &str) -> bool {
     let bytes = inside.as_bytes();
     bytes
         .iter()
         .enumerate()
-        .any(|(at, byte)| *byte == b'\\' && bytes.get(at + 1).is_some_and(u8::is_ascii_alphabetic))
+        .any(|(at, byte)| *byte == b'\\' && names_a_tag(bytes, at))
+}
+
+/// Whether the backslash at `at` opens a name: one digit at most, then at least one letter. The
+/// digit is there because the numbered colours and alphas are spelt `\2c` and `\1a`.
+fn names_a_tag(bytes: &[u8], at: usize) -> bool {
+    let letters = at + 1 + usize::from(bytes.get(at + 1).is_some_and(u8::is_ascii_digit));
+    bytes.get(letters).is_some_and(u8::is_ascii_alphabetic)
 }
 
 /// The drawing scale a braced run leaves behind it: the last `\p<digits>` in it, or `None` when it
@@ -185,13 +192,14 @@ pub fn tags_in(text: &str, block: Block) -> Vec<Tag> {
             at += 1;
             continue;
         }
-        let mut after = at + 1;
+        let letters = at + 1 + usize::from(bytes.get(at + 1).is_some_and(u8::is_ascii_digit));
+        let mut after = letters;
         while after < end && bytes[after].is_ascii_alphabetic() {
             after += 1;
         }
         // A backslash with no letter after it is not a tag: `\\N` is a line break and its letter is
         // taken by the name, which is right, and a trailing backslash names nothing.
-        if after == at + 1 {
+        if after == letters {
             at += 1;
             continue;
         }
@@ -549,5 +557,24 @@ mod tests {
                 (BlockKind::Plain, "words")
             ]
         );
+    }
+
+    #[test]
+    fn a_numbered_colour_is_one_name_and_not_a_digit_before_a_value() {
+        let text = "{\\2c&H0000FF&}word";
+        let parsed = blocks(text);
+        assert_eq!(parsed[0].kind, BlockKind::Override);
+        let found = tags_in(text, parsed[0]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(&text[found[0].name.range()], "\\2c");
+        assert_eq!(&text[found[0].value.range()], "&H0000FF&");
+    }
+
+    #[test]
+    fn a_backslash_and_a_digit_with_no_letter_after_it_names_nothing() {
+        let text = "{\\3}word";
+        let parsed = blocks(text);
+        assert_eq!(parsed[0].kind, BlockKind::Comment);
+        assert!(tags_in(text, parsed[0]).is_empty());
     }
 }

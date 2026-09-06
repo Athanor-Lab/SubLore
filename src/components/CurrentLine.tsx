@@ -50,7 +50,71 @@ type CurrentLineProps = {
   /** Whether the format has a descriptor at all: only ASS has one, so only ASS can be commented. */
   canComment: boolean;
   onCommitComment: (cue: number, comment: boolean) => Promise<void>;
+  /**
+   * One override tag written where the caret is. The shell binds the row and the caret, so the
+   * panel names only the tag and the value it chose. See edit-bar-tasks.md B12.
+   */
+  onSetOverrideTag: (tag: string, value: string) => Promise<void>;
+  /** Whether there is a caret on this row to write at. Without one the colour buttons grey. */
+  canWriteTag: boolean;
 };
+
+/** The four colours a line can override, in the order row three of the reference draws them. */
+type ColourSlot = "primary" | "secondary" | "outline" | "shadow";
+
+const COLOUR_SLOTS: ColourSlot[] = ["primary", "secondary", "outline", "shadow"];
+
+/** The four style commands and the letter each is drawn as, in row three's order. */
+const STYLE_GLYPHS: { id: CommandId; glyph: string }[] = [
+  { id: "edit.style-bold", glyph: "B" },
+  { id: "edit.style-italic", glyph: "I" },
+  { id: "edit.style-underline", glyph: "U" },
+  { id: "edit.style-strikeout", glyph: "S" },
+];
+
+/**
+ * The tag each of them writes. The first is `\\c` and not `\\1c` because that is the spelling the
+ * reference writes; a renderer reads the two as one colour.
+ */
+const COLOUR_TAGS: Record<ColourSlot, string> = {
+  primary: "\\c",
+  secondary: "\\2c",
+  outline: "\\3c",
+  shadow: "\\4c",
+};
+
+/** What the picker offers without typing: the sixteen a subtitle is actually coloured with. */
+const PALETTE = [
+  "#FFFFFF",
+  "#C0C0C0",
+  "#808080",
+  "#000000",
+  "#FF0000",
+  "#800000",
+  "#FFFF00",
+  "#808000",
+  "#00FF00",
+  "#008000",
+  "#00FFFF",
+  "#008080",
+  "#0000FF",
+  "#000080",
+  "#FF00FF",
+  "#800080",
+];
+
+/**
+ * ASS writes a colour blue first, so `#RRGGBB` is written `&HBBGGRR&`. Null when the text is not
+ * six hexadecimal digits, which is what keeps a half-typed value out of the line.
+ */
+function assColour(hex: string): string | null {
+  const found = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (found === null) {
+    return null;
+  }
+  const digits = found[1].toUpperCase();
+  return `&H${digits.slice(4, 6)}${digits.slice(2, 4)}${digits.slice(0, 2)}&`;
+}
 
 /** The ASS fields the panel holds as a number: the drawing order and the three margins. */
 type NumberField = "layer" | "marginL" | "marginR" | "marginV";
@@ -157,6 +221,8 @@ export default function CurrentLine({
   cues,
   onCommitField,
   commands,
+  onSetOverrideTag,
+  canWriteTag,
   styles,
   canComment,
   onCommitComment,
@@ -203,6 +269,15 @@ export default function CurrentLine({
     width: number;
   } | null>(null);
   const [highlight, setHighlight] = useState(0);
+  /** Which colour the picker is open on and where it is drawn. Null while it is closed. */
+  const [colourAt, setColourAt] = useState<{
+    slot: ColourSlot;
+    left: number;
+    top: number;
+  } | null>(null);
+  /** What the picker's own field holds, kept between openings so a colour is typed once. */
+  const [hex, setHex] = useState(PALETTE[0]);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
   const comboRefs = useRef<Partial<Record<ComboField, HTMLSpanElement | null>>>({});
   const values = useMemo(
     () => ({ actor: fieldValues(cues, "actor"), effect: fieldValues(cues, "effect") }),
@@ -329,6 +404,40 @@ export default function CurrentLine({
       window.removeEventListener("scroll", close, true);
     };
   }, [listAt]);
+
+  // The picker is anchored to a button on one row, so the cursor leaving that row closes it.
+  useEffect(() => {
+    setColourAt(null);
+  }, [index]);
+
+  // Drawn at coordinates taken when it opened, so it closes rather than hanging over the panel it
+  // no longer belongs to. A press anywhere but inside it, or on the button that opened it, closes
+  // it too: the button's own click is what reopens it.
+  useEffect(() => {
+    if (colourAt === null) {
+      return;
+    }
+    const close = () => setColourAt(null);
+    const away = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        close();
+        return;
+      }
+      const onOpener = target instanceof Element && target.closest(".currentline__colour") !== null;
+      if (pickerRef.current?.contains(target) !== true && !onOpener) {
+        close();
+      }
+    };
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("pointerdown", away, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("pointerdown", away, true);
+    };
+  }, [colourAt]);
 
   const timesEdited =
     times.start !== timecode(startMs) ||
@@ -691,6 +800,67 @@ export default function CurrentLine({
     );
   }
 
+  /** Write one colour where the caret is, and close. A value short of six digits writes nothing. */
+  async function pickColour(slot: ColourSlot, value: string) {
+    const written = assColour(value);
+    if (written === null) {
+      return;
+    }
+    const trimmed = value.trim().toUpperCase();
+    setHex(trimmed.startsWith("#") ? trimmed : `#${trimmed}`);
+    setColourAt(null);
+    await onSetOverrideTag(COLOUR_TAGS[slot], written);
+  }
+
+  /** One colour, drawn as the button that opens the picker over it. */
+  function colourButton(slot: ColourSlot) {
+    const open = colourAt !== null && colourAt.slot === slot;
+    return (
+      <button
+        key={slot}
+        type="button"
+        className={`currentline__colour currentline__colour-${slot}`}
+        aria-label={en.subtitle.currentLine.colours[slot]}
+        aria-expanded={open}
+        // A tag is written at a caret, so a row without one has nothing to write against.
+        disabled={!canWriteTag}
+        onClick={(event) => {
+          if (open) {
+            setColourAt(null);
+            return;
+          }
+          const box = event.currentTarget.getBoundingClientRect();
+          setColourAt({ slot, left: box.left, top: box.bottom });
+        }}
+      >
+        <span aria-hidden="true">A</span>
+      </button>
+    );
+  }
+
+  /**
+   * One of the four style commands, drawn the way row three of the reference draws it: a letter in
+   * the style it writes, not the word. The command's own label stays as the button's spoken name.
+   */
+  function styleButton(id: CommandId, glyph: string) {
+    const command = commands[id];
+    if (command === undefined) {
+      return null;
+    }
+    return (
+      <button
+        key={id}
+        type="button"
+        className={`currentline__command currentline__glyph currentline__${commandToken(id)}`}
+        aria-label={command.label}
+        disabled={!command.enabled}
+        onClick={() => runCommand(commands, id)}
+      >
+        <span aria-hidden="true">{glyph}</span>
+      </button>
+    );
+  }
+
   /** One command from the registry, drawn as a button that greys and runs by the registry's rule. */
   function commandButton(id: CommandId) {
     const command = commands[id];
@@ -807,10 +977,12 @@ export default function CurrentLine({
       {/* Band 3, the commands the panel carries. Row three of the reference puts the style buttons
         first and Next line last, so it goes at the end and the others arrive before it. */}
       <div className="currentline__band currentline__actions">
-        {commandButton("edit.style-bold")}
-        {commandButton("edit.style-italic")}
-        {commandButton("edit.style-underline")}
-        {commandButton("edit.style-strikeout")}
+        {/* Two groups of four, the way the reference draws them: buttons touching inside a group,
+          with the band's own gap between the groups rather than between the buttons. */}
+        <span className="currentline__group">
+          {STYLE_GLYPHS.map(({ id, glyph }) => styleButton(id, glyph))}
+        </span>
+        <span className="currentline__group">{COLOUR_SLOTS.map((slot) => colourButton(slot))}</span>
         {commandButton("subtitle.next-line")}
       </div>
       <textarea
@@ -860,6 +1032,51 @@ export default function CurrentLine({
               {value}
             </button>
           ))}
+        </div>
+      )}
+      {/* The same, over the panel: opened under the button it belongs to, closed by Escape, by a
+        press outside it and by the cursor leaving the row it was opened on. */}
+      {colourAt !== null && (
+        <div
+          className="currentline__picker"
+          ref={pickerRef}
+          role="group"
+          aria-label={en.subtitle.currentLine.colours[colourAt.slot]}
+          style={{ left: colourAt.left, top: colourAt.top }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setColourAt(null);
+            }
+          }}
+        >
+          <div className="currentline__palette">
+            {PALETTE.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className="currentline__swatch"
+                style={{ background: value }}
+                aria-label={value}
+                onClick={() => void pickColour(colourAt.slot, value)}
+              />
+            ))}
+          </div>
+          <input
+            className="currentline__hex"
+            aria-label={en.subtitle.currentLine.colourValue}
+            aria-invalid={assColour(hex) === null}
+            data-document-editor=""
+            value={hex}
+            spellCheck={false}
+            onChange={(event) => setHex(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void pickColour(colourAt.slot, hex);
+              }
+            }}
+          />
         </div>
       )}
     </section>

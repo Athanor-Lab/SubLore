@@ -383,6 +383,49 @@ pub async fn subtitle_toggle_style(
     .await
 }
 
+/// One override tag as a caller names it: the tag, the value chosen for it, and the stretch of the
+/// line it is written over. One value rather than four more arguments, which is the shape H5
+/// settled on when `clippy::too_many_arguments` was right about `module_invoke`.
+#[derive(Debug, Deserialize)]
+pub struct OverrideTagWrite {
+    pub tag: String,
+    pub value: String,
+    pub from: usize,
+    pub to: usize,
+}
+
+/// One override tag with a value the caller chose, over the same stretch a style toggle works on.
+/// The name and the value are checked by the planner, which refuses anything that could close the
+/// block it is written into. See edit-bar-tasks.md B12.
+#[tauri::command]
+pub async fn subtitle_set_override_tag(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    write: OverrideTagWrite,
+) -> Result<CuePatchDto, SubtitleError> {
+    let OverrideTagWrite {
+        tag,
+        value,
+        from,
+        to,
+    } = write;
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::SetOverrideTag {
+            cue,
+            tag,
+            value,
+            from,
+            to,
+        },
+    )
+    .await
+}
+
 /// Whether one cue is a line a player draws. Refused on a format that has no descriptor to
 /// rewrite, and the panel draws that control greyed instead of asking. See edit-bar-tasks.md B8.
 #[tauri::command]

@@ -54,6 +54,7 @@ const CONTROLS = [
   ".currentline__actor-open",
   ".currentline__start",
   ".currentline__end",
+  ".currentline__colour-primary",
   ".currentline__subtitle-next-line",
   ".currentline__text",
 ];
@@ -93,6 +94,10 @@ const BARE_SHORTFALL = { 90: [], 110: [], 150: [".currentline__text"] };
  * block's opening height again would clear it and would take that height from the grid at every
  * size, for one control in one configuration out of six. See edit-bar-tasks.md question 1, which is
  * what actually closes this.
+ *
+ * The colour beside them at 110 per cent is that same row and not a new shortfall: the entries on
+ * either side of it are the first and the last control of the button row, so the row was already
+ * behind the scroll there before the colours were drawn into it. B12.
  */
 const SHORTFALL = {
   90: { floor: [".currentline__text"], wide: [] },
@@ -100,6 +105,7 @@ const SHORTFALL = {
     floor: [
       ".currentline__text",
       ".currentline__edit-style-bold",
+      ".currentline__colour-primary",
       ".currentline__subtitle-next-line",
     ],
     wide: [],
@@ -109,6 +115,7 @@ const SHORTFALL = {
       ".currentline__end",
       ".currentline__text",
       ".currentline__edit-style-bold",
+      ".currentline__colour-primary",
       ".currentline__subtitle-next-line",
     ],
     wide: [".currentline__text"],
@@ -1234,6 +1241,145 @@ describe("the current line's bands", () => {
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
       message: "one undo to take the tag back off",
+    });
+  });
+
+  it("writes the colour picked at the caret, and takes it off in one undo", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const caretBefore = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+    const buttons = () =>
+      browser.execute(() =>
+        Array.from(document.querySelectorAll(".currentline__colour")).map((button) => ({
+          name: button.getAttribute("aria-label"),
+          disabled: button.disabled,
+        })),
+      );
+
+    // An override tag is an ASS thing, so on a format that carries none all four are drawn and
+    // greyed rather than absent, and greyed is what keeps a refusal from being reachable (24 A2).
+    await openSubtitle(toplevel, workingCopy("srt/clean/basic-lf.srt"));
+    await goToRow(toplevel, 1);
+    expect(await buttons()).toEqual([
+      { name: "Primary colour", disabled: true },
+      { name: "Secondary colour", disabled: true },
+      { name: "Outline colour", disabled: true },
+      { name: "Shadow colour", disabled: true },
+    ]);
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    const before = await lineText();
+    expect(before).toContain("harbour");
+
+    await caretBefore("harbour");
+    await waitFor(async () => ((await buttons()).every((one) => !one.disabled) ? 1 : null), {
+      timeout: 15000,
+      message: "a caret in the box to ungrey the four colours",
+    });
+
+    await clickElement(toplevel, ".currentline__colour-outline");
+    await waitFor(() => present(".currentline__picker"), {
+      timeout: 15000,
+      message: "the picker to open under the button",
+    });
+    await clickElement(toplevel, '.currentline__swatch[aria-label="#FF0000"]');
+    // ASS writes a colour blue first, so red is `&H0000FF&`, and the outline is the third one.
+    await waitFor(async () => ((await lineText())?.includes("{\\3c&H0000FF&}harbour") ? 1 : null), {
+      timeout: 15000,
+      message: "the outline colour to be written where the caret was",
+    });
+    expect(await lineText()).toBe(before.replace("harbour", "{\\3c&H0000FF&}harbour"));
+    expect(await present(".currentline__picker")).toBe(false);
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take the colour back off",
+    });
+  });
+
+  it("takes a colour typed into the picker, and writes nothing while it is half typed", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const field = () =>
+      browser.execute(() => {
+        const box = document.querySelector(".currentline__hex");
+        return box === null
+          ? null
+          : { value: box.value, invalid: box.getAttribute("aria-invalid") };
+      });
+    const typeHex = async (toplevel, typed) => {
+      await clickElement(toplevel, ".currentline__hex");
+      await waitFor(
+        () =>
+          browser.execute(
+            () => document.activeElement?.classList.contains("currentline__hex") === true,
+          ),
+        { timeout: 15000, message: "the picker's field to take the keyboard" },
+      );
+      pressKey("ctrl+a");
+      typeText(typed);
+      await waitFor(async () => ((await field())?.value === typed ? 1 : null), {
+        timeout: 15000,
+        message: `the picker's field to hold exactly ${typed}`,
+      });
+    };
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    const before = await lineText();
+    await browser.execute(() => {
+      const box = document.querySelector(".currentline__text");
+      box.focus();
+      box.setSelectionRange(0, 0);
+      box.dispatchEvent(new Event("select", { bubbles: true }));
+    });
+    await waitFor(
+      async () =>
+        (await browser.execute(
+          () => document.querySelector(".currentline__colour-primary")?.disabled === false,
+        ))
+          ? 1
+          : null,
+      { timeout: 15000, message: "a caret at the start of the box" },
+    );
+
+    await clickElement(toplevel, ".currentline__colour-primary");
+    await waitFor(() => present(".currentline__hex"), {
+      timeout: 15000,
+      message: "the picker's own field",
+    });
+
+    // Four digits is not a colour, so Enter writes nothing and the field says which it is.
+    await typeHex(toplevel, "#12AB");
+    expect((await field())?.invalid).toBe("true");
+    pressKey("Return");
+    expect(await lineText()).toBe(before);
+    expect(await present(".currentline__hex")).toBe(true);
+
+    await typeHex(toplevel, "#12AB34");
+    pressKey("Return");
+    // `#12AB34` is red 12, green AB, blue 34, and ASS writes the three the other way round.
+    await waitFor(async () => ((await lineText()) === `{\\c&H34AB12&}${before}` ? 1 : null), {
+      timeout: 15000,
+      message: "the typed colour to be written at the caret",
+    });
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take the typed colour back off",
     });
   });
 

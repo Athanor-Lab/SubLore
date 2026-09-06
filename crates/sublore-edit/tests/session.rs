@@ -986,6 +986,67 @@ fn a_field_committed_as_whitespace_writes_nothing_however_often_it_is_committed(
     );
 }
 
+fn set_override_tag(cue: usize, tag: &str, value: &str, from: usize, to: usize) -> Edit {
+    Edit::SetOverrideTag {
+        cue,
+        tag: tag.to_owned(),
+        value: value.to_owned(),
+        from,
+        to,
+    }
+}
+
+#[test]
+fn a_tag_with_a_chosen_value_is_written_where_the_caret_is() {
+    // B12: a colour is picked rather than flipped, so the value comes from the caller.
+    let mut session = session("ass/clean/basic.ass");
+    let text = raw_text(&session, 0);
+    session
+        .apply(
+            &set_override_tag(0, "\\c", "&H0000FF&", 0, 0),
+            Run::New,
+            Instant::now(),
+        )
+        .expect("an ASS event takes an override tag");
+    assert_eq!(raw_text(&session, 0), format!("{{\\c&H0000FF&}}{text}"));
+
+    session.undo().expect("a step to undo").expect("a patch");
+    assert_eq!(raw_text(&session, 0), text);
+}
+
+#[test]
+fn a_numbered_colour_replaces_the_one_already_in_the_block_rather_than_joining_it() {
+    // B12: `\\2c` is one name, so a second pick of the same colour is not a second tag.
+    let mut session = session("ass/clean/basic.ass");
+    let text = raw_text(&session, 0);
+    for value in ["&H0000FF&", "&H00FF00&"] {
+        session
+            .apply(
+                &set_override_tag(0, "\\2c", value, 0, 0),
+                Run::New,
+                Instant::now(),
+            )
+            .expect("an ASS event takes a numbered colour");
+    }
+    assert_eq!(raw_text(&session, 0), format!("{{\\2c&H00FF00&}}{text}"));
+}
+
+#[test]
+fn a_tag_name_that_is_not_a_name_and_a_value_that_could_close_a_block_are_both_refused() {
+    let mut session = session("ass/clean/basic.ass");
+    let before = session.to_bytes();
+    for (tag, value) in [("c", "&H0&"), ("\\1c1", "&H0&"), ("\\c", "&H0&}x{\\b1")] {
+        session
+            .apply(
+                &set_override_tag(0, tag, value, 0, 0),
+                Run::New,
+                Instant::now(),
+            )
+            .expect_err("neither a bare name nor a value carrying a brace is written");
+    }
+    assert_eq!(session.to_bytes(), before, "a refusal writes nothing");
+}
+
 fn toggle_style(cue: usize, flag: StyleFlag, from: usize, to: usize) -> Edit {
     Edit::ToggleStyle {
         cue,

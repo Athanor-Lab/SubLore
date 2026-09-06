@@ -436,6 +436,15 @@ export default function App() {
    * leaves it unmatched and the split greyed.
    */
   const [caret, setCaret] = useState<{ index: number; offset: number; to: number } | null>(null);
+  /**
+   * Whether an override tag can be written now. Only ASS carries them, and one is written at a
+   * caret in the line's own editor, so it wants one on the row the cursor is on.
+   */
+  const writesAtCaret =
+    subtitle.summary?.format === "ass" &&
+    activeCue !== null &&
+    caret !== null &&
+    caret.index === selection.active;
   // The chooser is modal and answers on its own thread, so a second one asked for while it is up
   // would sit behind the first. Every chooser the chrome raises is raised here, so one flag covers
   // them all.
@@ -1083,8 +1092,7 @@ export default function App() {
     ...STYLE_FLAGS.map(({ id, flag, label }): Command => ({
       id,
       label,
-      // A caret in the line's own editor is what it writes at, so it wants one on this row.
-      enabled: activeCue !== null && caret !== null && caret.index === selection.active,
+      enabled: writesAtCaret,
       run: () => {
         if (caret !== null && selection.active !== null) {
           void subtitle.toggleStyle(selection.active, flag, caret.offset, caret.to);
@@ -1538,6 +1546,20 @@ export default function App() {
                 styles={subtitle.summary?.styles.map((style) => style.name) ?? []}
                 canComment={subtitle.summary?.format === "ass"}
                 onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
+                canWriteTag={writesAtCaret}
+                onSetOverrideTag={async (tag, value) => {
+                  // The same rule the button greys on, read again here: a greyed command must not
+                  // run, and a picker left open on a row the cursor has left must not write to it.
+                  if (writesAtCaret && caret !== null && selection.active !== null) {
+                    await subtitle.setOverrideTag(
+                      selection.active,
+                      tag,
+                      value,
+                      caret.offset,
+                      caret.to,
+                    );
+                  }
+                }}
               />
             </section>
           </div>

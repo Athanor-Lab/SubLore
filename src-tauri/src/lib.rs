@@ -211,6 +211,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_set_field,
             subtitle::subtitle_set_comment,
             subtitle::subtitle_toggle_style,
+            subtitle::subtitle_set_override_tag,
             subtitle::subtitle_set_times,
             subtitle::subtitle_insert,
             subtitle::subtitle_delete,

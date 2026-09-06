@@ -105,6 +105,14 @@ export type SubtitleFile = {
   /** One inline style flag over a stretch of a cue's text, in the bytes of the text as the file
    * spells it. Equal offsets are a caret rather than a selection. See edit-bar-tasks.md B11. */
   toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
+  /** One override tag with a value the caller chose, over the stretch a flag is flipped on. B12. */
+  setOverrideTag: (
+    cue: number,
+    tag: string,
+    value: string,
+    from: number,
+    to: number,
+  ) => Promise<void>;
   /** `before === cues.length` appends; the four below carry the backend's own argument names. */
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
   deleteCue: (cue: number) => Promise<void>;
@@ -387,6 +395,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const setOverrideTag = useCallback(
+    (cue: number, tag: string, value: string, from: number, to: number) =>
+      command("subtitle_set_override_tag", { cue, write: { tag, value, from, to } }),
+    [command],
+  );
+
   const insertCue = useCallback(
     (before: number, startMs: number, endMs: number, text: string) =>
       command("subtitle_insert", { before, startMs, endMs, text }),
@@ -482,6 +496,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setField,
     setComment,
     toggleStyle,
+    setOverrideTag,
     insertCue,
     deleteCue,
     splitCue,
