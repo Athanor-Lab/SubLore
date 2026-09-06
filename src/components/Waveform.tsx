@@ -741,6 +741,10 @@ export default function Waveform({
     <section
       className="waveform"
       aria-label={en.waveform.label}
+      // The window the panel is drawing, so a check reads the mapping the panel is using instead
+      // of inferring one from two seeks and then using it after a third has moved it. See N28.
+      data-from-ms={Math.round(view.fromMs)}
+      data-ms-per-px={view.msPerPixel}
       style={height === undefined ? undefined : { height }}
     >
       <canvas
