@@ -176,6 +176,9 @@
   color: inherit;
   font: inherit;
   font-size: 0.875rem;
+  /* Stated rather than left at `normal`: the block's ceiling is measured off this line, and
+     `normal` has no pixel count to measure. It is the 1.5 the floor above already assumes. */
+  line-height: 1.5;
   resize: none;
 }
 

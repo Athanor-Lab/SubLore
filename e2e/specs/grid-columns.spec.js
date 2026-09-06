@@ -128,6 +128,8 @@ function fixture(...parts) {
 }
 
 const SPEAKERS_FILE = () => fixture("ass", "clean", "speakers.ass");
+/** Forty rows, more than the grid holds at any window this shell allows, so the list scrolls. */
+const LONG_FILE = () => fixture("ass", "clean", "speakers-long.ass");
 const SHUFFLED_FILE = () => fixture("ass", "clean", "speakers-shuffled.ass");
 const SPELLING_FILE = () => fixture("ass", "clean", "actor-spelling.ass");
 const MINIMAL_FILE = () => fixture("ass", "clean", "minimal-fields.ass");
@@ -711,15 +713,21 @@ describe("the grid's style and actor columns", () => {
       off: [],
     });
 
-    // The block takes everything the grid may give up, which leaves the grid its floor of a head
-    // and three rows: five cues then need a scrollbar, and the drag is the only way to ask for one.
+    // A file with more rows than the grid can hold is what makes it scroll. Dragging the grid edge
+    // used to do it, because the block would take everything the grid could give up; it stops at
+    // what the column and the picture can use now, so the grid keeps enough height for a handful
+    // of rows however far the edge is dragged. See grid-columns-tasks.md, answer D.
+    // Still aligned with the block at its ceiling, wherever the ceiling now is.
     await dragSash(toplevel, GRID_SASH, 0, 2000);
+    const wide = await columnEdges();
+    expect(misaligned(wide)).toEqual([]);
+
+    await openSubtitle(toplevel, LONG_FILE());
+    await waitForHead(ASS_HEAD, "both columns on the long file");
     const scrolled = await columnEdges();
     expect({ scrolling: scrolled?.scrolling, off: misaligned(scrolled) }).toEqual({
       scrolling: true,
       off: [],
     });
-
-    await dragSash(toplevel, GRID_SASH, 0, -2000);
   });
 });
