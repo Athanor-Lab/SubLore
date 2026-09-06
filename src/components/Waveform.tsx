@@ -373,6 +373,10 @@ export default function Waveform({
     if (measured <= 0) {
       return;
     }
+    // The page's own height for the band comes from `rulerPx`, which arrives a render later than
+    // this. Set here too, so the element and its backing store never disagree: a canvas sized to
+    // eighteen inside a box the page still calls zero is a band nobody can see. See N34.
+    element.style.height = `${measured / ratio}px`;
     const [width, bandHeight] = fitBackingStore(element, measured);
     // The font is lost with the backing store, so it goes back on after the resize above.
     context.font = fontOf(style, ratio);

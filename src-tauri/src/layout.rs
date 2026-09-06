@@ -46,11 +46,11 @@ const DEFAULT_VIDEO_FRACTION: f64 = 0.38;
 const MIN_VIDEO_FRACTION: f64 = 0.1;
 const MAX_VIDEO_FRACTION: f64 = 0.9;
 
-/// The height the top block opens at, in CSS pixels: the 17.5rem `shell.css` gives it at the
-/// default root size. It was 13.5rem until the current line grew the drawing order and the three
-/// margins: the panel needs 146 of those pixels for its own controls and the waveform opens at
-/// 128, and 216 could not hold both.
-const DEFAULT_TOP_HEIGHT: f64 = 280.0;
+/// The height the top block opens at, in CSS pixels: the 18.5rem `shell.css` gives it at the
+/// default root size. It was 13.5rem until the current line grew the drawing order, the three
+/// margins and the effect: the panel needs its own controls and the waveform opens at 128, and 216
+/// could not hold both.
+const DEFAULT_TOP_HEIGHT: f64 = 296.0;
 
 /// The transport under the video measures 46 px and the stage is never smaller than its own
 /// transport, so this is the block's floor whatever else is in it (D1).

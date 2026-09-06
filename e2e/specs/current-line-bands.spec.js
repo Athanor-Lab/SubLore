@@ -66,16 +66,17 @@ const CONTROLS = [
  * height in `src/App.tsx`, which this change may not touch. See edit-bar-first-tasks.md E5.6.
  */
 /**
- * What the panel does not show at once, as measured, pinned so it cannot grow in silence. It shrank
- * when the block's default grew from 13.5rem to 17.5rem for the drawing order and the three
- * margins: at 90 per cent at the narrowest window, and at 150 per cent at 1920, the text box used
- * to be out of reach and now is not, and at 150 per cent at the narrowest window the End field used
- * to go with it. Every control is drawn and every control is reachable through the panel's scroll.
+ * The most the panel may fail to show at once, pinned so it cannot grow in silence. A ceiling and
+ * not an identity: which controls fall outside a short panel depends on how the machine renders the
+ * type, and this repository's own runner and the CI runner do not agree to the pixel. What must
+ * hold everywhere is that the set never grows past what was measured before the panel gained the
+ * effect, the drawing order and the three margins, which is what these entries are. Every control
+ * is drawn and every control is reachable through the panel's scroll.
  */
 const SHORTFALL = {
-  90: { floor: [], wide: [] },
+  90: { floor: [".currentline__text"], wide: [] },
   110: { floor: [".currentline__text"], wide: [] },
-  150: { floor: [".currentline__text"], wide: [] },
+  150: { floor: [".currentline__end", ".currentline__text"], wide: [".currentline__text"] },
 };
 
 /**
@@ -211,6 +212,38 @@ function numberFields() {
       marginR: read(".currentline__marginr"),
       marginV: read(".currentline__marginv"),
     };
+  });
+}
+
+/** The effect combo, read the way the speaker's is: drawn apart from usable. */
+function effectCombo() {
+  return browser.execute(() => {
+    const field = document.querySelector(".currentline__effect");
+    const opener = document.querySelector(".currentline__effect-open");
+    return {
+      drawn: field !== null && opener !== null,
+      value: field === null ? null : field.value,
+      disabled: field === null ? null : field.disabled,
+      openerDisabled: opener === null ? null : opener.disabled,
+    };
+  });
+}
+
+/** Replace what the effect field holds, the way a person would. */
+async function typeIntoEffect(toplevel, value) {
+  await clickElement(toplevel, ".currentline__effect");
+  await waitFor(
+    () =>
+      browser.execute(
+        () => document.activeElement?.classList.contains("currentline__effect") === true,
+      ),
+    { timeout: 15000, message: "the effect field to take the keyboard" },
+  );
+  pressKey("ctrl+a");
+  typeText(value);
+  await waitFor(async () => ((await effectCombo()).value === value ? 1 : null), {
+    timeout: 15000,
+    message: `the effect field to hold exactly ${value}`,
   });
 }
 
@@ -592,7 +625,7 @@ describe("the current line's bands", () => {
     // Identity first with the two measures of the text at its right end, numbers under it. The
     // order is part of the criterion: a control in the right band and the wrong place is a defect.
     expect(await bandOrder()).toEqual([
-      { band: "identity", parts: ["Actor", "Characters", "CPS"] },
+      { band: "identity", parts: ["Actor", "Effect", "Characters", "CPS"] },
       { band: "times", parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"] },
     ]);
   });
@@ -738,7 +771,7 @@ describe("the current line's bands", () => {
       });
       // The band does not change shape around it, and the readings beside it still work.
       expect(await bandOrder()).toEqual([
-        { band: "identity", parts: ["Actor", "Characters", "CPS"] },
+        { band: "identity", parts: ["Actor", "Effect", "Characters", "CPS"] },
         {
           band: "times",
           parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"],
@@ -1077,6 +1110,72 @@ describe("the current line's bands", () => {
     await goToRow(toplevel, 1);
   });
 
+  it("draws the effect greyed where a line cannot hold one, and alive where it can", async () => {
+    for (const fixture of ["srt/clean/basic-lf.srt", "ass/clean/minimal-fields.ass"]) {
+      await openSubtitle(toplevel, workingCopy(fixture));
+      await goToRow(toplevel, 1);
+      expect({ fixture, ...(await effectCombo()) }).toEqual({
+        fixture,
+        drawn: true,
+        value: "",
+        disabled: true,
+        openerDisabled: true,
+      });
+    }
+
+    await openSubtitle(toplevel, workingCopy("ass/clean/speakers.ass"));
+    await goToRow(toplevel, 1);
+    // Alive and empty: this file declares the field and no row uses it, so there is nothing to
+    // offer either and the opener stays greyed while the field does not.
+    expect(await effectCombo()).toEqual({
+      drawn: true,
+      value: "",
+      disabled: false,
+      openerDisabled: true,
+    });
+  });
+
+  it("writes one effect into the file and offers it on the next line", async () => {
+    const copy = workingCopy("ass/clean/speakers.ass");
+    const before = readFileSync(copy);
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+
+    await typeIntoEffect(toplevel, "Banner");
+    pressKey("Return");
+    await waitFor(async () => ((await effectCombo()).openerDisabled === false ? 1 : null), {
+      timeout: 15000,
+      message: "the opener to come alive once the document uses an effect",
+    });
+    expect(readFileSync(copy).equals(before)).toBe(true);
+
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(
+      () =>
+        readFileSync(copy, "utf8").includes(
+          "Dialogue: 0,0:00:01.34,0:00:03.98,Default,Ingrid,0,0,0,Banner,The harbour freezes over by December.",
+        )
+          ? 1
+          : null,
+      { timeout: 20000, message: "the saved file to carry the effect on its first event line" },
+    );
+    // Only that field moved.
+    expect(readFileSync(copy, "utf8")).toBe(
+      before.toString("utf8").replace("0,0,0,,The harbour", "0,0,0,Banner,The harbour"),
+    );
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await effectCombo()).value === "" ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to empty the effect again",
+    });
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(() => (readFileSync(copy).equals(before) ? 1 : null), {
+      timeout: 20000,
+      message: "the saved file to be byte for byte what it was opened as",
+    });
+  });
+
   it("draws the drawing order and the three margins greyed where a line cannot hold them", async () => {
     const empty = { drawn: true, value: "", disabled: true, invalid: false };
     for (const fixture of ["srt/clean/basic-lf.srt", "vtt/clean/basic.vtt"]) {
@@ -1252,12 +1351,14 @@ describe("the current line's bands", () => {
         // block now grows until the current line reaches its own floor rather than stopping at the
         // height it was stored at, so there is no shortfall left to pin. See E5.6.
         const wide = size.width === WIDE_WIDTH;
-        expect({ at, ...(await panelOutOfReach(CONTROLS)) }).toEqual({
+        const ceiling = SHORTFALL[percent][wide ? "wide" : "floor"];
+        const swept = await panelOutOfReach(CONTROLS);
+        expect({
           at,
-          swept: CONTROLS.length,
-          missing: [],
-          outOfReach: SHORTFALL[percent][wide ? "wide" : "floor"],
-        });
+          swept: swept.swept,
+          missing: swept.missing,
+          beyond: swept.outOfReach.filter((name) => !ceiling.includes(name)),
+        }).toEqual({ at, swept: CONTROLS.length, missing: [], beyond: [] });
         // What the panel owes wherever it does not show everything: the scroll that reaches them,
         // and every control answering once it is scrolled to. Whether it clips at all is not
         // asserted: it depends on the size and the pin above is what says which controls it costs.

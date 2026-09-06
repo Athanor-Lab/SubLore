@@ -5,7 +5,7 @@ import { type AssFieldName, type CueRow } from "../types/subtitle";
 import {
   CHARACTER_LIMIT,
   CPS_LIMIT,
-  actorNames,
+  fieldValues,
   characterCount,
   lengthOf,
   MAX_TIME_MS,
@@ -76,8 +76,19 @@ const TIME_CLASS: Record<TimeField, string> = {
 };
 
 /** The field points at its list and at the name under the keyboard, so both are named once here. */
-const ACTOR_LIST_ID = "currentline-actor-list";
-const ACTOR_OPTION_ID = "currentline-actor-name-";
+/** The two fields drawn as a combo: free text with the values the document already uses beside it. */
+type ComboField = "actor" | "effect";
+
+/** Row one draws them in this order, between the style controls and the count. */
+const COMBO_FIELDS: ComboField[] = ["actor", "effect"];
+
+const LIST_ID = "currentline-combo-list";
+const OPTION_ID = "currentline-combo-value-";
+
+/** The two combo fields as the document holds them. */
+function cueCombos(cue: CueRow | null): Record<ComboField, string> {
+  return { actor: cue?.actor ?? "", effect: cue?.effect ?? "" };
+}
 
 /** The four numeric fields as the document holds them, in the order they are drawn. */
 function cueNumbers(cue: CueRow | null): Record<NumberField, string> {
@@ -140,9 +151,6 @@ export default function CurrentLine({
   const text = cue?.text ?? "";
   const startMs = cue?.startMs ?? 0;
   const endMs = cue?.endMs ?? 0;
-  const actor = cue?.actor ?? "";
-  /** A row that does not declare the field cannot hold one, so its control is greyed (E3). */
-  const canActor = cue !== null && cue.declaredFields.includes("actor");
   const [draft, setDraft] = useState(text);
   const [times, setTimes] = useState({
     start: timecode(startMs),
@@ -168,17 +176,25 @@ export default function CurrentLine({
   const [numbers, setNumbers] = useState(() => cueNumbers(cue));
   const [shownNumbers, setShownNumbers] = useState({ index, values: cueNumbers(cue) });
   const pendingNumbers = useRef<Partial<Record<NumberField, { index: number; value: string }>>>({});
-  /** And for the speaker, which commits on blur and on Enter exactly as the times do (section 4). */
-  const [actorDraft, setActorDraft] = useState(actor);
-  const [shownActor, setShownActor] = useState({ index, actor });
-  const pendingActor = useRef<{ index: number; actor: string } | null>(null);
+  /** And for the combos, which commit on blur and on Enter exactly as the times do (section 4). */
+  const [combos, setCombos] = useState(() => cueCombos(cue));
+  const [shownCombos, setShownCombos] = useState({ index, values: cueCombos(cue) });
+  const pendingCombos = useRef<Partial<Record<ComboField, { index: number; value: string }>>>({});
   /** Why the value in the field cannot be written, said where the field stands. Null when it can. */
   const [refusal, setRefusal] = useState<FieldRefusal | null>(null);
   /** Where the list is drawn, and null while it is closed. Fixed, so the panel cannot clip it. */
-  const [listAt, setListAt] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [listAt, setListAt] = useState<{
+    field: ComboField;
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
   const [highlight, setHighlight] = useState(0);
-  const comboRef = useRef<HTMLSpanElement>(null);
-  const names = useMemo(() => actorNames(cues), [cues]);
+  const comboRefs = useRef<Partial<Record<ComboField, HTMLSpanElement | null>>>({});
+  const values = useMemo(
+    () => ({ actor: fieldValues(cues, "actor"), effect: fieldValues(cues, "effect") }),
+    [cues],
+  );
 
   // The box and the grid's inline editor are two views of the active row, not two states: the one
   // without the keyboard shows what the document holds (decision 5).
@@ -205,11 +221,16 @@ export default function CurrentLine({
     setNumbers(held);
     pendingNumbers.current = {};
   }
-  if (shownActor.index !== index || shownActor.actor !== actor) {
-    setShownActor({ index, actor });
-    setActorDraft(actor);
+  const heldCombos = cueCombos(cue);
+  if (
+    shownCombos.index !== index ||
+    COMBO_FIELDS.some((field) => shownCombos.values[field] !== heldCombos[field])
+  ) {
+    setShownCombos({ index, values: heldCombos });
+    setCombos(heldCombos);
     setRefusal(null);
     setListAt(null);
+    pendingCombos.current = {};
   }
 
   /** Send what the box holds, if it belongs to a row and actually differs from it. */
@@ -253,15 +274,18 @@ export default function CurrentLine({
     [onCommitField],
   );
 
-  /** Send the speaker, if it belongs to a row and the value is one the file can hold. */
-  const commitActor = useCallback(async () => {
-    const held = pendingActor.current;
-    pendingActor.current = null;
-    if (held === null) {
-      return;
-    }
-    await onCommitField(held.index, "actor", held.actor);
-  }, [onCommitField]);
+  /** Send one combo field, if it belongs to a row and the value is one the file can hold. */
+  const commitCombo = useCallback(
+    async (field: ComboField) => {
+      const waiting = pendingCombos.current[field];
+      pendingCombos.current = { ...pendingCombos.current, [field]: undefined };
+      if (waiting === undefined) {
+        return;
+      }
+      await onCommitField(waiting.index, field, waiting.value);
+    },
+    [onCommitField],
+  );
 
   // The window shortcuts and the toolbar flush every editor, so "save" means one thing wherever it
   // was asked for. Times as well as text: an uncommitted time is unsaved work the same way.
@@ -269,7 +293,9 @@ export default function CurrentLine({
     flushRef.current = async () => {
       await commit();
       await commitTimes();
-      await commitActor();
+      for (const field of COMBO_FIELDS) {
+        await commitCombo(field);
+      }
       for (const field of ["layer", ...MARGIN_FIELDS] as NumberField[]) {
         await commitNumber(field);
       }
@@ -297,13 +323,13 @@ export default function CurrentLine({
     times.length !== lengthOf(startMs, endMs);
   // The speaker counts the same way the times do, and by the same rule: text in a field the
   // document does not hold is unsaved work whether or not it can be written yet. See E4.8.
-  const actorEdited = actorDraft !== actor;
+  const combosEdited = COMBO_FIELDS.some((field) => combos[field] !== heldCombos[field]);
   const numbersEdited = (["layer", ...MARGIN_FIELDS] as NumberField[]).some(
     (field) => numbers[field] !== held[field],
   );
   useEffect(() => {
-    onDraftChange(draft !== text || timesEdited || actorEdited || numbersEdited);
-  }, [draft, text, timesEdited, actorEdited, numbersEdited, onDraftChange]);
+    onDraftChange(draft !== text || timesEdited || combosEdited || numbersEdited);
+  }, [draft, text, timesEdited, combosEdited, numbersEdited, onDraftChange]);
 
   /** A range reports where it starts, which is where the text would divide. */
   function reportCaret(box: HTMLTextAreaElement) {
@@ -352,48 +378,45 @@ export default function CurrentLine({
    * the field stands and the document is provably never asked. A refused value stays in the field
    * so it can be corrected (E4.1 and E4.6).
    */
-  function onTypeActor(value: string) {
-    setActorDraft(value);
+  function onTypeCombo(field: ComboField, value: string) {
+    setCombos((current) => ({ ...current, [field]: value }));
     // Typing is the other way into the field, so the list stops standing: with it open Enter picks
-    // the highlighted name, and a translator typing a new one would commit a different one (E2.7).
+    // the highlighted value, and a translator typing a new one would commit a different one (E2.7).
     setListAt(null);
+    setRefusal(holdCombo(field, value));
+  }
+
+  /** What a value does to the pending write, and the refusal it carries. Shared by typing and
+   * picking, because a picked value is tested exactly as a typed one is (E4.6). */
+  function holdCombo(field: ComboField, value: string): FieldRefusal | null {
     const refused = refusedFieldValue(value);
-    setRefusal(refused);
-    // Trimmed the way the document's reader trims it, so typing a stray space around the name the
+    // Trimmed the way the document's reader trims it, so typing a stray space around the value the
     // field already holds writes nothing rather than a byte the panel never shows (E4.7).
     const written = trimmedFieldValue(value);
-    if (index === null || refused !== null || written === actor) {
-      pendingActor.current = null;
-      return;
+    if (index === null || refused !== null || written === heldCombos[field]) {
+      pendingCombos.current = { ...pendingCombos.current, [field]: undefined };
+      return refused;
     }
-    pendingActor.current = { index, actor: written };
+    pendingCombos.current = { ...pendingCombos.current, [field]: { index, value: written } };
+    return refused;
   }
 
   /** Put the list where the field is, in the viewport's own coordinates. */
-  function openList() {
-    const box = comboRef.current?.getBoundingClientRect();
-    if (box === undefined || names.length === 0) {
+  function openList(field: ComboField) {
+    const box = comboRefs.current[field]?.getBoundingClientRect();
+    if (box === undefined || values[field].length === 0) {
       return;
     }
-    setListAt({ left: box.left, top: box.bottom, width: box.width });
-    setHighlight(Math.max(0, names.indexOf(actorDraft)));
+    setListAt({ field, left: box.left, top: box.bottom, width: box.width });
+    setHighlight(Math.max(0, values[field].indexOf(combos[field])));
   }
 
-  /** Picking puts the name in the field and commits it in the one gesture (E2.6). */
-  async function pickName(name: string) {
+  /** Picking puts the value in the field and commits it in the one gesture (E2.6). */
+  async function pickValue(field: ComboField, value: string) {
     setListAt(null);
-    setActorDraft(name);
-    // Tested like a typed one: the list comes from the document, and a hostile file's field can
-    // hold a character no field may (E4.6).
-    const refused = refusedFieldValue(name);
-    setRefusal(refused);
-    const written = trimmedFieldValue(name);
-    if (index === null || refused !== null || written === actor) {
-      pendingActor.current = null;
-      return;
-    }
-    pendingActor.current = { index, actor: written };
-    await commitActor();
+    setCombos((current) => ({ ...current, [field]: value }));
+    setRefusal(holdCombo(field, value));
+    await commitCombo(field);
   }
 
   function onTypeNumber(field: NumberField, value: string) {
@@ -420,7 +443,8 @@ export default function CurrentLine({
     }
   }
 
-  function onActorKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onComboKeyDown(field: ComboField, event: KeyboardEvent<HTMLInputElement>) {
+    const list = values[field];
     if (event.key === "Escape") {
       event.preventDefault();
       // An open list is what Escape closes first; a second one puts the field back (E2.4).
@@ -428,34 +452,34 @@ export default function CurrentLine({
         setListAt(null);
         return;
       }
-      pendingActor.current = null;
-      setActorDraft(actor);
+      pendingCombos.current = { ...pendingCombos.current, [field]: undefined };
+      setCombos((current) => ({ ...current, [field]: heldCombos[field] }));
       setRefusal(null);
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (listAt === null) {
-        openList();
+        openList(field);
         return;
       }
       // Guarded rather than assumed: the document can change under an open list, and a modulo by
       // an empty list is not a number.
-      if (names.length === 0) {
+      if (list.length === 0) {
         return;
       }
-      const step = event.key === "ArrowDown" ? 1 : names.length - 1;
-      setHighlight((at) => (at + step) % names.length);
+      const step = event.key === "ArrowDown" ? 1 : list.length - 1;
+      setHighlight((at) => (at + step) % list.length);
       return;
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      const picked = listAt === null ? undefined : names[highlight];
+      const picked = listAt === null ? undefined : list[highlight];
       if (picked !== undefined) {
-        void pickName(picked);
+        void pickValue(field, picked);
         return;
       }
-      void commitActor();
+      void commitCombo(field);
     }
   }
 
@@ -590,40 +614,47 @@ export default function CurrentLine({
   }
 
   /**
-   * The speaker: a text field with the names this document already uses beside it. Drawn and greyed
-   * on a document whose lines cannot hold one, never absent (E3.1).
+   * One combo: a text field with the values this document already uses beside it. Drawn and greyed
+   * on a row whose `Format:` line cannot hold the field, never absent (E3.1).
    */
-  function actorField() {
-    const label = en.subtitle.currentLine.actor;
+  function comboField(field: ComboField, label: string, opener: string) {
+    const can = cue !== null && cue.declaredFields.includes(field);
+    const list = values[field];
+    const open = listAt !== null && listAt.field === field;
     return (
       <span className="currentline__field">
         <span className="currentline__label">{label}</span>
-        <span className="currentline__combo" ref={comboRef}>
+        <span
+          className="currentline__combo"
+          ref={(node) => {
+            comboRefs.current[field] = node;
+          }}
+        >
           <input
-            className="currentline__actor"
+            className={`currentline__${field}`}
             role="combobox"
             aria-label={label}
             aria-invalid={refusal !== null}
-            aria-expanded={listAt !== null}
-            aria-controls={ACTOR_LIST_ID}
-            aria-activedescendant={listAt === null ? undefined : `${ACTOR_OPTION_ID}${highlight}`}
+            aria-expanded={open}
+            aria-controls={LIST_ID}
+            aria-activedescendant={open ? `${OPTION_ID}${highlight}` : undefined}
             data-document-editor=""
-            disabled={!canActor}
-            value={actorDraft}
+            disabled={!can}
+            value={combos[field]}
             spellCheck={false}
-            onChange={(event) => onTypeActor(event.target.value)}
-            onKeyDown={onActorKeyDown}
-            onBlur={() => void commitActor()}
+            onChange={(event) => onTypeCombo(field, event.target.value)}
+            onKeyDown={(event) => onComboKeyDown(field, event)}
+            onBlur={() => void commitCombo(field)}
           />
           <button
             type="button"
-            className="currentline__actor-open"
-            aria-label={en.subtitle.currentLine.actorNames}
-            aria-expanded={listAt !== null}
+            className={`currentline__${field}-open`}
+            aria-label={opener}
+            aria-expanded={open}
             // Nothing to pick is nothing to open, so the opener greys while the field stays usable.
-            disabled={!canActor || names.length === 0}
+            disabled={!can || list.length === 0}
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => (listAt === null ? openList() : setListAt(null))}
+            onClick={() => (open ? setListAt(null) : openList(field))}
           />
         </span>
       </span>
@@ -635,7 +666,8 @@ export default function CurrentLine({
       {/* Band 1, identity. The two measures of the text sit at its right end, where a translator
         glances rather than reaches. See edit-bar-first-tasks.md section 2. */}
       <div className="currentline__band currentline__identity">
-        {actorField()}
+        {comboField("actor", en.subtitle.currentLine.actor, en.subtitle.currentLine.actorNames)}
+        {comboField("effect", en.subtitle.currentLine.effect, en.subtitle.currentLine.effectValues)}
         <span className="currentline__field">
           <span className="currentline__label">{en.subtitle.currentLine.characters}</span>
           <span className={charClasses.join(" ")}>{characters}</span>
@@ -694,15 +726,19 @@ export default function CurrentLine({
       {listAt !== null && (
         <div
           className="currentline__actor-list"
-          id={ACTOR_LIST_ID}
+          id={LIST_ID}
           role="listbox"
-          aria-label={en.subtitle.currentLine.actorNames}
+          aria-label={
+            listAt.field === "actor"
+              ? en.subtitle.currentLine.actorNames
+              : en.subtitle.currentLine.effectValues
+          }
           style={{ left: listAt.left, top: listAt.top, minWidth: listAt.width }}
         >
-          {names.map((name, at) => (
+          {values[listAt.field].map((value, at) => (
             <button
-              key={name}
-              id={`${ACTOR_OPTION_ID}${at}`}
+              key={value}
+              id={`${OPTION_ID}${at}`}
               type="button"
               role="option"
               aria-selected={at === highlight}
@@ -712,9 +748,9 @@ export default function CurrentLine({
                   : "currentline__actor-name"
               }
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => void pickName(name)}
+              onClick={() => void pickValue(listAt.field, value)}
             >
-              {name}
+              {value}
             </button>
           ))}
         </div>

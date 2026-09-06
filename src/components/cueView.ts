@@ -145,21 +145,23 @@ export function characterCount(text: string): number {
 }
 
 /**
- * The speakers the open document already names, in the order its rows first use them.
+ * The values the open document already uses in one of its combo fields, in the order its rows first
+ * use them.
  *
- * First appearance and not sorted: the list is a record of who has spoken so far, and the name
+ * First appearance and not sorted: the list is a record of what has been used so far, and the value
  * wanted next is usually the one used last. See edit-bar-first-tasks.md D6.
  */
-export function actorNames(cues: CueRow[]): string[] {
+export function fieldValues(cues: CueRow[], field: "actor" | "effect"): string[] {
   const seen = new Set<string>();
-  const names: string[] = [];
+  const values: string[] = [];
   for (const cue of cues) {
-    if (cue.actor !== "" && !seen.has(cue.actor)) {
-      seen.add(cue.actor);
-      names.push(cue.actor);
+    const value = cue[field];
+    if (value !== "" && !seen.has(value)) {
+      seen.add(value);
+      values.push(value);
     }
   }
-  return names;
+  return values;
 }
 
 /**
