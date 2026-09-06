@@ -275,8 +275,13 @@ describe("how wide a box the picture would fill", () => {
     expect(countInLog(NO_PICTURE)).toBe(said + 1);
     expect(countInLog(A_SIZE)).toBe(sized);
 
+    // Each alert with the class it carries, so a failure names which line said it rather than
+    // leaving the reader to work it out from the sentence. See BACKLOG.md N40.
     const alarming = await browser.execute(() =>
-      Array.from(document.querySelectorAll('[role="alert"]')).map((node) => node.textContent),
+      Array.from(document.querySelectorAll('[role="alert"]')).map((node) => ({
+        said: node.textContent,
+        drawnAs: node.className,
+      })),
     );
     // A sentence on screen and the refusals the app logged, read as one object: a refusal is what
     // puts a sentence there, and the log is the only place that says which command was refused.

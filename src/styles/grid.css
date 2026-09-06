@@ -115,6 +115,18 @@
    its label and still start where a row's text started, because everything before it was a fixed
    width; with two growing cells in front of it, a head and a row that do not divide the slack by
    the same rule stop lining up. */
+/* The document being read from, beside the one being written, sharing the width evenly with it.
+   Never edited: it is text and not an editor, and no click opens one. See S1. */
+.cuelist__source,
+.cuelist__headcell--source {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .cuelist__text,
 .cuelist__headcell--text {
   flex: 1;

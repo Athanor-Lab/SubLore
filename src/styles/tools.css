@@ -136,6 +136,129 @@
   background: var(--bg-panel);
 }
 
+/* The four colours a line can override. They sit after the style buttons, which is where row three
+   of the reference puts them, and they grey with no caret to write at. Each is a letter over a bar,
+   the way the reference draws them: the bar names which colour the button sets and is fixed, never
+   the line's own colour, because the button says what it writes and not what is written. */
+/* A run of buttons that touch, which is how the reference groups row three's icons. */
+.currentline__group {
+  display: flex;
+}
+
+.currentline__colour {
+  width: 1.7rem;
+  padding: 0.1rem 0 0.25rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Touching, so each four reads as one group, and one border between a pair rather than two. */
+.currentline__colour + .currentline__colour,
+.currentline__glyph + .currentline__glyph {
+  border-left: none;
+}
+
+/* The four style buttons: the letter drawn in the style the button writes, so the button shows
+   what it does. The word stays the command's own, as the name a reader is given. */
+.currentline__glyph {
+  width: 1.7rem;
+  padding: 0.1rem 0;
+  text-align: center;
+}
+
+.currentline__edit-style-bold {
+  font-weight: 700;
+}
+
+.currentline__edit-style-italic {
+  font-style: italic;
+}
+
+.currentline__edit-style-underline {
+  text-decoration: underline;
+}
+
+.currentline__edit-style-strikeout {
+  text-decoration: line-through;
+}
+
+.currentline__colour::after {
+  display: block;
+  height: 0.2rem;
+  margin: 0.1rem 0.2rem 0;
+  background: var(--swatch);
+  content: "";
+}
+
+.currentline__colour-primary {
+  --swatch: #ffffff;
+}
+
+.currentline__colour-secondary {
+  --swatch: #ff4040;
+}
+
+.currentline__colour-outline {
+  --swatch: #4f9de8;
+}
+
+.currentline__colour-shadow {
+  --swatch: #6b6b78;
+}
+
+.currentline__colour:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
+/* A greyed button must read as greyed whichever colour its bar names. */
+.currentline__colour:disabled::after {
+  opacity: 0.4;
+}
+
+/* Drawn over the panel rather than inside it, so the panel's own scroll cannot clip it. */
+.currentline__picker {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.currentline__palette {
+  display: grid;
+  grid-template-columns: repeat(4, 1.4rem);
+  gap: 0.15rem;
+}
+
+.currentline__swatch {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--line);
+}
+
+.currentline__hex {
+  width: 8em;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+/* A colour that is not six digits yet writes nothing, and the field says so where it stands. */
+.currentline__hex[aria-invalid="true"] {
+  border-color: var(--ink-error);
+}
+
 /* The drawing order and the three margins: whole numbers, so a field four digits wide with the
    frame the times use and the digits centred, which is where the reference puts them (1.2). */
 .currentline__number {

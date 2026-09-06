@@ -29,6 +29,7 @@ import { useModulePanels } from "./hooks/useModulePanels";
 import { useModuleWork } from "./hooks/useModuleWork";
 import { useModules, refusalLine } from "./hooks/useModules";
 import { useSearch, type SearchOutcome } from "./hooks/useSearch";
+import { useSourceFile } from "./hooks/useSourceFile";
 import { useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
 import { useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
@@ -196,6 +197,9 @@ export default function App() {
   // Every HTML layer registers here while it is open, and the video surface hides for as long as
   // the set is not empty (decision 1, T8).
   const layers = useLayerRegistry();
+  // The document being read from while translating, held apart from the one being written so that
+  // no edit can reach it. See side-by-side-tasks.md S1.
+  const source = useSourceFile();
   // The user's own expression never runs on this thread: it runs where it can be killed (F4a).
   const search = useSearch();
   // Read once at startup; the scan itself ran before this window existed (module-abi.md 3.5).
@@ -436,6 +440,15 @@ export default function App() {
    * leaves it unmatched and the split greyed.
    */
   const [caret, setCaret] = useState<{ index: number; offset: number; to: number } | null>(null);
+  /**
+   * Whether an override tag can be written now. Only ASS carries them, and one is written at a
+   * caret in the line's own editor, so it wants one on the row the cursor is on.
+   */
+  const writesAtCaret =
+    subtitle.summary?.format === "ass" &&
+    activeCue !== null &&
+    caret !== null &&
+    caret.index === selection.active;
   // The chooser is modal and answers on its own thread, so a second one asked for while it is up
   // would sit behind the first. Every chooser the chrome raises is raised here, so one flag covers
   // them all.
@@ -868,6 +881,19 @@ export default function App() {
       run: () => void pick("subtitle", undefined, (path) => void subtitle.open(path)),
     },
     {
+      id: "file.open-source",
+      label: en.menu.file.openSource,
+      // A source is read beside a target, so there has to be a target to read it beside.
+      enabled: !choosing && subtitle.summary !== null,
+      run: () => void pick("subtitle", undefined, (path) => void source.open(path)),
+    },
+    {
+      id: "file.close-source",
+      label: en.menu.file.closeSource,
+      enabled: source.summary !== null,
+      run: () => void source.close(),
+    },
+    {
       id: "video.open",
       label: en.menu.file.openVideo,
       accelerator: en.menu.keys.openVideo,
@@ -1083,8 +1109,7 @@ export default function App() {
     ...STYLE_FLAGS.map(({ id, flag, label }): Command => ({
       id,
       label,
-      // A caret in the line's own editor is what it writes at, so it wants one on this row.
-      enabled: activeCue !== null && caret !== null && caret.index === selection.active,
+      enabled: writesAtCaret,
       run: () => {
         if (caret !== null && selection.active !== null) {
           void subtitle.toggleStyle(selection.active, flag, caret.offset, caret.to);
@@ -1242,6 +1267,8 @@ export default function App() {
       title: en.menu.file.title,
       items: [
         "file.open-subtitle",
+        "file.open-source",
+        "file.close-source",
         "video.open",
         "file.save",
         "file.save-copy",
@@ -1538,6 +1565,20 @@ export default function App() {
                 styles={subtitle.summary?.styles.map((style) => style.name) ?? []}
                 canComment={subtitle.summary?.format === "ass"}
                 onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
+                canWriteTag={writesAtCaret}
+                onSetOverrideTag={async (tag, value) => {
+                  // The same rule the button greys on, read again here: a greyed command must not
+                  // run, and a picker left open on a row the cursor has left must not write to it.
+                  if (writesAtCaret && caret !== null && selection.active !== null) {
+                    await subtitle.setOverrideTag(
+                      selection.active,
+                      tag,
+                      value,
+                      caret.offset,
+                      caret.to,
+                    );
+                  }
+                }}
               />
             </section>
           </div>
@@ -1561,6 +1602,7 @@ export default function App() {
           <CueList
             key={subtitle.openId}
             cues={subtitle.cues}
+            sourceCues={source.cues}
             selection={selection}
             multiline={subtitle.summary?.format !== "ass"}
             flushRef={flushGrid}
@@ -1644,11 +1686,14 @@ export default function App() {
         )}
         <StatusBar
           summary={subtitle.summary}
+          sourceSummary={source.summary}
           dirty={dirty}
           truncated={subtitle.truncated}
           saved={subtitle.saved}
           savedInPlace={subtitle.savedInPlace}
-          subtitleError={subtitle.error}
+          // One sink for both documents: a source that could not be read is refused for the same
+          // reasons a target is, and the bar already says each of them in the user's words.
+          subtitleError={subtitle.error ?? source.error}
           videoErrorCode={errorCode}
           projectDeleted={project.deleted}
           projectError={project.error}

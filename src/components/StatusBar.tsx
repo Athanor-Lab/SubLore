@@ -7,12 +7,15 @@ import {
 } from "../hooks/useSubtitleFile";
 import { videoErrorMessage } from "../hooks/useVideoPlayer";
 import { en } from "../i18n/en";
+import { fill } from "../i18n/format";
 import { type ProjectDeletedView, type ProjectError } from "../types/project";
 import { type SubtitleError, type SubtitleSaved, type SubtitleSummary } from "../types/subtitle";
 import { type VideoErrorCode } from "../types/video";
 
 type StatusBarProps = {
   summary: SubtitleSummary | null;
+  /** The document being read from, or null while none is. See side-by-side-tasks.md S1. */
+  sourceSummary: SubtitleSummary | null;
   dirty: boolean;
   truncated: boolean;
   saved: SubtitleSaved | null;
@@ -38,6 +41,7 @@ type StatusBarProps = {
  */
 export default function StatusBar({
   summary,
+  sourceSummary,
   dirty,
   truncated,
   saved,
@@ -58,6 +62,11 @@ export default function StatusBar({
       <p className="statusbar__document">
         <span>{summary === null ? en.subtitle.noFile : subtitleStatusLine(summary)}</span>
         {dirty && <span className="statusbar__dirty">{en.subtitle.dirty}</span>}
+        {sourceSummary !== null && (
+          <span className="statusbar__source">
+            {fill(en.subtitle.sourceOpen, { document: subtitleStatusLine(sourceSummary) })}
+          </span>
+        )}
       </p>
       <div className="statusbar__messages">
         {truncated && <span className="statusbar__truncated">{en.subtitle.truncated}</span>}

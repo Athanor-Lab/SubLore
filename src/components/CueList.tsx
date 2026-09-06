@@ -28,6 +28,11 @@ function rowId(index: number): string {
 
 type CueListProps = {
   cues: CueRow[];
+  /**
+   * The document being read from, row for row. Empty while none is open, which is what takes the
+   * column away. Aligned by index and by nothing else. See side-by-side-tasks.md S1.
+   */
+  sourceCues: CueRow[];
   /** The cursor and the selection, held by the shell: the tools column reads the cursor too (T5). */
   selection: CueSelection;
   /** ASS writes line breaks as `\N` inside one field, so a real one cannot be committed there. */
@@ -50,6 +55,7 @@ type CueListProps = {
  */
 export default function CueList({
   cues,
+  sourceCues,
   selection,
   multiline,
   flushRef,
@@ -74,8 +80,11 @@ export default function CueList({
     () => ({
       style: cues.some((cue) => cue.style !== ""),
       actor: cues.some((cue) => cue.actor !== ""),
+      // The source is a document and not a field, so an open one with nothing on this row still
+      // draws its column: what is missing there is a row the source does not reach.
+      source: sourceCues.length > 0,
     }),
-    [cues],
+    [cues, sourceCues],
   );
 
   useEffect(() => {
@@ -308,6 +317,11 @@ export default function CueList({
         <span className="cuelist__headcell cuelist__headcell--text">
           {en.subtitle.cueList.text}
         </span>
+        {columns.source && (
+          <span className="cuelist__headcell cuelist__headcell--source">
+            {en.subtitle.cueList.source}
+          </span>
+        )}
       </div>
       <div
         className="cuelist"
@@ -384,6 +398,9 @@ export default function CueList({
                   >
                     {cue.text}
                   </span>
+                )}
+                {columns.source && (
+                  <span className="cuelist__source">{sourceCues[index]?.text ?? ""}</span>
                 )}
               </div>
             );

@@ -39,6 +39,8 @@ import { findToplevel } from "../lib/x11.js";
  */
 const DECLARED = [
   "file-open-subtitle",
+  "file-open-source",
+  "file-close-source",
   "video-open",
   "file-save",
   "file-save-copy",
@@ -103,9 +105,14 @@ const TITLES = [
   { id: "help", label: "Help", disabled: false },
 ];
 
-/** File with nothing open: Save, Save a copy and Discard are drawn, and all three are greyed. */
+/**
+ * File with nothing open: Save, Save a copy and Discard are drawn, and all three are greyed, and
+ * so are the two that read a second document beside one that is not there (M2.6 S1).
+ */
 const FILE_ITEMS = [
   { id: "file-open-subtitle", disabled: false },
+  { id: "file-open-source", disabled: true },
+  { id: "file-close-source", disabled: true },
   { id: "video-open", disabled: false },
   { id: "file-save", disabled: true },
   { id: "file-save-copy", disabled: true },
@@ -501,6 +508,9 @@ describe("the command registry", () => {
     // seed the cursor onto row 0 (decision 5): insert, delete and merge all only need that, so they
     // ungrey too. Split stays gated behind a caret nothing has placed yet.
     expect(flips(empty, open)).toEqual([
+      // A source is read beside a target, so the item that opens one wakes with the target (S1).
+      // Close source is not beside it: no source is open, so there is still nothing to close.
+      { route: "menu", id: "file-open-source", disabled: false },
       { route: "menu", id: "file-save-copy", disabled: false },
       // Find and Replace need a document and nothing else, so both ungrey with the file (F2, F3).
       // Find next is absent from this list on purpose: it also needs a pattern, and nothing here

@@ -69,6 +69,9 @@ pub enum EditKind {
     /// Which flag is on the label, for the reason `SetField` carries its field: bold and italic on
     /// one line must never merge into one undo step.
     ToggleStyle(sublore_formats::override_tags::StyleFlag),
+    /// A tag written with a value the caller chose. One kind rather than one per tag, unlike the
+    /// flag above: the picker commits on the pick, so every pick opens its own step.
+    SetOverrideTag,
     Insert,
     Delete,
     Split,
