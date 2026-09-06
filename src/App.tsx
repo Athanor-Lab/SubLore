@@ -303,11 +303,12 @@ export default function App() {
         toolsWidth: column.clientWidth,
         toolsHeight: column.clientHeight,
         lineHeight: line === null ? 0 : line.clientHeight,
-        // What the current line would take if nothing stretched it: itself, with the text box at
-        // the few lines a translator writes into rather than at whatever it was given. Neither
-        // `scrollHeight` nor `clientHeight` can say this: the first never reports less than the
-        // box it is in, so a stretched box always looks full.
-        lineContent: line === null || text === null ? 0 : line.clientHeight - textSlack(text),
+        // What the current line would take if nothing stretched it: its own content, with the text
+        // box at the few lines a translator writes into rather than at whatever it was given.
+        // `scrollHeight` so that a panel with more controls than room says how much more it wants,
+        // and the text box's slack taken off so that a panel with room to spare does not report the
+        // room as content, which would make this rise every time it was answered.
+        lineContent: line === null || text === null ? 0 : line.scrollHeight - textSlack(text),
         topWidth: top.clientWidth,
         railWidth: rail === null ? 0 : rail.getBoundingClientRect().width,
         gridHeight: grid.clientHeight,
@@ -354,7 +355,10 @@ export default function App() {
   }, [scale, duration]);
 
   const minVideoWidth = transportFloor ?? 0;
-  const minCurrentLine = MIN_CURRENT_LINE * scale;
+  // The floor the current line keeps: the larger of the written-down minimum and what the panel's
+  // own controls need. Written down alone it was a number for the controls the panel had when it
+  // was measured, and every control added since made it wrong by exactly that control.
+  const minCurrentLine = Math.max(MIN_CURRENT_LINE * scale, frame.lineContent);
   const minWaveformHeight = MIN_WAVEFORM_HEIGHT * scale;
   // The grid's three rows are a fixed 28px at every size, so only its header is scaled, and never
   // downwards: a floor short of a whole row clips it.
@@ -1424,7 +1428,17 @@ export default function App() {
                     peaks={peaks}
                     positionMs={Math.round(position * 1000)}
                     durationMs={Math.round((state.duration ?? 0) * 1000)}
-                    height={layout?.waveformHeight}
+                    // Clamped where it is applied and not only where it is dragged: a height
+                    // stored at one interface size leaves the line under its floor at a larger one,
+                    // and a stored number is not a reason to draw a panel that cannot show itself.
+                    height={
+                      layout === null
+                        ? undefined
+                        : Math.min(
+                            layout.waveformHeight,
+                            Math.max(minWaveformHeight, frame.toolsHeight - minCurrentLine),
+                          )
+                    }
                     scale={scale}
                     paused={state.paused}
                     cueIndex={selection.active}
@@ -1468,7 +1482,7 @@ export default function App() {
                 onCommit={subtitle.setText}
                 onCommitTimes={subtitle.setTimes}
                 cues={subtitle.cues}
-                onCommitActor={(cue, value) => subtitle.setField(cue, "actor", value)}
+                onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
               />
             </section>
           </div>

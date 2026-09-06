@@ -98,6 +98,24 @@
   font: inherit;
 }
 
+/* The drawing order and the three margins: whole numbers, so a field four digits wide with the
+   frame the times use and the digits centred, which is where the reference puts them (1.2). */
+.currentline__number {
+  width: 3.4em;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.currentline__number:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
 /* A disabled field is drawn in its place and greyed, never absent: the document simply cannot hold
    a speaker (E3.1). */
 .currentline__actor:disabled,

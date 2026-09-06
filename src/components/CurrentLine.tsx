@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { en } from "../i18n/en";
-import { type CueRow } from "../types/subtitle";
+import { type AssFieldName, type CueRow } from "../types/subtitle";
 import {
   CHARACTER_LIMIT,
   CPS_LIMIT,
@@ -39,9 +39,28 @@ type CurrentLineProps = {
   onCommitTimes: (cue: number, startMs: number, endMs: number) => Promise<void>;
   /** Every row of the open document, for the speakers it already names. See D6. */
   cues: CueRow[];
-  /** One line's Actor. A selection write is a loop over this one and waits on the owner (D5). */
-  onCommitActor: (cue: number, value: string) => Promise<void>;
+  /** One line's field. A selection write is a loop over this one and waits on the owner (D5). */
+  onCommitField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
 };
+
+/** The ASS fields the panel holds as a number: the drawing order and the three margins. */
+type NumberField = "layer" | "marginL" | "marginR" | "marginV";
+
+/**
+ * What each of them may hold. The reference clamps rather than refuses here, and its ranges are the
+ * ones below: the layer spins between 0 and 999, and a margin takes five characters, which is
+ * exactly -9999 at one end and 99999 at the other. A value outside them can only arrive by paste,
+ * so the clamp guards what the keyboard cannot reach. See edit-bar-tasks.md 1.2 and C6.
+ */
+const NUMBER_BOUNDS: Record<NumberField, { min: number; max: number }> = {
+  layer: { min: 0, max: 999 },
+  marginL: { min: -9999, max: 99999 },
+  marginR: { min: -9999, max: 99999 },
+  marginV: { min: -9999, max: 99999 },
+};
+
+/** The order they are drawn in, which is the order the reference's row two puts them in. */
+const MARGIN_FIELDS: NumberField[] = ["marginL", "marginR", "marginV"];
 
 /** Which of the three time fields a gesture is in. CPS stays derived and read-only. */
 type TimeField = "start" | "end" | "length";
@@ -59,6 +78,38 @@ const TIME_CLASS: Record<TimeField, string> = {
 /** The field points at its list and at the name under the keyboard, so both are named once here. */
 const ACTOR_LIST_ID = "currentline-actor-list";
 const ACTOR_OPTION_ID = "currentline-actor-name-";
+
+/** The four numeric fields as the document holds them, in the order they are drawn. */
+function cueNumbers(cue: CueRow | null): Record<NumberField, string> {
+  return {
+    layer: cue?.layer ?? "",
+    marginL: cue?.marginL ?? "",
+    marginR: cue?.marginR ?? "",
+    marginV: cue?.marginV ?? "",
+  };
+}
+
+/**
+ * What a typed number commits, or null when it commits nothing. An empty field is the format's own
+ * "default from style", which is 0 and is a real edit; anything that is not a whole number is
+ * refused where it stands, the way the time fields are; a number outside the field's range is
+ * clamped rather than refused, which is the reference's answer. See C6.
+ */
+function committedNumber(field: NumberField, typed: string): string | null {
+  const value = typed.trim();
+  if (value === "") {
+    return "0";
+  }
+  if (!/^-?\d+$/.test(value)) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    return null;
+  }
+  const { min, max } = NUMBER_BOUNDS[field];
+  return String(Math.min(Math.max(parsed, min), max));
+}
 
 const encoder = new TextEncoder();
 
@@ -84,7 +135,7 @@ export default function CurrentLine({
   onCommit,
   onCommitTimes,
   cues,
-  onCommitActor,
+  onCommitField,
 }: CurrentLineProps) {
   const text = cue?.text ?? "";
   const startMs = cue?.startMs ?? 0;
@@ -109,6 +160,14 @@ export default function CurrentLine({
   const pending = useRef<{ index: number; was: string; text: string } | null>(null);
   /** The same, for the pair of times: they travel together, in the one command that takes both. */
   const pendingTimes = useRef<{ index: number; startMs: number; endMs: number } | null>(null);
+  /**
+   * The four numeric fields, held together and committed one at a time: they share a shape and a
+   * refusal, and each is its own undo step. Tracked apart from the times for the same reason the
+   * times are tracked apart from the text.
+   */
+  const [numbers, setNumbers] = useState(() => cueNumbers(cue));
+  const [shownNumbers, setShownNumbers] = useState({ index, values: cueNumbers(cue) });
+  const pendingNumbers = useRef<Partial<Record<NumberField, { index: number; value: string }>>>({});
   /** And for the speaker, which commits on blur and on Enter exactly as the times do (section 4). */
   const [actorDraft, setActorDraft] = useState(actor);
   const [shownActor, setShownActor] = useState({ index, actor });
@@ -137,6 +196,15 @@ export default function CurrentLine({
   }
   // Tracked apart from the times for the same reason they are tracked apart from the text: an undo
   // elsewhere, or the cursor moving, re-seeds this field without disturbing the others.
+  const held = cueNumbers(cue);
+  if (
+    shownNumbers.index !== index ||
+    MARGIN_FIELDS.concat("layer").some((field) => shownNumbers.values[field] !== held[field])
+  ) {
+    setShownNumbers({ index, values: held });
+    setNumbers(held);
+    pendingNumbers.current = {};
+  }
   if (shownActor.index !== index || shownActor.actor !== actor) {
     setShownActor({ index, actor });
     setActorDraft(actor);
@@ -164,6 +232,27 @@ export default function CurrentLine({
     await onCommitTimes(held.index, held.startMs, held.endMs);
   }, [onCommitTimes]);
 
+  /**
+   * Send one numeric field, if it belongs to a row and holds something the file can take. Each is
+   * its own call and therefore its own undo step, which is what C8.3 asks of these fields.
+   */
+  const commitNumber = useCallback(
+    async (field: NumberField, restoreTo?: string) => {
+      const waiting = pendingNumbers.current[field];
+      pendingNumbers.current = { ...pendingNumbers.current, [field]: undefined };
+      if (waiting === undefined) {
+        // Nothing to send. On the way out of the field it goes back to what the document holds, so
+        // a box emptied over a zero does not sit there showing nothing the file has. See C6.4.
+        if (restoreTo !== undefined) {
+          setNumbers((current) => ({ ...current, [field]: restoreTo }));
+        }
+        return;
+      }
+      await onCommitField(waiting.index, field, waiting.value);
+    },
+    [onCommitField],
+  );
+
   /** Send the speaker, if it belongs to a row and the value is one the file can hold. */
   const commitActor = useCallback(async () => {
     const held = pendingActor.current;
@@ -171,8 +260,8 @@ export default function CurrentLine({
     if (held === null) {
       return;
     }
-    await onCommitActor(held.index, held.actor);
-  }, [onCommitActor]);
+    await onCommitField(held.index, "actor", held.actor);
+  }, [onCommitField]);
 
   // The window shortcuts and the toolbar flush every editor, so "save" means one thing wherever it
   // was asked for. Times as well as text: an uncommitted time is unsaved work the same way.
@@ -181,6 +270,9 @@ export default function CurrentLine({
       await commit();
       await commitTimes();
       await commitActor();
+      for (const field of ["layer", ...MARGIN_FIELDS] as NumberField[]) {
+        await commitNumber(field);
+      }
     };
   });
 
@@ -206,9 +298,12 @@ export default function CurrentLine({
   // The speaker counts the same way the times do, and by the same rule: text in a field the
   // document does not hold is unsaved work whether or not it can be written yet. See E4.8.
   const actorEdited = actorDraft !== actor;
+  const numbersEdited = (["layer", ...MARGIN_FIELDS] as NumberField[]).some(
+    (field) => numbers[field] !== held[field],
+  );
   useEffect(() => {
-    onDraftChange(draft !== text || timesEdited || actorEdited);
-  }, [draft, text, timesEdited, actorEdited, onDraftChange]);
+    onDraftChange(draft !== text || timesEdited || actorEdited || numbersEdited);
+  }, [draft, text, timesEdited, actorEdited, numbersEdited, onDraftChange]);
 
   /** A range reports where it starts, which is where the text would divide. */
   function reportCaret(box: HTMLTextAreaElement) {
@@ -299,6 +394,30 @@ export default function CurrentLine({
     }
     pendingActor.current = { index, actor: written };
     await commitActor();
+  }
+
+  function onTypeNumber(field: NumberField, value: string) {
+    setNumbers((current) => ({ ...current, [field]: value }));
+    const written = committedNumber(field, value);
+    // A value the field cannot send is never sent: it stays in the box and the box says so.
+    if (index === null || written === null || written === held[field]) {
+      pendingNumbers.current = { ...pendingNumbers.current, [field]: undefined };
+      return;
+    }
+    pendingNumbers.current = { ...pendingNumbers.current, [field]: { index, value: written } };
+  }
+
+  function onNumberKeyDown(field: NumberField, event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      pendingNumbers.current = { ...pendingNumbers.current, [field]: undefined };
+      setNumbers((current) => ({ ...current, [field]: held[field] }));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitNumber(field);
+    }
   }
 
   function onActorKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -437,6 +556,40 @@ export default function CurrentLine({
   }
 
   /**
+   * One of the four numeric fields. Drawn and greyed on a row whose `Format:` line does not declare
+   * it, never absent (E3.1), and it says so where it stands when it holds something unsendable.
+   */
+  function numberField(field: NumberField, label: string, spoken = label) {
+    const value = numbers[field];
+    const can = cue !== null && cue.declaredFields.includes(field);
+    const bad = can && committedNumber(field, value) === null;
+    const classes = ["currentline__number", `currentline__${field.toLowerCase()}`];
+    if (bad) {
+      classes.push("currentline__time--invalid");
+    }
+    return (
+      <span className="currentline__field">
+        <span className="currentline__label">{label}</span>
+        <input
+          className={classes.join(" ")}
+          aria-label={spoken}
+          aria-invalid={bad}
+          data-document-editor=""
+          disabled={!can}
+          // Five characters is exactly `-9999` and exactly `99999`, so the keyboard reaches both
+          // ends of the range and can never cross one. See edit-bar-tasks.md 1.2.
+          maxLength={5}
+          value={value}
+          spellCheck={false}
+          onChange={(event) => onTypeNumber(field, event.target.value)}
+          onKeyDown={(event) => onNumberKeyDown(field, event)}
+          onBlur={() => void commitNumber(field, held[field])}
+        />
+      </span>
+    );
+  }
+
+  /**
    * The speaker: a text field with the names this document already uses beside it. Drawn and greyed
    * on a document whose lines cannot hold one, never absent (E3.1).
    */
@@ -498,11 +651,28 @@ export default function CurrentLine({
           {en.subtitle.currentLine.refusals[refusal]}
         </p>
       )}
-      {/* Band 2, numbers. */}
+      {/* Band 2, numbers. The order is the reference's row two: the drawing order first, then the
+        three times, then the three margins. See edit-bar-tasks.md 1.2. */}
       <div className="currentline__band currentline__times">
+        {numberField("layer", en.subtitle.currentLine.layer)}
         {timeField("start", en.subtitle.currentLine.start)}
         {timeField("end", en.subtitle.currentLine.end)}
         {timeField("length", en.subtitle.currentLine.duration)}
+        {numberField(
+          "marginL",
+          en.subtitle.currentLine.marginL,
+          en.subtitle.currentLine.marginLName,
+        )}
+        {numberField(
+          "marginR",
+          en.subtitle.currentLine.marginR,
+          en.subtitle.currentLine.marginRName,
+        )}
+        {numberField(
+          "marginV",
+          en.subtitle.currentLine.marginV,
+          en.subtitle.currentLine.marginVName,
+        )}
       </div>
       <textarea
         className="currentline__text"
