@@ -47,6 +47,7 @@ const SLOP_PX = 1;
  * failure says which one (E5.2, E5.3).
  */
 const CONTROLS = [
+  ".currentline__comment",
   ".currentline__style",
   ".currentline__actor",
   ".currentline__actor-open",
@@ -664,7 +665,7 @@ describe("the current line's bands", () => {
     // Identity first with the two measures of the text at its right end, numbers under it. The
     // order is part of the criterion: a control in the right band and the wrong place is a defect.
     expect(await bandOrder()).toEqual([
-      { band: "identity", parts: ["Style", "Actor", "Effect", "Characters", "CPS"] },
+      { band: "identity", parts: ["Comment", "Style", "Actor", "Effect", "Characters", "CPS"] },
       { band: "times", parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"] },
       { band: "actions", parts: [] },
     ]);
@@ -811,7 +812,7 @@ describe("the current line's bands", () => {
       });
       // The band does not change shape around it, and the readings beside it still work.
       expect(await bandOrder()).toEqual([
-        { band: "identity", parts: ["Style", "Actor", "Effect", "Characters", "CPS"] },
+        { band: "identity", parts: ["Comment", "Style", "Actor", "Effect", "Characters", "CPS"] },
         {
           band: "times",
           parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"],
@@ -1186,6 +1187,64 @@ describe("the current line's bands", () => {
       timeout: 15000,
       message: "one undo to remove the cue it made",
     });
+  });
+
+  it("turns a line into a comment and back, in one undo step each way", async () => {
+    const flag = () =>
+      browser.execute(() => {
+        const box = document.querySelector(".currentline__comment");
+        return box === null ? null : { checked: box.checked, disabled: box.disabled };
+      });
+    const drawn = () =>
+      browser.execute(() => document.querySelector(".statusbar__document")?.textContent ?? "");
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    const before = readFileSync(copy);
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    expect(await flag()).toEqual({ checked: false, disabled: false });
+    const counted = await drawn();
+
+    await clickElement(toplevel, ".currentline__comment");
+    await waitFor(async () => ((await flag()).checked === true ? 1 : null), {
+      timeout: 15000,
+      message: "the line to become a comment",
+    });
+    // A commented line is still listed and still editable; it is one line fewer a player draws, and
+    // the status line counts what a player draws.
+    expect(await drawn()).not.toBe(counted);
+    expect(readFileSync(copy).equals(before)).toBe(true);
+
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(
+      () =>
+        readFileSync(copy, "utf8").includes(
+          "Comment: 0,0:00:01.34,0:00:03.98,Default,Ingrid,0,0,0,,The harbour freezes over by December.",
+        )
+          ? 1
+          : null,
+      { timeout: 20000, message: "the saved file to carry the comment on its first event line" },
+    );
+    // Only the word before the colon moved.
+    expect(readFileSync(copy, "utf8")).toBe(
+      before.toString("utf8").replace("Dialogue: 0,0:00:01.34", "Comment: 0,0:00:01.34"),
+    );
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await flag()).checked === false ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to make it a drawn line again",
+    });
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(() => (readFileSync(copy).equals(before) ? 1 : null), {
+      timeout: 20000,
+      message: "the saved file to be byte for byte what it was opened as",
+    });
+
+    // And greyed where the format has no such distinction at all.
+    await openSubtitle(toplevel, workingCopy("srt/clean/basic-lf.srt"));
+    await goToRow(toplevel, 1);
+    expect((await flag()).disabled).toBe(true);
   });
 
   it("offers the styles the document declares, and shows one it does not define", async () => {

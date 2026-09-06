@@ -98,6 +98,9 @@ export type SubtitleFile = {
   /** One ASS event field of one cue. A field the row does not declare is refused, so its control
    * greys itself off `declaredFields` rather than asking. See edit-bar-first-tasks.md E2. */
   setField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
+  /** Whether one cue is a line a player draws. Refused on a format with no descriptor, so its
+   * control greys itself off the format rather than asking. See edit-bar-tasks.md B8. */
+  setComment: (cue: number, comment: boolean) => Promise<void>;
   /** `before === cues.length` appends; the four below carry the backend's own argument names. */
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
   deleteCue: (cue: number) => Promise<void>;
@@ -369,6 +372,11 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const setComment = useCallback(
+    (cue: number, comment: boolean) => command("subtitle_set_comment", { cue, comment }),
+    [command],
+  );
+
   const insertCue = useCallback(
     (before: number, startMs: number, endMs: number, text: string) =>
       command("subtitle_insert", { before, startMs, endMs, text }),
@@ -462,6 +470,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setTexts,
     setTimes,
     setField,
+    setComment,
     insertCue,
     deleteCue,
     splitCue,

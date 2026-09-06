@@ -99,6 +99,12 @@
   font: inherit;
 }
 
+/* Whether the line is one a player draws. A flag, so a checkbox, and its label sits after it the
+   way a checkbox's label does. */
+.currentline__comment {
+  margin: 0;
+}
+
 /* The style the line names: a closed list, so the field is the picker itself. */
 .currentline__style {
   flex: 1 1 7em;

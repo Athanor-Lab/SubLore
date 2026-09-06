@@ -985,6 +985,56 @@ fn a_field_committed_as_whitespace_writes_nothing_however_often_it_is_committed(
     );
 }
 
+fn set_comment(cue: usize, comment: bool) -> Edit {
+    Edit::SetComment { cue, comment }
+}
+
+#[test]
+fn turning_a_line_into_a_comment_rewrites_its_descriptor_and_nothing_else() {
+    // B8: the word before the colon is the whole edit, and a player draws one line fewer for it.
+    let mut session = session("ass/clean/basic.ass");
+    let before = session.to_bytes();
+    let drawn = session.document().displayed_cue_count();
+
+    session
+        .apply(&set_comment(0, true), Run::New, Instant::now())
+        .expect("an ASS event can be commented");
+    let after = String::from_utf8(session.to_bytes()).expect("the fixture is UTF-8");
+    assert!(
+        after.contains("Comment: ") && !after.starts_with("Comment:"),
+        "the first event line now says Comment"
+    );
+    assert_eq!(
+        session.document().displayed_cue_count(),
+        drawn - 1,
+        "a commented line is not one a player draws"
+    );
+    // Only the descriptor moved: Dialogue is eight bytes and Comment is seven, so the file is one
+    // byte shorter and identical on both sides of that word.
+    let at = String::from_utf8(before.clone())
+        .expect("the fixture is UTF-8")
+        .find("Dialogue:")
+        .expect("the fixture has an event line");
+    differs_only_in(&before, session.to_bytes().as_slice(), at, 8, 7);
+
+    session.undo().expect("a step to undo").expect("a patch");
+    assert_eq!(
+        session.to_bytes(),
+        before,
+        "one undo puts the descriptor back"
+    );
+}
+
+#[test]
+fn a_comment_edit_is_refused_on_a_format_that_has_no_descriptor() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let before = session.to_bytes();
+    session
+        .apply(&set_comment(0, true), Run::New, Instant::now())
+        .expect_err("an SRT cue has no descriptor to rewrite");
+    assert_eq!(session.to_bytes(), before, "a refusal writes nothing");
+}
+
 #[test]
 fn a_field_write_after_a_save_leaves_the_document_clean_when_undone() {
     // CF4.3.

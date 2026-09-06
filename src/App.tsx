@@ -1508,6 +1508,8 @@ export default function App() {
                 onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
                 commands={commands}
                 styles={subtitle.summary?.styles ?? []}
+                canComment={subtitle.summary?.format === "ass"}
+                onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
               />
             </section>
           </div>

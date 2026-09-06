@@ -397,6 +397,8 @@ export const en = {
       characters: "Characters",
       cps: "CPS",
       text: "Text",
+      /** Whether the line is one a player draws. Greyed on a format with no such distinction. */
+      comment: "Comment",
       /** The ASS style the line names. Greyed on a document whose lines cannot hold one. */
       style: "Style",
       /** The ASS speaker field. Greyed on a document whose lines cannot hold one. */
