@@ -166,15 +166,36 @@ fn drawn_box(width: i64, height: i64, rotate: Option<i64>) -> Option<PictureSize
 /// The box mpv draws the picture in, read as one set so its parts can never come from different
 /// files. Absent for a media with no picture and until the first frame is decoded.
 ///
-/// Every part is taken from `video-out-params`, which is what the output says it will draw. The
-/// top-level `dwidth` is filled before the aspect reaches it on a machine slow enough to send two
-/// reconfigures for one file, and the interface then holds the storage size for one event, which is
-/// exactly the wrong number this reports. Reading one node also keeps the size and the turn
-/// describing one state: the turn is the one the output has still to make, and it is zero exactly
-/// when the size is already turned. See docs/video-aspect-tasks.md.
+/// Every part is taken from `video-out-params`, which is what the output says it will draw, so the
+/// size and the turn describe one state: the turn is the one the output has still to make, and it
+/// is zero exactly when the size is already turned.
+///
+/// **And the size has to agree with the aspect it is drawn at before it is worth reporting.** On a
+/// machine slow enough to send two reconfigures for one file, the first carries the frame as stored
+/// while the aspect that stretches it has not arrived, so an anamorphic file reads 640 by 360 for
+/// one event and 1280 by 360 afterwards. Reading the aspect too and refusing a pair that does not
+/// match it turns that event into no event, which is what the interface wants: it holds no number
+/// until there is a right one. See docs/video-aspect-tasks.md and BACKLOG N36.
+/// Whether a drawn size is the one that aspect describes, within the pixel that rounding a ratio
+/// into whole pixels costs. A pair mpv has not finished reconfiguring misses by the whole aspect.
+/// An aspect that is not a number says nothing, so it agrees with everything.
+fn size_agrees_with_aspect(width: i64, height: i64, aspect: f64) -> bool {
+    if !aspect.is_finite() || aspect <= 0.0 || height <= 0 {
+        return true;
+    }
+    let drawn = width as f64;
+    let tall = height as f64;
+    (drawn - tall * aspect).abs() <= 1.0
+}
+
 fn read_picture(mpv: &Mpv) -> Option<PictureSize> {
     let width = mpv.get_property::<i64>("video-out-params/dw").ok()?;
     let height = mpv.get_property::<i64>("video-out-params/dh").ok()?;
+    if let Ok(aspect) = mpv.get_property::<f64>("video-out-params/aspect") {
+        if !size_agrees_with_aspect(width, height, aspect) {
+            return None;
+        }
+    }
     drawn_box(
         width,
         height,
@@ -1033,12 +1054,33 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
 
 #[cfg(test)]
 mod picture_tests {
-    use super::{drawn_box, PictureSize, Player, PlayerConfig};
+    use super::{drawn_box, size_agrees_with_aspect, PictureSize, Player, PlayerConfig};
     use std::path::Path;
     use std::time::{Duration, Instant};
 
     /// Absence is absence: a size with a zero or a negative in it is not a box a picture fills,
     /// and reporting it would hand the arithmetic a cap of zero. See docs/video-aspect-tasks.md.
+    /// The exact pair CI printed on the runner, and the one it printed beside it. The anamorphic
+    /// fixture is stored 640 by 360 and drawn 1280 by 360, so its aspect is 1280 over 360. The
+    /// first of the two reconfigures carries the stored size against that aspect, which is what
+    /// this refuses. See BACKLOG N36.
+    #[test]
+    fn a_size_from_a_reconfigure_that_has_not_finished_does_not_agree_with_its_aspect() {
+        let anamorphic = 1280.0 / 360.0;
+        assert!(size_agrees_with_aspect(1280, 360, anamorphic));
+        assert!(!size_agrees_with_aspect(640, 360, anamorphic));
+        // A square picture agrees with its own aspect and with nothing stretched.
+        assert!(size_agrees_with_aspect(640, 360, 640.0 / 360.0));
+        assert!(!size_agrees_with_aspect(640, 360, 1.0));
+        // Rounding a ratio into whole pixels costs a pixel and no more.
+        assert!(size_agrees_with_aspect(853, 480, 16.0 / 9.0));
+        assert!(!size_agrees_with_aspect(851, 480, 16.0 / 9.0));
+        // An aspect mpv will not answer for says nothing, so it refuses nothing.
+        assert!(size_agrees_with_aspect(640, 360, f64::NAN));
+        assert!(size_agrees_with_aspect(640, 360, 0.0));
+        assert!(size_agrees_with_aspect(640, 0, 1.5));
+    }
+
     #[test]
     fn a_zero_or_a_negative_is_no_size_at_all() {
         assert_eq!(drawn_box(0, 360, None), None);
