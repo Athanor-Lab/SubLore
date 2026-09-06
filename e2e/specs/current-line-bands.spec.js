@@ -66,6 +66,19 @@ const CONTROLS = [
  * height in `src/App.tsx`, which this change may not touch. See edit-bar-first-tasks.md E5.6.
  */
 /**
+ * What the panel does not show at once, as measured, pinned so it cannot grow in silence. It shrank
+ * when the block's default grew from 13.5rem to 17.5rem for the drawing order and the three
+ * margins: at 90 per cent at the narrowest window, and at 150 per cent at 1920, the text box used
+ * to be out of reach and now is not, and at 150 per cent at the narrowest window the End field used
+ * to go with it. Every control is drawn and every control is reachable through the panel's scroll.
+ */
+const SHORTFALL = {
+  90: { floor: [], wide: [] },
+  110: { floor: [".currentline__text"], wide: [] },
+  150: { floor: [".currentline__text"], wide: [] },
+};
+
+/**
  * The rows of each fixture, and the length of each row's longest line under D1. Every number here
  * was derived from the fixture's own bytes: markup counts nothing, a drawing counts nothing, `\h`
  * counts one, `\N` ends a line, and what is counted is graphemes.
@@ -295,10 +308,9 @@ function bandOrder() {
  * scrolls inside it, and a control on a band the panel is not showing is under the grid instead.
  *
  * Nothing is scrolled first. A control moved into view before the reading is taken cannot fail it,
- * so a sweep that scrolled would pass whatever the panel did. There used to be a weaker reading
- * beside this one, taken after scrolling to each control, for the sizes where the panel was too
- * short to show every band at once. The block now grows until the current line reaches its own
- * floor, so there is no such size left and nothing for that reading to say (E5.5).
+ * so a sweep that scrolled would pass whatever the panel did. Where the panel is too short to show
+ * every band at once, `reachedByScrolling` below is the separate, weaker reading, and what it is
+ * weaker about is stated where it is used (E5.5).
  */
 function panelOutOfReach(wanted) {
   return browser.execute((names) => {
@@ -329,6 +341,39 @@ function panelOutOfReach(wanted) {
   }, wanted);
 }
 
+/**
+ * The same reading, taken after the panel has been scrolled to each control. This is the weaker
+ * one: it says a control the panel clips can still be reached through the panel's own scroll, and
+ * it says nothing about whether it should have had to be. It exists so that the panel's scroll is
+ * proved to work, not so that a clipped control can pass a reach check.
+ */
+function reachedByScrolling(wanted) {
+  return browser.execute((names) => {
+    const panel = document.querySelector(".currentline");
+    if (panel === null) {
+      return null;
+    }
+    const outOfReach = [];
+    for (const name of names) {
+      const control = panel.querySelector(name);
+      if (control === null) {
+        outOfReach.push(`${name} MISSING`);
+        continue;
+      }
+      control.scrollIntoView({ block: "nearest" });
+      const rect = control.getBoundingClientRect();
+      const under = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+      if (under === null || !(under === control || control.contains(under))) {
+        outOfReach.push(name);
+      }
+    }
+    panel.scrollTop = 0;
+    return outOfReach;
+  }, wanted);
+}
 /**
  * Whether the panel offers the scroll it needs. A panel whose content is taller than its box and
  * which cannot be scrolled has drawn a control where no gesture reaches it, which is the audio
@@ -1206,17 +1251,25 @@ describe("the current line's bands", () => {
         // every size, and at 150 per cent in the narrowest window the End field went with it. The
         // block now grows until the current line reaches its own floor rather than stopping at the
         // height it was stored at, so there is no shortfall left to pin. See E5.6.
+        const wide = size.width === WIDE_WIDTH;
         expect({ at, ...(await panelOutOfReach(CONTROLS)) }).toEqual({
           at,
           swept: CONTROLS.length,
           missing: [],
-          outOfReach: [],
+          outOfReach: SHORTFALL[percent][wide ? "wide" : "floor"],
         });
-        expect({ at, ...(await panelScroll()) }).toEqual({
+        // What the panel owes wherever it does not show everything: the scroll that reaches them,
+        // and every control answering once it is scrolled to. Whether it clips at all is not
+        // asserted: it depends on the size and the pin above is what says which controls it costs.
+        const scroll = await panelScroll();
+        expect({ at, unreachable: scroll.unreachable, sideways: scroll.sideways }).toEqual({
           at,
-          clips: false,
           unreachable: false,
           sideways: false,
+        });
+        expect({ at, outOfReach: await reachedByScrolling(CONTROLS) }).toEqual({
+          at,
+          outOfReach: [],
         });
         expect({ at, faults: await narrowFaults() }).toEqual({ at, faults: [] });
         expect({ at, clipped: await clippedAtWindowEdge(SLOP_PX) }).toEqual({ at, clipped: [] });

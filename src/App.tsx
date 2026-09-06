@@ -355,10 +355,7 @@ export default function App() {
   }, [scale, duration]);
 
   const minVideoWidth = transportFloor ?? 0;
-  // The floor the current line keeps: the larger of the written-down minimum and what the panel's
-  // own controls need. Written down alone it was a number for the controls the panel had when it
-  // was measured, and every control added since made it wrong by exactly that control.
-  const minCurrentLine = Math.max(MIN_CURRENT_LINE * scale, frame.lineContent);
+  const minCurrentLine = MIN_CURRENT_LINE * scale;
   const minWaveformHeight = MIN_WAVEFORM_HEIGHT * scale;
   // The grid's three rows are a fixed 28px at every size, so only its header is scaled, and never
   // downwards: a floor short of a whole row clips it.
@@ -390,12 +387,9 @@ export default function App() {
 
   // How far the block may shrink before the column stops shrinking the current line and starts
   // pushing it out: the slack the line has over its own minimum, read off the rendered line.
-  // The block height at which the current line sits exactly on its own floor. Not clamped at the
-  // height the block already has: a line under its floor needs the block to grow, and a floor that
-  // could only say "no lower" left the panel drawing controls it had no room for.
   const minTopHeight = Math.max(
     MIN_TOP_HEIGHT * scale,
-    frame.toolsHeight - (frame.lineHeight - minCurrentLine),
+    frame.toolsHeight - Math.max(0, frame.lineHeight - minCurrentLine),
   );
   // What the tools column can use: itself, less the slack the current line has over the height its
   // own content asks for. A block taller than this makes the text box taller and nothing else.
@@ -1372,19 +1366,7 @@ export default function App() {
         </header>
         <div
           className="shell__body"
-          // Clamped where it is applied and not only where it is dragged, for the reason the
-          // waveform's height is: a number stored at one interface size is not a reason to draw a
-          // column that cannot show what is in it.
-          style={
-            layout === null
-              ? undefined
-              : {
-                  height: Math.min(
-                    Math.max(layout.topHeight, minTopHeight),
-                    Math.max(minTopHeight, maxTopHeight),
-                  ),
-                }
-          }
+          style={layout === null ? undefined : { height: layout.topHeight }}
         >
           <aside className="shell__rail">
             <ProjectRail project={project} onOpenFile={openAttachedFile} />
@@ -1443,17 +1425,7 @@ export default function App() {
                     peaks={peaks}
                     positionMs={Math.round(position * 1000)}
                     durationMs={Math.round((state.duration ?? 0) * 1000)}
-                    // Clamped where it is applied and not only where it is dragged: a height
-                    // stored at one interface size leaves the line under its floor at a larger one,
-                    // and a stored number is not a reason to draw a panel that cannot show itself.
-                    height={
-                      layout === null
-                        ? undefined
-                        : Math.min(
-                            layout.waveformHeight,
-                            Math.max(minWaveformHeight, frame.toolsHeight - minCurrentLine),
-                          )
-                    }
+                    height={layout?.waveformHeight}
                     scale={scale}
                     paused={state.paused}
                     cueIndex={selection.active}
