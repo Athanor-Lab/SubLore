@@ -32,10 +32,11 @@ type CurrentLineProps = {
   /** Told whenever the box holds text the document does not: that is unsaved work too. */
   onDraftChange: (pending: boolean) => void;
   /**
-   * Where the caret is in the text box, as a UTF-8 byte offset, which is what a split counts in.
-   * Reported rather than read back later because the click that splits blurs the box first.
+   * Where the selection is in the text box, as UTF-8 byte offsets, which is what a split and a
+   * style toggle both count in. Reported rather than read back later because the click that acts
+   * on it blurs the box first.
    */
-  onCaret: (offset: number) => void;
+  onCaret: (from: number, to: number) => void;
   onCommit: (cue: number, text: string) => Promise<void>;
   onCommitTimes: (cue: number, startMs: number, endMs: number) => Promise<void>;
   /** Every row of the open document, for the speakers it already names. See D6. */
@@ -345,7 +346,8 @@ export default function CurrentLine({
 
   /** A range reports where it starts, which is where the text would divide. */
   function reportCaret(box: HTMLTextAreaElement) {
-    onCaret(byteOffset(box.value, box.selectionStart));
+    // Both ends, because a style toggle wraps a selection and a split needs only the near one.
+    onCaret(byteOffset(box.value, box.selectionStart), byteOffset(box.value, box.selectionEnd));
   }
 
   function onType(value: string) {
@@ -805,6 +807,10 @@ export default function CurrentLine({
       {/* Band 3, the commands the panel carries. Row three of the reference puts the style buttons
         first and Next line last, so it goes at the end and the others arrive before it. */}
       <div className="currentline__band currentline__actions">
+        {commandButton("edit.style-bold")}
+        {commandButton("edit.style-italic")}
+        {commandButton("edit.style-underline")}
+        {commandButton("edit.style-strikeout")}
         {commandButton("subtitle.next-line")}
       </div>
       <textarea

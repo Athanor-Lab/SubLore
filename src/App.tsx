@@ -48,7 +48,7 @@ import {
   type Menu,
 } from "./types/chrome";
 import { type EpisodeFileView } from "./types/project";
-import { type CueRow } from "./types/subtitle";
+import { type CueRow, type StyleFlagName } from "./types/subtitle";
 import "./App.css";
 
 /**
@@ -180,6 +180,17 @@ const NEW_CUE_MS = 2000;
  * (`src/audio_timing_dialogue.cpp:551-561`), which are what a translator's ear is used to. */
 const LEAD_IN_MS = 100;
 const LEAD_OUT_MS = 350;
+
+/**
+ * The four inline style flags, in the order row three of the panel draws them. Each writes its own
+ * override tag into the line's text and is its own undo step. See edit-bar-tasks.md B11.
+ */
+const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
+  { id: "edit.style-bold", flag: "bold", label: en.menu.edit.bold },
+  { id: "edit.style-italic", flag: "italic", label: en.menu.edit.italic },
+  { id: "edit.style-underline", flag: "underline", label: en.menu.edit.underline },
+  { id: "edit.style-strikeout", flag: "strikeout", label: en.menu.edit.strikeout },
+];
 
 export default function App() {
   // Every HTML layer registers here while it is open, and the video surface hides for as long as
@@ -424,7 +435,7 @@ export default function App() {
    * blur a menu click causes, which is why the split can still read it; a cursor on another row
    * leaves it unmatched and the split greyed.
    */
-  const [caret, setCaret] = useState<{ index: number; offset: number } | null>(null);
+  const [caret, setCaret] = useState<{ index: number; offset: number; to: number } | null>(null);
   // The chooser is modal and answers on its own thread, so a second one asked for while it is up
   // would sit behind the first. Every chooser the chrome raises is raised here, so one flag covers
   // them all.
@@ -1069,6 +1080,17 @@ export default function App() {
       enabled: subtitle.summary !== null && subtitle.cues.length > 0 && ready,
       run: () => selectAtPlayhead(),
     },
+    ...STYLE_FLAGS.map(({ id, flag, label }): Command => ({
+      id,
+      label,
+      // A caret in the line's own editor is what it writes at, so it wants one on this row.
+      enabled: activeCue !== null && caret !== null && caret.index === selection.active,
+      run: () => {
+        if (caret !== null && selection.active !== null) {
+          void subtitle.toggleStyle(selection.active, flag, caret.offset, caret.to);
+        }
+      },
+    })),
     {
       id: "subtitle.insert",
       label: en.menu.subtitles.insert,
@@ -1235,6 +1257,10 @@ export default function App() {
       items: [
         "edit.undo",
         "edit.redo",
+        "edit.style-bold",
+        "edit.style-italic",
+        "edit.style-underline",
+        "edit.style-strikeout",
         "edit.find",
         "edit.find-next",
         "edit.replace",
@@ -1499,8 +1525,10 @@ export default function App() {
                 multiline={subtitle.summary?.format !== "ass"}
                 flushRef={flushLine}
                 onDraftChange={setLineEdited}
-                onCaret={(offset) =>
-                  setCaret(selection.active === null ? null : { index: selection.active, offset })
+                onCaret={(offset, to) =>
+                  setCaret(
+                    selection.active === null ? null : { index: selection.active, offset, to },
+                  )
                 }
                 onCommit={subtitle.setText}
                 onCommitTimes={subtitle.setTimes}

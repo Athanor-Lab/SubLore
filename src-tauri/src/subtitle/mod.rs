@@ -16,6 +16,7 @@ use sublore_edit::diff::{CuePatch, CueView};
 use sublore_edit::history::Run;
 use sublore_edit::plan::{self, Edit};
 use sublore_edit::session::EditSession;
+use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{parse, AssField, Newline, SubtitleDocument, SubtitleFormat};
 use sublore_io::atomic::save_with_backup;
 use sublore_io::backup::BackupStore;
@@ -328,6 +329,55 @@ pub async fn subtitle_set_field(
             cue,
             field: field.into(),
             value,
+        },
+    )
+    .await
+}
+
+/// One of the four inline style flags, over a stretch of one cue's text. Spelled the way the
+/// interface names them, so a value the enum does not hold is refused by the deserializer rather
+/// than reaching the planner. See edit-bar-tasks.md B11.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StyleFlagDto {
+    Bold,
+    Italic,
+    Underline,
+    Strikeout,
+}
+
+impl From<StyleFlagDto> for StyleFlag {
+    fn from(flag: StyleFlagDto) -> Self {
+        match flag {
+            StyleFlagDto::Bold => StyleFlag::Bold,
+            StyleFlagDto::Italic => StyleFlag::Italic,
+            StyleFlagDto::Underline => StyleFlag::Underline,
+            StyleFlagDto::Strikeout => StyleFlag::Strikeout,
+        }
+    }
+}
+
+/// Turn one flag on or off over a stretch of a cue's text. `from` and `to` are byte offsets into
+/// the text as the file spells it, and equal offsets are a caret rather than a selection.
+#[tauri::command]
+pub async fn subtitle_toggle_style(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    flag: StyleFlagDto,
+    from: usize,
+    to: usize,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::ToggleStyle {
+            cue,
+            flag: flag.into(),
+            from,
+            to,
         },
     )
     .await

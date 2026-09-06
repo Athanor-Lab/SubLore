@@ -1,4 +1,4 @@
-/* global describe, it, before, after, document, window */
+/* global describe, it, before, after, document, window, Event */
 /**
  * The current line's bands: the character count on the first one, and the row structure both bands
  * have to survive at every interface size. See sublore-meta docs/edit-bar-first-tasks.md, E1 and E5.
@@ -48,6 +48,7 @@ const SLOP_PX = 1;
  */
 const CONTROLS = [
   ".currentline__comment",
+  ".currentline__edit-style-bold",
   ".currentline__style",
   ".currentline__actor",
   ".currentline__actor-open",
@@ -86,18 +87,30 @@ const BARE_SHORTFALL = { 90: [], 110: [], 150: [".currentline__text"] };
  * effect, the drawing order and the three margins, which is what these entries are. Every control
  * is drawn and every control is reachable through the panel's scroll.
  *
- * Two entries have grown since, and they are here rather than paid for: the Next line button needs
- * the scroll at 110 and at 150 per cent in the narrowest window with a waveform above the panel. It
- * is the last control in the panel, so the narrow window is where it falls outside. Raising the
+ * Two entries have grown since, and they are here rather than paid for: the panel's own button row
+ * needs the scroll at 110 and at 150 per cent in the narrowest window with a waveform above it. It
+ * is the last row in the panel, so the narrow window is where it falls outside. Raising the
  * block's opening height again would clear it and would take that height from the grid at every
  * size, for one control in one configuration out of six. See edit-bar-tasks.md question 1, which is
  * what actually closes this.
  */
 const SHORTFALL = {
   90: { floor: [".currentline__text"], wide: [] },
-  110: { floor: [".currentline__text", ".currentline__subtitle-next-line"], wide: [] },
+  110: {
+    floor: [
+      ".currentline__text",
+      ".currentline__edit-style-bold",
+      ".currentline__subtitle-next-line",
+    ],
+    wide: [],
+  },
   150: {
-    floor: [".currentline__end", ".currentline__text", ".currentline__subtitle-next-line"],
+    floor: [
+      ".currentline__end",
+      ".currentline__text",
+      ".currentline__edit-style-bold",
+      ".currentline__subtitle-next-line",
+    ],
     wide: [".currentline__text"],
   },
 };
@@ -1186,6 +1199,41 @@ describe("the current line's bands", () => {
     await waitFor(async () => ((await rows()) === counted ? 1 : null), {
       timeout: 15000,
       message: "one undo to remove the cue it made",
+    });
+  });
+
+  it("wraps the selected words in a style tag, and takes it off again", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const select = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at + wanted.length);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    const before = await lineText();
+    expect(before).toContain("harbour");
+
+    await select("harbour");
+    await clickElement(toplevel, ".currentline__edit-style-bold");
+    await waitFor(async () => ((await lineText())?.includes("{\\b1}harbour{\\b0}") ? 1 : null), {
+      timeout: 15000,
+      message: "the selected word to be wrapped in a bold tag",
+    });
+    // Only that word moved: the rest of the line is what it was.
+    expect(await lineText()).toBe(before.replace("harbour", "{\\b1}harbour{\\b0}"));
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take the tag back off",
     });
   });
 

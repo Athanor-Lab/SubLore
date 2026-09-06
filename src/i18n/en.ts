@@ -20,6 +20,11 @@ export const en = {
       title: "Edit",
       undo: "Undo",
       redo: "Redo",
+      /** The four inline style flags, written into the line's own text as override tags. */
+      bold: "Bold",
+      italic: "Italic",
+      underline: "Underline",
+      strikeout: "Strikeout",
       find: "Find…",
       findNext: "Find next",
       replace: "Replace…",

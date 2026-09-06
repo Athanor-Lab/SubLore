@@ -6,6 +6,7 @@
 //! edit, and `verify` holds the parse to what the plan predicted. Nothing here reaches into
 //! `sublore-formats`: the parsers stay the only authority on grammar.
 
+use sublore_formats::override_tags::{self, StyleFlag};
 use sublore_formats::{
     AssEvent, AssEventKind, AssField, Cue, CueDetail, Newline, Segment, SegmentKind, Span, SrtCue,
     SubtitleDocument, SubtitleFormat, MAX_TIMECODE_MS,
@@ -47,6 +48,17 @@ pub enum Edit {
         cue: usize,
         field: AssField,
         value: String,
+    },
+    /// Turn one of the four inline style flags on or off over a stretch of a cue's text. `from` and
+    /// `to` are byte offsets into the text as the file spells it, braces included, which is what
+    /// the panel's own box shows and therefore what its caret reports. Equal offsets are a caret
+    /// rather than a selection, and the tag then takes effect to the end of the line.
+    /// See edit-bar-tasks.md B11.
+    ToggleStyle {
+        cue: usize,
+        flag: StyleFlag,
+        from: usize,
+        to: usize,
     },
     /// Turn an ASS event into a `Comment:` or back into a `Dialogue:`. The descriptor is not one
     /// of the fields `AssField` can name, and this changes how many cues a player would draw, so it
@@ -130,6 +142,12 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
         } => plan_set_times(document, *cue, *start_ms, *end_ms),
         Edit::SetField { cue, field, value } => plan_set_field(document, *cue, *field, value),
         Edit::SetComment { cue, comment } => plan_set_comment(document, *cue, *comment),
+        Edit::ToggleStyle {
+            cue,
+            flag,
+            from,
+            to,
+        } => plan_toggle_style(document, *cue, *flag, *from, *to),
         Edit::Insert {
             before,
             start_ms,
@@ -1084,6 +1102,91 @@ fn validate_field_value(field: AssField, value: &str) -> Result<(), EditError> {
 /// cannot reach one whether the field is first, last before the text, or in between.
 /// A splice over the event's own descriptor, which is the word before the colon. Nothing else on
 /// the line moves, so the times and the text the verifier checks are the ones that were there.
+/// The flag's state at the caret, then the opposite of it written there, and the state it had put
+/// back at the far end of the selection shifted by whatever the first write inserted. That is the
+/// whole of it, and it is why the writer returns a shift.
+fn plan_toggle_style(
+    document: &SubtitleDocument,
+    index: usize,
+    flag: StyleFlag,
+    from: usize,
+    to: usize,
+) -> Result<Planned, EditError> {
+    let located = locate(document, index)?;
+    let CueDetail::Ass(event) = &located.cue.detail else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "only an ASS event carries override tags",
+        ));
+    };
+    let text = document.slice(located.cue.text);
+    if from > text.len()
+        || to > text.len()
+        || !text.is_char_boundary(from)
+        || !text.is_char_boundary(to)
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!(
+                "the {} range {from}..{to} is outside the cue's text or cuts a character",
+                flag.as_str()
+            ),
+        ));
+    }
+    let (start, end) = if from <= to { (from, to) } else { (to, from) };
+
+    // Where the line starts from: the style it names, and then any tag of its own before the caret.
+    let named = event
+        .field_index(AssField::Style)
+        .and_then(|at| event.fields.get(at).copied())
+        .map(|span| document.slice(field_core(document, span)))
+        .unwrap_or("");
+    let from_style = document
+        .ass_styles()
+        .iter()
+        .find(|style| document.ass_style_text(style)[0] == named)
+        .is_some_and(|style| flag.of(style));
+    let state = override_tags::block_at(text, start)
+        .and_then(|block| override_tags::value_at(text, block, flag.tag()))
+        .map_or(from_style, |value| {
+            override_tags::flag_value(&value, from_style)
+        });
+
+    let (written, shift) =
+        override_tags::set_tag(text, start, flag.tag(), if state { "0" } else { "1" });
+    let written = if start == end {
+        written
+    } else {
+        let at = end.saturating_add_signed(shift);
+        override_tags::set_tag(&written, at, flag.tag(), if state { "1" } else { "0" }).0
+    };
+
+    let write = plan_text_write(document, &located, &written)?;
+    Ok(Planned {
+        splice: Splice::new(
+            write.range.start,
+            document.slice(write.range).to_owned(),
+            write.inserted,
+        ),
+        label: EditLabel {
+            kind: EditKind::ToggleStyle(flag),
+            cue: index,
+        },
+        expect: Expectation {
+            from: index,
+            removed: 1,
+            cues: vec![ExpectedCue {
+                text_raw: write.written,
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            }],
+            segments_from: located.segment_index,
+            segments_removed: 1,
+            segments_inserted: 1,
+        },
+    })
+}
+
 fn plan_set_comment(
     document: &SubtitleDocument,
     index: usize,
