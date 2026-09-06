@@ -140,6 +140,11 @@
    of the reference puts them, and they grey with no caret to write at. Each is a letter over a bar,
    the way the reference draws them: the bar names which colour the button sets and is fixed, never
    the line's own colour, because the button says what it writes and not what is written. */
+/* The row under the text box. Its buttons are words, not icons, because the reference's are. */
+.currentline__bottom {
+  margin-top: 0.25rem;
+}
+
 /* A run of buttons that touch, which is how the reference groups row three's icons. */
 .currentline__group {
   display: flex;

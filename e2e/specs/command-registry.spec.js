@@ -50,6 +50,10 @@ const DECLARED = [
   "asr-transcribe",
   "edit-undo",
   "edit-redo",
+  "edit-revert",
+  "edit-clear",
+  "edit-clear-text",
+  "edit-insert-original",
   "edit-style-bold",
   "edit-style-italic",
   "edit-style-underline",
@@ -128,6 +132,10 @@ const FILE_ITEMS = [
 const EDIT_ITEMS = [
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
+  { id: "edit-revert", disabled: true },
+  { id: "edit-clear", disabled: true },
+  { id: "edit-clear-text", disabled: true },
+  { id: "edit-insert-original", disabled: true },
   { id: "edit-style-bold", disabled: true },
   { id: "edit-style-italic", disabled: true },
   { id: "edit-style-underline", disabled: true },
@@ -515,6 +523,11 @@ describe("the command registry", () => {
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-copy", disabled: false },
+      // The two clears need a line with something in it, which the fixture's first row is. Revert
+      // beside them stays greyed, because nothing has moved it since the cursor arrived, and so
+      // does Insert original, which wants a caret and a source and has neither (B13).
+      { route: "menu", id: "edit-clear", disabled: false },
+      { route: "menu", id: "edit-clear-text", disabled: false },
       // Find and Replace need a document and nothing else, so both ungrey with the file (F2, F3).
       // Find next is absent from this list on purpose: it also needs a pattern, and nothing here
       // has typed one, so it stays greyed through the open (F5).

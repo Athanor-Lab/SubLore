@@ -72,6 +72,9 @@ pub enum EditKind {
     /// A tag written with a value the caller chose. One kind rather than one per tag, unlike the
     /// flag above: the picker commits on the pick, so every pick opens its own step.
     SetOverrideTag,
+    /// One cue emptied, with or without its braced runs kept. Its own kind so a Clear and the
+    /// typing around it are never one undo step. See edit-bar-tasks.md B13.
+    ClearText,
     Insert,
     Delete,
     Split,

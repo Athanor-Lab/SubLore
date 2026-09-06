@@ -1015,6 +1015,50 @@ fn a_tag_with_a_chosen_value_is_written_where_the_caret_is() {
 }
 
 #[test]
+fn clearing_a_line_empties_it_and_clearing_its_text_leaves_the_braced_runs_where_they_were() {
+    // B13: the reference's two clears differ in exactly this, and nothing else.
+    let mut session = session("ass/clean/basic.ass");
+    session
+        .apply(
+            &Edit::SetText {
+                cue: 0,
+                text: "{\\b1}bold{\\b0} and {note} plain".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("a line to clear");
+
+    session
+        .apply(
+            &Edit::ClearText {
+                cue: 0,
+                keep_tags: true,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("clear text is applied");
+    assert_eq!(raw_text(&session, 0), "{\\b1}{\\b0}{note}");
+
+    session
+        .apply(
+            &Edit::ClearText {
+                cue: 0,
+                keep_tags: false,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("clear is applied");
+    assert_eq!(raw_text(&session, 0), "");
+
+    // Two clears are two steps, so the words come back one undo at a time.
+    session.undo().expect("a step").expect("a patch");
+    assert_eq!(raw_text(&session, 0), "{\\b1}{\\b0}{note}");
+}
+
+#[test]
 fn a_numbered_colour_replaces_the_one_already_in_the_block_rather_than_joining_it() {
     // B12: `\\2c` is one name, so a second pick of the same colour is not a second tag.
     let mut session = session("ass/clean/basic.ass");
