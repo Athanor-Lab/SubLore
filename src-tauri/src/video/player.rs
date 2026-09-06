@@ -166,13 +166,15 @@ fn drawn_box(width: i64, height: i64, rotate: Option<i64>) -> Option<PictureSize
 /// The box mpv draws the picture in, read as one set so its parts can never come from different
 /// files. Absent for a media with no picture and until the first frame is decoded.
 ///
-/// `dwidth` and `dheight` already carry the file's pixel aspect. They carry its rotation only when
-/// the output cannot turn the picture itself, which is why the turn is taken from
-/// `video-out-params/rotate`: that is the one the output has still to make, and it is zero exactly
+/// Every part is taken from `video-out-params`, which is what the output says it will draw. The
+/// top-level `dwidth` is filled before the aspect reaches it on a machine slow enough to send two
+/// reconfigures for one file, and the interface then holds the storage size for one event, which is
+/// exactly the wrong number this reports. Reading one node also keeps the size and the turn
+/// describing one state: the turn is the one the output has still to make, and it is zero exactly
 /// when the size is already turned. See docs/video-aspect-tasks.md.
 fn read_picture(mpv: &Mpv) -> Option<PictureSize> {
-    let width = mpv.get_property::<i64>("dwidth").ok()?;
-    let height = mpv.get_property::<i64>("dheight").ok()?;
+    let width = mpv.get_property::<i64>("video-out-params/dw").ok()?;
+    let height = mpv.get_property::<i64>("video-out-params/dh").ok()?;
     drawn_box(
         width,
         height,
