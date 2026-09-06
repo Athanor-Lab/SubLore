@@ -254,6 +254,11 @@ jobs:
       - name: Generate waveform fixtures
         run: sh fixtures/video/make-waveform-fixtures.sh
 
+      # video-aspect.spec.js needs a picture whose stored frame is not the box it fills, one that is
+      # rotated, and one media with no picture at all. Generated, never committed.
+      - name: Generate picture fixtures
+        run: sh fixtures/video/make-picture-fixtures.sh
+
       # The app hashes the model before every run, so the transcription spec needs the real file.
       # The stand-in sidecar never reads it. Downloaded here because CI asked, never by the app.
       - name: Fetch the transcription model
