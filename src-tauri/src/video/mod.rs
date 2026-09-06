@@ -227,19 +227,33 @@ pub async fn video_open(
     opened
 }
 
+/// A refusal the interface is about to draw is one a person is about to read, so it goes in the log
+/// with the name of the command that produced it. Without this the only trace of a refusal is the
+/// sentence on screen, which does not say what asked. See BACKLOG N36.
+fn refused(command: &str, outcome: Result<(), VideoError>) -> Result<(), VideoError> {
+    if let Err(error) = &outcome {
+        crate::log::warn!(
+            "video: {command} was refused as {:?} ({})",
+            error.code,
+            error.detail
+        );
+    }
+    outcome
+}
+
 #[tauri::command]
 pub async fn video_play(state: State<'_, VideoState>) -> Result<(), VideoError> {
-    state.player().play()
+    refused("video_play", state.player().play())
 }
 
 #[tauri::command]
 pub async fn video_pause(state: State<'_, VideoState>) -> Result<(), VideoError> {
-    state.player().pause()
+    refused("video_pause", state.player().pause())
 }
 
 #[tauri::command]
 pub async fn video_seek(state: State<'_, VideoState>, position: f64) -> Result<(), VideoError> {
-    state.player().seek(position)
+    refused("video_seek", state.player().seek(position))
 }
 
 /// Play a stretch and stop at its end, which is what timing a line is made of.
@@ -249,7 +263,7 @@ pub async fn video_play_range(
     from: f64,
     to: f64,
 ) -> Result<(), VideoError> {
-    state.player().play_range(from, to)
+    refused("video_play_range", state.player().play_range(from, to))
 }
 
 #[tauri::command]
@@ -260,7 +274,10 @@ pub async fn video_set_region(app: AppHandle, region: VideoRegion) -> Result<(),
         ));
     }
 
-    on_main_thread(&app, move || apply_region(region)).await
+    refused(
+        "video_set_region",
+        on_main_thread(&app, move || apply_region(region)).await,
+    )
 }
 
 /// Whether any HTML layer is open over the page. The shell owns the set of open layers and reports
@@ -268,7 +285,10 @@ pub async fn video_set_region(app: AppHandle, region: VideoRegion) -> Result<(),
 /// (decision 1, T8).
 #[tauri::command]
 pub async fn video_set_layers(app: AppHandle, open: bool) -> Result<(), VideoError> {
-    on_main_thread(&app, move || settle(|state| state.layer_open = open)).await
+    refused(
+        "video_set_layers",
+        on_main_thread(&app, move || settle(|state| state.layer_open = open)).await,
+    )
 }
 
 /// Run `action` on the main thread and wait for its result. `run_on_main_thread` only queues the

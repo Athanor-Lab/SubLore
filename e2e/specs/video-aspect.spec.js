@@ -278,7 +278,13 @@ describe("how wide a box the picture would fill", () => {
     const alarming = await browser.execute(() =>
       Array.from(document.querySelectorAll('[role="alert"]')).map((node) => node.textContent),
     );
-    expect(alarming).toEqual([]);
+    // A sentence on screen and the refusals the app logged, read as one object: a refusal is what
+    // puts a sentence there, and the log is the only place that says which command was refused.
+    // Only the sentences are asserted; the refusals are carried so a failure names its cause.
+    const refusals = appLogSinceStart(dataHome())
+      .split("\n")
+      .filter((line) => line.includes("was refused as"));
+    expect({ alarming, refusals }).toEqual({ alarming: [], refusals });
     expect(await present(".statusbar__video-error")).toBe(false);
   });
 
