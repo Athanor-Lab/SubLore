@@ -1507,7 +1507,7 @@ export default function App() {
                 cues={subtitle.cues}
                 onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
                 commands={commands}
-                styles={subtitle.summary?.styles ?? []}
+                styles={subtitle.summary?.styles.map((style) => style.name) ?? []}
                 canComment={subtitle.summary?.format === "ass"}
                 onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
               />
