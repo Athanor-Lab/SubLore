@@ -12,6 +12,7 @@ pub mod ass;
 pub mod cue;
 pub mod document;
 pub mod error;
+pub mod override_tags;
 pub mod span;
 pub mod srt;
 pub mod text;
