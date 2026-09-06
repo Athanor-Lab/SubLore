@@ -1676,21 +1676,10 @@ export default function App() {
                 fontsLoading={fonts.loading}
                 onLoadFonts={fonts.load}
                 onSetOverrideTags={async (tags, at) => {
+                  // The same rule the buttons grey on, read again here: a greyed control must not
+                  // run, and a picker left open on a row the cursor has left must not write to it.
                   if (writesAtCaret && selection.active !== null) {
                     await subtitle.setOverrideTags(selection.active, tags, at);
-                  }
-                }}
-                onSetOverrideTag={async (tag, value) => {
-                  // The same rule the button greys on, read again here: a greyed command must not
-                  // run, and a picker left open on a row the cursor has left must not write to it.
-                  if (writesAtCaret && caret !== null && selection.active !== null) {
-                    await subtitle.setOverrideTag(
-                      selection.active,
-                      tag,
-                      value,
-                      caret.offset,
-                      caret.to,
-                    );
                   }
                 }}
               />

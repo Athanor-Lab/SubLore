@@ -457,6 +457,12 @@ export const en = {
       },
       /** The picker's own field, which takes a colour written the way the web writes one. */
       colourValue: "Colour, as #RRGGBB",
+      /**
+       * How see-through the colour is. ASS counts transparency and not opacity, so 0 is solid and
+       * 255 is invisible, and the field says the word rather than the number's direction.
+       */
+      transparency: "Clear",
+      transparencyName: "Transparency, 0 solid to 255 invisible",
       /** The font this line is drawn in, over what the style says. See edit-bar-tasks.md B12. */
       font: "Font",
       fontFamily: "Font family",

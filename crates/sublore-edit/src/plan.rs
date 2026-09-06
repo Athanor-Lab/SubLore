@@ -74,16 +74,6 @@ pub enum Edit {
         from: usize,
         to: usize,
     },
-    /// Write one override tag with a value the caller chose, over the same stretch a style toggle
-    /// works on. The pickers use this where the four flags use `ToggleStyle`: a colour is picked
-    /// rather than flipped, so there is no state to read first. See edit-bar-tasks.md B12.
-    SetOverrideTag {
-        cue: usize,
-        tag: String,
-        value: String,
-        from: usize,
-        to: usize,
-    },
     /// Turn an ASS event into a `Comment:` or back into a `Dialogue:`. The descriptor is not one
     /// of the fields `AssField` can name, and this changes how many cues a player would draw, so it
     /// is its own edit. See edit-bar-tasks.md B8.
@@ -172,13 +162,6 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             from,
             to,
         } => plan_toggle_style(document, *cue, *flag, *from, *to),
-        Edit::SetOverrideTag {
-            cue,
-            tag,
-            value,
-            from,
-            to,
-        } => plan_set_override_tag(document, *cue, tag, value, *from, *to),
         Edit::ClearText { cue, keep_tags } => plan_clear_text(document, *cue, *keep_tags),
         Edit::SetOverrideTags { cue, tags, at } => {
             plan_set_override_tags(document, *cue, tags, *at)
@@ -1271,62 +1254,6 @@ fn plan_clear_text(
         ),
         label: EditLabel {
             kind: EditKind::ClearText,
-            cue: index,
-        },
-        expect: Expectation {
-            from: index,
-            removed: 1,
-            cues: vec![ExpectedCue {
-                text_raw: write.written,
-                start_ms: located.cue.start.millis(),
-                end_ms: located.cue.end.millis(),
-            }],
-            segments_from: located.segment_index,
-            segments_removed: 1,
-            segments_inserted: 1,
-        },
-    })
-}
-
-fn plan_set_override_tag(
-    document: &SubtitleDocument,
-    index: usize,
-    tag: &str,
-    value: &str,
-    from: usize,
-    to: usize,
-) -> Result<Planned, EditError> {
-    check_tag(tag, value)?;
-    let located = locate(document, index)?;
-    if !matches!(&located.cue.detail, CueDetail::Ass(_)) {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            "only an ASS event carries override tags",
-        ));
-    }
-    let text = document.slice(located.cue.text);
-    if from > text.len()
-        || to > text.len()
-        || !text.is_char_boundary(from)
-        || !text.is_char_boundary(to)
-    {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            format!("the range {from}..{to} is outside the cue's text or cuts a character"),
-        ));
-    }
-    let (start, _) = if from <= to { (from, to) } else { (to, from) };
-    let (written, _) = override_tags::set_tag(text, start, tag, value);
-
-    let write = plan_text_write(document, &located, &written)?;
-    Ok(Planned {
-        splice: Splice::new(
-            write.range.start,
-            document.slice(write.range).to_owned(),
-            write.inserted,
-        ),
-        label: EditLabel {
-            kind: EditKind::SetOverrideTag,
             cue: index,
         },
         expect: Expectation {

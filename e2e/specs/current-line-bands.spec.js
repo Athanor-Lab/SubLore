@@ -1373,17 +1373,32 @@ describe("the current line's bands", () => {
     expect(await present(".currentline__hex")).toBe(true);
 
     await typeHex(toplevel, "#12AB34");
+    // A transparency beside it, which ASS counts the other way from opacity: 128 is half see
+    // through and it is written in hexadecimal. The two go in as one step. See B12.
+    await clickElement(toplevel, ".currentline__alpha");
+    pressKey("ctrl+a");
+    typeText("128");
+    await waitFor(
+      async () =>
+        (await browser.execute(
+          () => document.querySelector(".currentline__alpha")?.value ?? null,
+        )) === "128"
+          ? 1
+          : null,
+      { timeout: 15000, message: "the transparency field to hold exactly 128" },
+    );
     pressKey("Return");
     // `#12AB34` is red 12, green AB, blue 34, and ASS writes the three the other way round.
-    await waitFor(async () => ((await lineText()) === `{\\c&H34AB12&}${before}` ? 1 : null), {
-      timeout: 15000,
-      message: "the typed colour to be written at the caret",
-    });
+    await waitFor(
+      async () => ((await lineText()) === `{\\c&H34AB12&\\1a&H80&}${before}` ? 1 : null),
+      { timeout: 15000, message: "the typed colour and its transparency written at the caret" },
+    );
 
+    // One step, not two: a colour and how see-through it is are one thing a translator chose.
     await clickElement(toplevel, ".toolbar__edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
-      message: "one undo to take the typed colour back off",
+      message: "one undo to take the colour and its transparency back off together",
     });
   });
 

@@ -986,13 +986,13 @@ fn a_field_committed_as_whitespace_writes_nothing_however_often_it_is_committed(
     );
 }
 
-fn set_override_tag(cue: usize, tag: &str, value: &str, from: usize, to: usize) -> Edit {
-    Edit::SetOverrideTag {
+/// One tag written at a caret, which is the list of one the pickers send when nothing else goes
+/// with it: a colour with no transparency beside it, or a style flag's own value.
+fn set_override_tag(cue: usize, tag: &str, value: &str, at: usize) -> Edit {
+    Edit::SetOverrideTags {
         cue,
-        tag: tag.to_owned(),
-        value: value.to_owned(),
-        from,
-        to,
+        tags: vec![(tag.to_owned(), value.to_owned())],
+        at,
     }
 }
 
@@ -1003,7 +1003,7 @@ fn a_tag_with_a_chosen_value_is_written_where_the_caret_is() {
     let text = raw_text(&session, 0);
     session
         .apply(
-            &set_override_tag(0, "\\c", "&H0000FF&", 0, 0),
+            &set_override_tag(0, "\\c", "&H0000FF&", 0),
             Run::New,
             Instant::now(),
         )
@@ -1066,7 +1066,7 @@ fn a_numbered_colour_replaces_the_one_already_in_the_block_rather_than_joining_i
     for value in ["&H0000FF&", "&H00FF00&"] {
         session
             .apply(
-                &set_override_tag(0, "\\2c", value, 0, 0),
+                &set_override_tag(0, "\\2c", value, 0),
                 Run::New,
                 Instant::now(),
             )
@@ -1167,7 +1167,7 @@ fn a_tag_name_that_is_not_a_name_and_a_value_that_could_close_a_block_are_both_r
     for (tag, value) in [("c", "&H0&"), ("\\1c1", "&H0&"), ("\\c", "&H0&}x{\\b1")] {
         session
             .apply(
-                &set_override_tag(0, tag, value, 0, 0),
+                &set_override_tag(0, tag, value, 0),
                 Run::New,
                 Instant::now(),
             )

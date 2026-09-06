@@ -50,11 +50,6 @@ type CurrentLineProps = {
   /** Whether the format has a descriptor at all: only ASS has one, so only ASS can be commented. */
   canComment: boolean;
   onCommitComment: (cue: number, comment: boolean) => Promise<void>;
-  /**
-   * One override tag written where the caret is. The shell binds the row and the caret, so the
-   * panel names only the tag and the value it chose. See edit-bar-tasks.md B12.
-   */
-  onSetOverrideTag: (tag: string, value: string) => Promise<void>;
   /** Whether there is a caret on this row to write at. Without one the colour buttons grey. */
   canWriteTag: boolean;
   /** Several override tags at one caret, as one step: a font is a family and a size. See B12. */
@@ -94,6 +89,29 @@ const COLOUR_TAGS: Record<ColourSlot, string> = {
   outline: "\\3c",
   shadow: "\\4c",
 };
+
+/**
+ * The tag each one's transparency is written with. Numbered from one even where the colour is not:
+ * the primary colour is `\\c` and its transparency is `\\1a`, which is the format's own spelling.
+ */
+const ALPHA_TAGS: Record<ColourSlot, string> = {
+  primary: "\\1a",
+  secondary: "\\2a",
+  outline: "\\3a",
+  shadow: "\\4a",
+};
+
+/**
+ * ASS writes transparency and not opacity: `&H00&` is solid and `&HFF&` is invisible. Null when the
+ * text is not a whole number in range, which is what keeps a half-typed one out of the line.
+ */
+function assAlpha(typed: string): string | null {
+  const wanted = Number(typed.trim());
+  if (!Number.isInteger(wanted) || wanted < 0 || wanted > 255) {
+    return null;
+  }
+  return `&H${wanted.toString(16).toUpperCase().padStart(2, "0")}&`;
+}
 
 /** What the picker offers without typing: the sixteen a subtitle is actually coloured with. */
 const PALETTE = [
@@ -233,7 +251,6 @@ export default function CurrentLine({
   cues,
   onCommitField,
   commands,
-  onSetOverrideTag,
   canWriteTag,
   onSetOverrideTags,
   caretAt,
@@ -294,6 +311,8 @@ export default function CurrentLine({
   } | null>(null);
   /** What the picker's own field holds, kept between openings so a colour is typed once. */
   const [hex, setHex] = useState(PALETTE[0]);
+  /** The transparency beside it. Empty on purpose: an empty field writes no transparency at all. */
+  const [alpha, setAlpha] = useState("");
   const pickerRef = useRef<HTMLDivElement | null>(null);
   /** Where the font picker is drawn, and null while it is closed. */
   const [fontAt, setFontAt] = useState<{ left: number; top: number } | null>(null);
@@ -851,16 +870,34 @@ export default function CurrentLine({
     );
   }
 
-  /** Write one colour where the caret is, and close. A value short of six digits writes nothing. */
+  /**
+   * Write one colour where the caret is, with its transparency when one was typed, and close.
+   *
+   * A colour short of six digits writes nothing, and so does a transparency that is not a whole
+   * number between 0 and 255: a half-typed field must not reach the line. The two go together as
+   * one step, because choosing a colour is one thing a translator did. See B12.
+   */
   async function pickColour(slot: ColourSlot, value: string) {
     const written = assColour(value);
     if (written === null) {
       return;
     }
+    const typed = alpha.trim();
+    const transparency = typed === "" ? null : assAlpha(typed);
+    if (typed !== "" && transparency === null) {
+      return;
+    }
     const trimmed = value.trim().toUpperCase();
     setHex(trimmed.startsWith("#") ? trimmed : `#${trimmed}`);
     setColourAt(null);
-    await onSetOverrideTag(COLOUR_TAGS[slot], written);
+    const tags: [string, string][] = [[COLOUR_TAGS[slot], written]];
+    if (transparency !== null) {
+      tags.push([ALPHA_TAGS[slot], transparency]);
+    }
+    if (caretAt === null) {
+      return;
+    }
+    await onSetOverrideTags(tags, caretAt);
   }
 
   /**
@@ -1253,6 +1290,24 @@ export default function CurrentLine({
               }
             }}
           />
+          <span className="currentline__field">
+            <span className="currentline__label">{en.subtitle.currentLine.transparency}</span>
+            <input
+              className="currentline__number currentline__alpha"
+              aria-label={en.subtitle.currentLine.transparencyName}
+              aria-invalid={alpha.trim() !== "" && assAlpha(alpha) === null}
+              data-document-editor=""
+              value={alpha}
+              spellCheck={false}
+              onChange={(event) => setAlpha(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void pickColour(colourAt.slot, hex);
+                }
+              }}
+            />
+          </span>
         </div>
       )}
     </section>
