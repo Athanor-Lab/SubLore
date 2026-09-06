@@ -1399,6 +1399,65 @@ describe("the current line's bands", () => {
     throw new Error("the document was still dirty after twelve undos");
   }
 
+  it("writes the font and its size as one step, and takes both back in one undo", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const fontButton = () =>
+      browser.execute(() => document.querySelector(".currentline__font")?.disabled ?? null);
+    const typeInto = async (selector, typed) => {
+      await clickElement(toplevel, selector);
+      pressKey("ctrl+a");
+      typeText(typed);
+      await waitFor(
+        async () =>
+          (await browser.execute((css) => document.querySelector(css)?.value ?? null, selector)) ===
+          typed
+            ? 1
+            : null,
+        { timeout: 15000, message: `${selector} to hold exactly ${typed}` },
+      );
+    };
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    const before = await lineText();
+
+    // It greys on the same condition the four colours do, which the colour check above proves on a
+    // format that carries no tags at all; what is asserted here is the other half of that rule.
+    await clickElement(toplevel, ".currentline__text");
+    pressKey("Home");
+    await waitFor(async () => ((await fontButton()) === false ? 1 : null), {
+      timeout: 15000,
+      message: "a caret in the box to ungrey the font button",
+    });
+
+    await clickElement(toplevel, ".currentline__font");
+    await waitFor(() => present(".currentline__families"), {
+      timeout: 15000,
+      message: "the font picker to open on its list of families",
+    });
+
+    // The family is typed rather than picked off the list, because which fonts a machine has is
+    // not something a check may depend on: the runner and this machine do not agree.
+    await typeInto(".currentline__family", "Gentium Book");
+    await typeInto(".currentline__fontsize", "48");
+    await clickElement(toplevel, ".currentline__font-apply");
+    await waitFor(
+      async () => ((await lineText()) === `{\\fnGentium Book\\fs48}${before}` ? 1 : null),
+      { timeout: 15000, message: "the family and the size written at the caret, in that order" },
+    );
+    expect(await present(".currentline__families")).toBe(false);
+
+    // One step, not two: choosing a font is one thing a translator did.
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take back the family and the size together",
+    });
+    await undoEverything(toplevel);
+  });
+
   it("empties a line two ways, one keeping the braced runs and one keeping nothing", async () => {
     const lineText = () =>
       browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);

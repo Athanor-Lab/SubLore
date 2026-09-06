@@ -43,6 +43,14 @@ pub enum Edit {
         cue: usize,
         keep_tags: bool,
     },
+    /// Several override tags written at one caret, as one undo step. A font picker names two, the
+    /// family and the size, and a colour with its transparency names two more: neither is two
+    /// things a translator did. Pairs are `(tag, value)` in the order they are written.
+    SetOverrideTags {
+        cue: usize,
+        tags: Vec<(String, String)>,
+        at: usize,
+    },
     SetTimes {
         cue: usize,
         start_ms: u32,
@@ -172,6 +180,9 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             to,
         } => plan_set_override_tag(document, *cue, tag, value, *from, *to),
         Edit::ClearText { cue, keep_tags } => plan_clear_text(document, *cue, *keep_tags),
+        Edit::SetOverrideTags { cue, tags, at } => {
+            plan_set_override_tags(document, *cue, tags, *at)
+        }
         Edit::Insert {
             before,
             start_ms,
@@ -1132,6 +1143,104 @@ fn validate_field_value(field: AssField, value: &str) -> Result<(), EditError> {
 /// The same write a style toggle makes, with the value given rather than worked out. A tag name
 /// that is not a backslash and letters is refused: everything downstream reads a name that way, and
 /// a value carrying a brace would close the block it was written into.
+/// Refuse a name that is not one and a value that could break the block it is written into.
+///
+/// One digit may lead the name, because the numbered colours and alphas are spelt `\\2c` and
+/// `\\1a`, and after it the name is letters to the end: whatever follows those is the value.
+fn check_tag(tag: &str, value: &str) -> Result<(), EditError> {
+    let named = tag.strip_prefix('\\').unwrap_or("");
+    let letters = named
+        .strip_prefix(|first: char| first.is_ascii_digit())
+        .unwrap_or(named);
+    if letters.is_empty() || !letters.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!(
+                "{tag} is not a tag name: a name is a backslash, one digit at most, then letters"
+            ),
+        ));
+    }
+    if value.contains(['{', '}', '\\']) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a tag value may not carry a brace or a backslash",
+        ));
+    }
+    Ok(())
+}
+
+/// Write several override tags at one caret, as one step.
+///
+/// Every name and every value is checked before anything is written, so a list with one bad entry
+/// in it changes nothing at all.
+///
+/// Every write goes at the same caret, and `set_tag` joins the block already there, so a pick of
+/// two tags is one block: what a person means by "this line, in this font, at this size". Moving
+/// the caret by each write's shift was tried and taken back out, because no line could be found
+/// where it changed the result: `set_tag` writes where the caret is and the block it just made is
+/// what the next write finds there, shifted or not.
+fn plan_set_override_tags(
+    document: &SubtitleDocument,
+    index: usize,
+    tags: &[(String, String)],
+    at: usize,
+) -> Result<Planned, EditError> {
+    if tags.is_empty() {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "no tag to write",
+        ));
+    }
+    for (tag, value) in tags {
+        check_tag(tag, value)?;
+    }
+    let located = locate(document, index)?;
+    if !matches!(&located.cue.detail, CueDetail::Ass(_)) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "only an ASS event carries override tags",
+        ));
+    }
+    let text = document.slice(located.cue.text);
+    if at > text.len() || !text.is_char_boundary(at) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!("the offset {at} is outside the cue's text or cuts a character"),
+        ));
+    }
+
+    let mut written = text.to_owned();
+    for (tag, value) in tags {
+        let (next, _) = override_tags::set_tag(&written, at, tag, value);
+        written = next;
+    }
+
+    let write = plan_text_write(document, &located, &written)?;
+    Ok(Planned {
+        splice: Splice::new(
+            write.range.start,
+            document.slice(write.range).to_owned(),
+            write.inserted,
+        ),
+        label: EditLabel {
+            kind: EditKind::SetOverrideTag,
+            cue: index,
+        },
+        expect: Expectation {
+            from: index,
+            removed: 1,
+            cues: vec![ExpectedCue {
+                text_raw: write.written,
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            }],
+            segments_from: located.segment_index,
+            segments_removed: 1,
+            segments_inserted: 1,
+        },
+    })
+}
+
 /// Empty a cue's text, keeping the braced runs when asked.
 ///
 /// Keeping them is the reference's Clear Text: every block that is not words stays where it is, in
@@ -1187,26 +1296,7 @@ fn plan_set_override_tag(
     from: usize,
     to: usize,
 ) -> Result<Planned, EditError> {
-    let named = tag.strip_prefix('\\').unwrap_or("");
-    // One digit may lead, because the numbered colours and alphas are spelt `\\2c` and `\\1a`, and
-    // after it the name is letters to the end: whatever follows those is the value.
-    let letters = named
-        .strip_prefix(|first: char| first.is_ascii_digit())
-        .unwrap_or(named);
-    if letters.is_empty() || !letters.bytes().all(|byte| byte.is_ascii_alphabetic()) {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            format!(
-                "{tag} is not a tag name: a name is a backslash, one digit at most, then letters"
-            ),
-        ));
-    }
-    if value.contains(['{', '}', '\\']) {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            "a tag value may not carry a brace or a backslash",
-        ));
-    }
+    check_tag(tag, value)?;
     let located = locate(document, index)?;
     if !matches!(&located.cue.detail, CueDetail::Ass(_)) {
         return Err(EditError::new(

@@ -6,6 +6,7 @@ pub mod audio;
 pub mod chooser;
 pub mod crash;
 pub mod dialog;
+pub mod fonts;
 pub mod layout;
 mod modules;
 pub mod preview;
@@ -213,7 +214,9 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_set_comment,
             subtitle::subtitle_toggle_style,
             subtitle::subtitle_set_override_tag,
+            subtitle::subtitle_set_override_tags,
             subtitle::subtitle_clear_text,
+            fonts::fonts_installed,
             subtitle::subtitle_open_source,
             subtitle::subtitle_close_source,
             subtitle::subtitle_new_translation,

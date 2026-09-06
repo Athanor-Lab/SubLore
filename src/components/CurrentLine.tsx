@@ -57,12 +57,24 @@ type CurrentLineProps = {
   onSetOverrideTag: (tag: string, value: string) => Promise<void>;
   /** Whether there is a caret on this row to write at. Without one the colour buttons grey. */
   canWriteTag: boolean;
+  /** Several override tags at one caret, as one step: a font is a family and a size. See B12. */
+  onSetOverrideTags: (tags: [string, string][], at: number) => Promise<void>;
+  /** Where the caret is, in the bytes of the line, or null while there is none on this row. */
+  caretAt: number | null;
+  /** The families installed on this machine, empty until the picker asks for them. */
+  fonts: string[];
+  fontsLoading: boolean;
+  onLoadFonts: () => void;
 };
 
 /** The four colours a line can override, in the order row three of the reference draws them. */
 type ColourSlot = "primary" | "secondary" | "outline" | "shadow";
 
 const COLOUR_SLOTS: ColourSlot[] = ["primary", "secondary", "outline", "shadow"];
+
+/** How many families the picker draws at once. A machine can have hundreds and a list that long
+ * is not read, it is scrolled past: the field above it is what narrows it. */
+const FAMILIES_SHOWN = 60;
 
 /** The four style commands and the letter each is drawn as, in row three's order. */
 const STYLE_GLYPHS: { id: CommandId; glyph: string }[] = [
@@ -223,6 +235,11 @@ export default function CurrentLine({
   commands,
   onSetOverrideTag,
   canWriteTag,
+  onSetOverrideTags,
+  caretAt,
+  fonts,
+  fontsLoading,
+  onLoadFonts,
   styles,
   canComment,
   onCommitComment,
@@ -278,6 +295,12 @@ export default function CurrentLine({
   /** What the picker's own field holds, kept between openings so a colour is typed once. */
   const [hex, setHex] = useState(PALETTE[0]);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  /** Where the font picker is drawn, and null while it is closed. */
+  const [fontAt, setFontAt] = useState<{ left: number; top: number } | null>(null);
+  /** What the picker's two fields hold. An empty size writes no size at all. */
+  const [family, setFamily] = useState("");
+  const [size, setSize] = useState("");
+  const fontRef = useRef<HTMLDivElement | null>(null);
   const comboRefs = useRef<Partial<Record<ComboField, HTMLSpanElement | null>>>({});
   const values = useMemo(
     () => ({ actor: fieldValues(cues, "actor"), effect: fieldValues(cues, "effect") }),
@@ -405,10 +428,38 @@ export default function CurrentLine({
     };
   }, [listAt]);
 
-  // The picker is anchored to a button on one row, so the cursor leaving that row closes it.
+  // The pickers are anchored to a button on one row, so the cursor leaving that row closes them.
   useEffect(() => {
     setColourAt(null);
+    setFontAt(null);
   }, [index]);
+
+  // The same rule the colour picker follows, over the button that opens this one.
+  useEffect(() => {
+    if (fontAt === null) {
+      return;
+    }
+    const close = () => setFontAt(null);
+    const away = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        close();
+        return;
+      }
+      const onOpener = target instanceof Element && target.closest(".currentline__font") !== null;
+      if (fontRef.current?.contains(target) !== true && !onOpener) {
+        close();
+      }
+    };
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("pointerdown", away, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("pointerdown", away, true);
+    };
+  }, [fontAt]);
 
   // Drawn at coordinates taken when it opened, so it closes rather than hanging over the panel it
   // no longer belongs to. A press anywhere but inside it, or on the button that opened it, closes
@@ -812,6 +863,28 @@ export default function CurrentLine({
     await onSetOverrideTag(COLOUR_TAGS[slot], written);
   }
 
+  /**
+   * Write the family and, when one was typed, the size. One step, because choosing a font is one
+   * thing a translator did and undoing it should not take two. See edit-bar-tasks.md B12.
+   */
+  async function pickFont() {
+    const chosen = family.trim();
+    if (chosen === "" || caretAt === null) {
+      return;
+    }
+    const tags: [string, string][] = [["\\fn", chosen]];
+    const typed = size.trim();
+    if (typed !== "") {
+      const number = Number(typed);
+      if (!Number.isInteger(number) || number < 1 || number > 9999) {
+        return;
+      }
+      tags.push(["\\fs", String(number)]);
+    }
+    setFontAt(null);
+    await onSetOverrideTags(tags, caretAt);
+  }
+
   /** One colour, drawn as the button that opens the picker over it. */
   function colourButton(slot: ColourSlot) {
     const open = colourAt !== null && colourAt.slot === slot;
@@ -981,6 +1054,26 @@ export default function CurrentLine({
           with the band's own gap between the groups rather than between the buttons. */}
         <span className="currentline__group">
           {STYLE_GLYPHS.map(({ id, glyph }) => styleButton(id, glyph))}
+          {/* Row three of the reference puts the font with the four flags and not with the
+            colours, so it is the fifth button of this group and not the first of the next. */}
+          <button
+            type="button"
+            className="currentline__command currentline__glyph currentline__font"
+            aria-label={en.subtitle.currentLine.font}
+            aria-expanded={fontAt !== null}
+            disabled={!canWriteTag}
+            onClick={(event) => {
+              if (fontAt !== null) {
+                setFontAt(null);
+                return;
+              }
+              onLoadFonts();
+              const box = event.currentTarget.getBoundingClientRect();
+              setFontAt({ left: box.left, top: box.bottom });
+            }}
+          >
+            <span aria-hidden="true">F</span>
+          </button>
         </span>
         <span className="currentline__group">{COLOUR_SLOTS.map((slot) => colourButton(slot))}</span>
         {commandButton("subtitle.next-line")}
@@ -1042,6 +1135,81 @@ export default function CurrentLine({
         {commandButton("edit.clear-text")}
         {commandButton("edit.insert-original")}
       </div>
+      {fontAt !== null && (
+        <div
+          className="currentline__fonts"
+          ref={fontRef}
+          role="group"
+          aria-label={en.subtitle.currentLine.font}
+          style={{ left: fontAt.left, top: fontAt.top }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setFontAt(null);
+            }
+          }}
+        >
+          <input
+            className="currentline__family"
+            aria-label={en.subtitle.currentLine.fontFamily}
+            data-document-editor=""
+            value={family}
+            spellCheck={false}
+            onChange={(event) => setFamily(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void pickFont();
+              }
+            }}
+          />
+          {/* Every family the machine has, filtered by what is typed. A machine whose font
+            directories could not be read shows none and the family is typed instead. */}
+          <ul className="currentline__families" aria-label={en.subtitle.currentLine.fontFamilies}>
+            {fontsLoading && <li className="currentline__families-note">{en.subtitle.reading}</li>}
+            {fonts
+              .filter((name) => name.toLowerCase().includes(family.trim().toLowerCase()))
+              .slice(0, FAMILIES_SHOWN)
+              .map((name) => (
+                <li key={name}>
+                  <button
+                    type="button"
+                    className="currentline__family-name"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => setFamily(name)}
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))}
+          </ul>
+          <span className="currentline__field">
+            <span className="currentline__label">{en.subtitle.currentLine.fontSize}</span>
+            <input
+              className="currentline__number currentline__fontsize"
+              aria-label={en.subtitle.currentLine.fontSize}
+              data-document-editor=""
+              value={size}
+              spellCheck={false}
+              onChange={(event) => setSize(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void pickFont();
+                }
+              }}
+            />
+          </span>
+          <button
+            type="button"
+            className="currentline__command currentline__font-apply"
+            disabled={family.trim() === ""}
+            onClick={() => void pickFont()}
+          >
+            {en.subtitle.currentLine.fontApply}
+          </button>
+        </div>
+      )}
       {/* The same, over the panel: opened under the button it belongs to, closed by Escape, by a
         press outside it and by the cursor leaving the row it was opened on. */}
       {colourAt !== null && (

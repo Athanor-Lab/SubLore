@@ -385,6 +385,8 @@ export const en = {
         "Those cues are gone: another transcription has started since. Run it again.",
       commandFailed: "Sublore could not finish that action. Restart Sublore if it happens again.",
     },
+    /** Said while a list the interface asked for has not come back yet. */
+    reading: "Reading…",
     /** Said on the status bar while a second document is open to read from. See S1. */
     sourceOpen: "Source: {document}",
     cueList: {
@@ -455,6 +457,12 @@ export const en = {
       },
       /** The picker's own field, which takes a colour written the way the web writes one. */
       colourValue: "Colour, as #RRGGBB",
+      /** The font this line is drawn in, over what the style says. See edit-bar-tasks.md B12. */
+      font: "Font",
+      fontFamily: "Font family",
+      fontFamilies: "Families installed on this machine",
+      fontSize: "Size",
+      fontApply: "Use this font",
       /**
        * Said by the field itself, before anything is sent, so the sentence names what is wrong with
        * this value rather than the one shared refusal below. Keyed by `FieldRefusal`.
