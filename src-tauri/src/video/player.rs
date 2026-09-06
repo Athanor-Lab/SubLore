@@ -1002,11 +1002,26 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
             // libmpv2 turns a failed load or a failed playback into Err rather than an EndFile
             // reason, so this arm is the only place a load failure can be observed.
             Some(Err(error)) => {
+                let no_audio_output = matches!(
+                    &error,
+                    libmpv2::Error::Raw(code) if *code == libmpv2::mpv_error::AoInitFailed
+                );
                 let mapped = from_mpv(error, "playback");
                 let mapped = VideoError::new(VideoErrorCode::OpenFailed, mapped.detail);
                 if !shared.resolve_open(Err(mapped.clone())) {
-                    let stopped = VideoError::new(VideoErrorCode::PlaybackStopped, mapped.detail);
-                    shared.emit_error(&stopped);
+                    // A machine with no sound is still one a media can be open on. mpv reports a
+                    // failed audio output through this arm, and for a media that is only audio it
+                    // is the whole of the playback, but the file is loaded and an editor of
+                    // subtitles wants it. Said once in the log, never to the user. See N35.
+                    if no_audio_output {
+                        crate::log::warn!(
+                            "video: this machine has no audio output, so the media is silent"
+                        );
+                    } else {
+                        let stopped =
+                            VideoError::new(VideoErrorCode::PlaybackStopped, mapped.detail);
+                        shared.emit_error(&stopped);
+                    }
                 }
             }
             _ => {}
