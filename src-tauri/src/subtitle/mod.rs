@@ -315,6 +315,25 @@ pub async fn subtitle_set_field(
     .await
 }
 
+/// Whether one cue is a line a player draws. Refused on a format that has no descriptor to
+/// rewrite, and the panel draws that control greyed instead of asking. See edit-bar-tasks.md B8.
+#[tauri::command]
+pub async fn subtitle_set_comment(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    comment: bool,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::SetComment { cue, comment },
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn subtitle_set_times(
     app: AppHandle,

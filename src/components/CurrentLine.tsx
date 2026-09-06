@@ -46,6 +46,9 @@ type CurrentLineProps = {
   commands: CommandRegistry;
   /** The names the document's styles section declares, in its own order. See edit-bar-tasks C5. */
   styles: string[];
+  /** Whether the format has a descriptor at all: only ASS has one, so only ASS can be commented. */
+  canComment: boolean;
+  onCommitComment: (cue: number, comment: boolean) => Promise<void>;
 };
 
 /** The ASS fields the panel holds as a number: the drawing order and the three margins. */
@@ -154,6 +157,8 @@ export default function CurrentLine({
   onCommitField,
   commands,
   styles,
+  canComment,
+  onCommitComment,
 }: CurrentLineProps) {
   const text = cue?.text ?? "";
   const startMs = cue?.startMs ?? 0;
@@ -621,6 +626,33 @@ export default function CurrentLine({
   }
 
   /**
+   * Whether the line is one a player draws. First in row one, and a checkbox rather than a field
+   * because it is a flag: it commits the moment it is toggled and is its own undo step. Drawn and
+   * greyed on a format that has no such distinction, never absent (E3.1).
+   */
+  function commentField() {
+    const label = en.subtitle.currentLine.comment;
+    return (
+      <span className="currentline__field">
+        <input
+          type="checkbox"
+          className="currentline__comment"
+          aria-label={label}
+          data-document-editor=""
+          disabled={!canComment || cue === null}
+          checked={cue?.comment ?? false}
+          onChange={(event) => {
+            if (index !== null) {
+              void onCommitComment(index, event.target.checked);
+            }
+          }}
+        />
+        <span className="currentline__label">{label}</span>
+      </span>
+    );
+  }
+
+  /**
    * The style the line names, picked from the ones the document declares. A closed list: a name the
    * file does not define is still shown, because the file holds it, and cannot be chosen. Drawn and
    * greyed on a row whose `Format:` line cannot hold one, never absent (E3.1).
@@ -728,6 +760,7 @@ export default function CurrentLine({
       {/* Band 1, identity. The two measures of the text sit at its right end, where a translator
         glances rather than reaches. See edit-bar-first-tasks.md section 2. */}
       <div className="currentline__band currentline__identity">
+        {commentField()}
         {styleField()}
         {comboField("actor", en.subtitle.currentLine.actor, en.subtitle.currentLine.actorNames)}
         {comboField("effect", en.subtitle.currentLine.effect, en.subtitle.currentLine.effectValues)}

@@ -7,7 +7,7 @@
 //! `sublore-formats`: the parsers stay the only authority on grammar.
 
 use sublore_formats::{
-    AssEvent, AssField, Cue, CueDetail, Newline, Segment, SegmentKind, Span, SrtCue,
+    AssEvent, AssEventKind, AssField, Cue, CueDetail, Newline, Segment, SegmentKind, Span, SrtCue,
     SubtitleDocument, SubtitleFormat, MAX_TIMECODE_MS,
 };
 
@@ -47,6 +47,13 @@ pub enum Edit {
         cue: usize,
         field: AssField,
         value: String,
+    },
+    /// Turn an ASS event into a `Comment:` or back into a `Dialogue:`. The descriptor is not one
+    /// of the fields `AssField` can name, and this changes how many cues a player would draw, so it
+    /// is its own edit. See edit-bar-tasks.md B8.
+    SetComment {
+        cue: usize,
+        comment: bool,
     },
     /// `before == cues().count()` appends.
     Insert {
@@ -122,6 +129,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             end_ms,
         } => plan_set_times(document, *cue, *start_ms, *end_ms),
         Edit::SetField { cue, field, value } => plan_set_field(document, *cue, *field, value),
+        Edit::SetComment { cue, comment } => plan_set_comment(document, *cue, *comment),
         Edit::Insert {
             before,
             start_ms,
@@ -152,6 +160,11 @@ pub fn edit(document: &SubtitleDocument, edit: &Edit) -> Result<Edited, EditErro
     // itself against the re-parsed document. See docs/ass-field-write-tasks.md W6.
     if let Edit::SetField { cue, field, value } = edit {
         verify_field(document, &after, *cue, *field, value)?;
+    }
+    // The same reason: `verify` reads no descriptor, so the one thing this edit changes proves
+    // itself against the re-parsed document.
+    if let Edit::SetComment { cue, comment } = edit {
+        verify_comment(&after, *cue, *comment)?;
     }
 
     let cue_delta = delta(document.cues().count(), after.cues().count());
@@ -1069,6 +1082,46 @@ fn validate_field_value(field: AssField, value: &str) -> Result<(), EditError> {
 /// One cue: a write across a selection is a loop over this and the loop belongs with the panel
 /// that has a selection (W7). The commas belong to no field, so a splice that stays inside a core
 /// cannot reach one whether the field is first, last before the text, or in between.
+/// A splice over the event's own descriptor, which is the word before the colon. Nothing else on
+/// the line moves, so the times and the text the verifier checks are the ones that were there.
+fn plan_set_comment(
+    document: &SubtitleDocument,
+    index: usize,
+    comment: bool,
+) -> Result<Planned, EditError> {
+    let located = locate(document, index)?;
+    let CueDetail::Ass(event) = &located.cue.detail else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cue is not an ASS event, so it has no descriptor to rewrite",
+        ));
+    };
+    let written = if comment { "Comment" } else { "Dialogue" };
+    Ok(Planned {
+        splice: Splice::new(
+            event.descriptor.start,
+            document.slice(event.descriptor).to_owned(),
+            written.to_owned(),
+        ),
+        label: EditLabel {
+            kind: EditKind::SetComment,
+            cue: index,
+        },
+        expect: Expectation {
+            from: index,
+            removed: 1,
+            cues: vec![ExpectedCue {
+                text_raw: document.slice(located.cue.text).to_owned(),
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            }],
+            segments_from: located.segment_index,
+            segments_removed: 1,
+            segments_inserted: 1,
+        },
+    })
+}
+
 fn plan_set_field(
     document: &SubtitleDocument,
     index: usize,
@@ -1134,6 +1187,27 @@ fn plan_set_field(
 /// The three things `verify` does not look at: the edited event still carries the same number of
 /// fields, the named field reads back exactly the bytes the plan wrote, and every other field of
 /// that event slices to the same string. See docs/ass-field-write-tasks.md W6.
+/// The one thing a comment edit changes, read back off the re-parsed document: the event is the
+/// kind that was asked for. Everything else about the line is `verify`'s to check.
+fn verify_comment(after: &SubtitleDocument, index: usize, comment: bool) -> Result<(), EditError> {
+    let event = ass_event_of(after, index)?;
+    let wanted = if comment {
+        AssEventKind::Comment
+    } else {
+        AssEventKind::Dialogue
+    };
+    if event.kind != wanted {
+        return Err(EditError::new(
+            EditErrorKind::Unverified,
+            format!(
+                "cue {index} was asked to be {wanted:?} and came back {:?}",
+                event.kind
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn verify_field(
     before: &SubtitleDocument,
     after: &SubtitleDocument,
