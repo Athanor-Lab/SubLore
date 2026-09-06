@@ -111,14 +111,6 @@ export type SubtitleFile = {
   clearText: (cue: number, keepTags: boolean) => Promise<void>;
   /** Begin a translation from the source: same cues, same timings, nothing written yet. See S2. */
   newTranslation: () => Promise<void>;
-  /** One override tag with a value the caller chose, over the stretch a flag is flipped on. B12. */
-  setOverrideTag: (
-    cue: number,
-    tag: string,
-    value: string,
-    from: number,
-    to: number,
-  ) => Promise<void>;
   /** `before === cues.length` appends; the four below carry the backend's own argument names. */
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
   deleteCue: (cue: number) => Promise<void>;
@@ -420,12 +412,6 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
-  const setOverrideTag = useCallback(
-    (cue: number, tag: string, value: string, from: number, to: number) =>
-      command("subtitle_set_override_tag", { cue, write: { tag, value, from, to } }),
-    [command],
-  );
-
   const setOverrideTags = useCallback(
     (cue: number, tags: [string, string][], at: number) =>
       command("subtitle_set_override_tags", { cue, write: { tags, at } }),
@@ -532,7 +518,6 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setField,
     setComment,
     toggleStyle,
-    setOverrideTag,
     setOverrideTags,
     newTranslation,
     clearText,
