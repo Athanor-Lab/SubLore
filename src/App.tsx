@@ -186,6 +186,18 @@ const LEAD_OUT_MS = 350;
  * The four inline style flags, in the order row three of the panel draws them. Each writes its own
  * override tag into the line's text and is its own undo step. See edit-bar-tasks.md B11.
  */
+/**
+ * Put `inserted` into `text` at `at`, counting `at` in UTF-8 bytes the way the backend counts a
+ * caret. A code-unit slice would land in the wrong place the moment a line carries a character
+ * outside the Latin block, which a translation usually does. See edit-bar-tasks.md B13.
+ */
+function spliceUtf8(text: string, at: number, inserted: string): string {
+  const bytes = new TextEncoder().encode(text);
+  const cut = Math.min(Math.max(at, 0), bytes.length);
+  const decoder = new TextDecoder();
+  return decoder.decode(bytes.slice(0, cut)) + inserted + decoder.decode(bytes.slice(cut));
+}
+
 const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
   { id: "edit.style-bold", flag: "bold", label: en.menu.edit.bold },
   { id: "edit.style-italic", flag: "italic", label: en.menu.edit.italic },
@@ -441,14 +453,31 @@ export default function App() {
    */
   const [caret, setCaret] = useState<{ index: number; offset: number; to: number } | null>(null);
   /**
-   * Whether an override tag can be written now. Only ASS carries them, and one is written at a
-   * caret in the line's own editor, so it wants one on the row the cursor is on.
+   * Whether there is a caret in the line's own editor, on the row the cursor is on. Two commands
+   * want it: writing an override tag, which additionally wants ASS because no other format carries
+   * one, and putting the source's line where the caret is, which every format can hold.
    */
-  const writesAtCaret =
-    subtitle.summary?.format === "ass" &&
+  /**
+   * The active row's text as it was when the cursor arrived on it, which is what Revert puts back.
+   * Tracked here rather than in the panel because an undo elsewhere re-seeds the panel's own copy
+   * and this one must survive that: it changes when the cursor moves and at no other time. B13.
+   */
+  const [arrived, setArrived] = useState<{ open: number; index: number; text: string } | null>(
+    null,
+  );
+  if (
+    selection.active !== null &&
     activeCue !== null &&
-    caret !== null &&
-    caret.index === selection.active;
+    (arrived?.index !== selection.active || arrived.open !== subtitle.openId)
+  ) {
+    setArrived({ open: subtitle.openId, index: selection.active, text: activeCue.text });
+  }
+  if (selection.active === null && arrived !== null) {
+    setArrived(null);
+  }
+
+  const hasCaret = activeCue !== null && caret !== null && caret.index === selection.active;
+  const writesAtCaret = subtitle.summary?.format === "ass" && hasCaret;
   // The chooser is modal and answers on its own thread, so a second one asked for while it is up
   // would sit behind the first. Every chooser the chrome raises is raised here, so one flag covers
   // them all.
@@ -1126,6 +1155,55 @@ export default function App() {
       },
     })),
     {
+      id: "edit.revert",
+      label: en.menu.edit.revert,
+      // Nothing to put back until the line has moved from what it was when the cursor reached it.
+      enabled: activeCue !== null && arrived !== null && arrived.text !== activeCue.text,
+      run: () => {
+        if (selection.active !== null && arrived !== null) {
+          void subtitle.setText(selection.active, arrived.text);
+        }
+      },
+    },
+    {
+      id: "edit.clear",
+      label: en.menu.edit.clear,
+      enabled: activeCue !== null && activeCue.text !== "",
+      run: () => {
+        if (selection.active !== null) {
+          void subtitle.clearText(selection.active, false);
+        }
+      },
+    },
+    {
+      id: "edit.clear-text",
+      label: en.menu.edit.clearText,
+      enabled: activeCue !== null && activeCue.text !== "",
+      run: () => {
+        if (selection.active !== null) {
+          void subtitle.clearText(selection.active, true);
+        }
+      },
+    },
+    {
+      id: "edit.insert-original",
+      label: en.menu.edit.insertOriginal,
+      // The source's line for this row, put where the caret is. Both are needed, and a row the
+      // source does not reach has nothing to insert. See side-by-side-tasks.md S4 and B13.
+      enabled:
+        hasCaret && selection.active !== null && (source.cues[selection.active]?.text ?? "") !== "",
+      run: () => {
+        if (caret === null || selection.active === null || activeCue === null) {
+          return;
+        }
+        const original = source.cues[selection.active]?.text ?? "";
+        if (original === "") {
+          return;
+        }
+        void subtitle.setText(selection.active, spliceUtf8(activeCue.text, caret.offset, original));
+      },
+    },
+    {
       id: "subtitle.insert",
       label: en.menu.subtitles.insert,
       // A document with no rows can still take its first one, so the cursor is not required here.
@@ -1303,6 +1381,10 @@ export default function App() {
       items: [
         "edit.undo",
         "edit.redo",
+        "edit.revert",
+        "edit.clear",
+        "edit.clear-text",
+        "edit.insert-original",
         "edit.style-bold",
         "edit.style-italic",
         "edit.style-underline",

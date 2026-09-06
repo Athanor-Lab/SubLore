@@ -1,4 +1,4 @@
-/* global describe, it, before, after, document, window, Event */
+/* global describe, it, before, after, document, window, Event, setTimeout */
 /**
  * The current line's bands: the character count on the first one, and the row structure both bands
  * have to survive at every interface size. See sublore-meta docs/edit-bar-first-tasks.md, E1 and E5.
@@ -688,6 +688,9 @@ describe("the current line's bands", () => {
       { band: "identity", parts: ["Comment", "Style", "Actor", "Effect", "Characters", "CPS"] },
       { band: "times", parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"] },
       { band: "actions", parts: [] },
+      // The reference's own row under the box: what the line was, two ways of emptying it, and the
+      // source's line. Its buttons carry no label of their own, so the band reads as empty here.
+      { band: "bottom", parts: [] },
     ]);
   });
 
@@ -838,6 +841,7 @@ describe("the current line's bands", () => {
           parts: ["Layer", "Start", "End", "Duration", "L", "R", "V"],
         },
         { band: "actions", parts: [] },
+        { band: "bottom", parts: [] },
       ]);
     }
 
@@ -1381,6 +1385,103 @@ describe("the current line's bands", () => {
       timeout: 15000,
       message: "one undo to take the typed colour back off",
     });
+  });
+
+  /** Undo until the document is what it was on disk, so the next test's open is not refused. */
+  async function undoEverything(toplevel) {
+    for (let step = 0; step < 12; step += 1) {
+      if (!(await present(".statusbar__dirty"))) {
+        return;
+      }
+      await clickElement(toplevel, ".toolbar__edit-undo");
+      await new Promise((settle) => setTimeout(settle, 150));
+    }
+    throw new Error("the document was still dirty after twelve undos");
+  }
+
+  it("empties a line two ways, one keeping the braced runs and one keeping nothing", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+
+    // A line with words and a braced run in it, so the two clears can be told apart at all.
+    await clickElement(toplevel, ".currentline__text");
+    await waitFor(
+      () =>
+        browser.execute(
+          () => document.activeElement?.classList.contains("currentline__text") === true,
+        ),
+      { timeout: 15000, message: "the box to take the keyboard" },
+    );
+    pressKey("ctrl+a");
+    typeText("{\\b1}bold{\\b0} and plain");
+    await waitFor(async () => ((await lineText()) === "{\\b1}bold{\\b0} and plain" ? 1 : null), {
+      timeout: 15000,
+      message: "the box to hold the line the clears are about",
+    });
+    await clickElement(toplevel, ".currentline__comment");
+    await clickElement(toplevel, ".currentline__comment");
+
+    await clickElement(toplevel, ".currentline__edit-clear-text");
+    await waitFor(async () => ((await lineText()) === "{\\b1}{\\b0}" ? 1 : null), {
+      timeout: 15000,
+      message: "the words to go and the braced runs to stay",
+    });
+
+    await clickElement(toplevel, ".currentline__edit-clear");
+    await waitFor(async () => ((await lineText()) === "" ? 1 : null), {
+      timeout: 15000,
+      message: "the whole line to go",
+    });
+
+    // Two clears are two steps, so one undo puts back exactly what the first one left.
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === "{\\b1}{\\b0}" ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take back the second clear and not the first",
+    });
+    await undoEverything(toplevel);
+  });
+
+  it("puts a line back to what it was when the cursor reached it, and greys until it moved", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const revert = () =>
+      browser.execute(() => document.querySelector(".currentline__edit-revert")?.disabled ?? null);
+
+    const copy = workingCopy("ass/clean/speakers.ass");
+    await openSubtitle(toplevel, copy);
+    await goToRow(toplevel, 1);
+    const before = await lineText();
+    // Nothing has moved on this row, so there is nothing to put back.
+    expect(await revert()).toBe(true);
+
+    await clickElement(toplevel, ".currentline__text");
+    await waitFor(
+      () =>
+        browser.execute(
+          () => document.activeElement?.classList.contains("currentline__text") === true,
+        ),
+      { timeout: 15000, message: "the box to take the keyboard" },
+    );
+    pressKey("ctrl+a");
+    typeText("Typed over the line");
+    await clickElement(toplevel, ".currentline__comment");
+    await clickElement(toplevel, ".currentline__comment");
+    await waitFor(async () => ((await revert()) === false ? 1 : null), {
+      timeout: 15000,
+      message: "Revert to wake once the line differs from what it was",
+    });
+
+    await clickElement(toplevel, ".currentline__edit-revert");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 15000,
+      message: "the line to go back to what it was when the cursor reached it",
+    });
+    await undoEverything(toplevel);
   });
 
   it("turns a line into a comment and back, in one undo step each way", async () => {

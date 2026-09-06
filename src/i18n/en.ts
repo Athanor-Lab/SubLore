@@ -29,6 +29,11 @@ export const en = {
       bold: "Bold",
       italic: "Italic",
       underline: "Underline",
+      /** The four under the text box, in the order the reference's own row puts them. See B13. */
+      revert: "Revert",
+      clear: "Clear",
+      clearText: "Clear text",
+      insertOriginal: "Insert original",
       strikeout: "Strikeout",
       find: "Find…",
       findNext: "Find next",

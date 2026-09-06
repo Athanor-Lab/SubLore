@@ -251,6 +251,58 @@ describe("the document being read from", () => {
     expect(readFileSync(source).equals(sourceBytes)).toBe(true);
   });
 
+  it("puts the source's own line into the box where the caret is", async () => {
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const insert = () =>
+      browser.execute(
+        () => document.querySelector(".currentline__edit-insert-original")?.disabled ?? null,
+      );
+
+    await openSource(toplevel, source);
+    await waitFor(() => present(".cuelist__headcell--source"), {
+      timeout: 20000,
+      message: "the source column to come back",
+    });
+    await clickElement(toplevel, ".currentline__text");
+    await waitFor(
+      () =>
+        browser.execute(
+          () => document.activeElement?.classList.contains("currentline__text") === true,
+        ),
+      { timeout: 15000, message: "the box to take the keyboard" },
+    );
+    pressKey("ctrl+a");
+    pressKey("Home");
+    await waitFor(async () => ((await insert()) === false ? 1 : null), {
+      timeout: 15000,
+      message: "the button to wake with a caret on a row the source reaches",
+    });
+    const before = await lineText();
+
+    await clickElement(toplevel, ".currentline__edit-insert-original");
+    await waitFor(async () => ((await lineText()) === `${SOURCE_LINES[0]}${before}` ? 1 : null), {
+      timeout: 15000,
+      message: "the source's first line to be put at the start of the box",
+    });
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take the inserted line back out",
+    });
+
+    // The button is drawn on every row and greys on one the source does not reach: the target has
+    // three lines and the source two, so the third has nothing to insert.
+    await clickElement(toplevel, ".currentline__subtitle-next-line");
+    await clickElement(toplevel, ".currentline__subtitle-next-line");
+    await clickElement(toplevel, ".currentline__text");
+    await waitFor(async () => ((await insert()) === true ? 1 : null), {
+      timeout: 15000,
+      message: "the button to grey on the row the source does not reach",
+    });
+  });
+
   it("refuses a source it cannot read, and leaves the column as it found it", async () => {
     await openSource(toplevel, source);
     await waitFor(() => present(".cuelist__headcell--source"), {

@@ -1034,6 +1034,14 @@ export default function CurrentLine({
           ))}
         </div>
       )}
+      {/* Under the box, which is where the reference's own row of four sits: what the line was,
+        two ways of emptying it, and the source's line put where the caret is. See B13. */}
+      <div className="currentline__band currentline__bottom">
+        {commandButton("edit.revert")}
+        {commandButton("edit.clear")}
+        {commandButton("edit.clear-text")}
+        {commandButton("edit.insert-original")}
+      </div>
       {/* The same, over the panel: opened under the button it belongs to, closed by Escape, by a
         press outside it and by the cursor leaving the row it was opened on. */}
       {colourAt !== null && (

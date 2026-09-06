@@ -37,6 +37,12 @@ pub enum Edit {
     SetTexts {
         edits: Vec<(usize, String)>,
     },
+    /// Empty one cue's text. `keep_tags` leaves every braced run where it stands and drops only the
+    /// words a reader sees, which is the difference between the reference's Clear and Clear Text.
+    ClearText {
+        cue: usize,
+        keep_tags: bool,
+    },
     SetTimes {
         cue: usize,
         start_ms: u32,
@@ -165,6 +171,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             from,
             to,
         } => plan_set_override_tag(document, *cue, tag, value, *from, *to),
+        Edit::ClearText { cue, keep_tags } => plan_clear_text(document, *cue, *keep_tags),
         Edit::Insert {
             before,
             start_ms,
@@ -1125,6 +1132,53 @@ fn validate_field_value(field: AssField, value: &str) -> Result<(), EditError> {
 /// The same write a style toggle makes, with the value given rather than worked out. A tag name
 /// that is not a backslash and letters is refused: everything downstream reads a name that way, and
 /// a value carrying a brace would close the block it was written into.
+/// Empty a cue's text, keeping the braced runs when asked.
+///
+/// Keeping them is the reference's Clear Text: every block that is not words stays where it is, in
+/// the order it was in, and only the plain runs go. See edit-bar-tasks.md B13.
+fn plan_clear_text(
+    document: &SubtitleDocument,
+    index: usize,
+    keep_tags: bool,
+) -> Result<Planned, EditError> {
+    let located = locate(document, index)?;
+    let text = document.slice(located.cue.text);
+    let written = if keep_tags {
+        override_tags::blocks(text)
+            .into_iter()
+            .filter(|block| block.kind != override_tags::BlockKind::Plain)
+            .map(|block| &text[block.span.range()])
+            .collect::<String>()
+    } else {
+        String::new()
+    };
+
+    let write = plan_text_write(document, &located, &written)?;
+    Ok(Planned {
+        splice: Splice::new(
+            write.range.start,
+            document.slice(write.range).to_owned(),
+            write.inserted,
+        ),
+        label: EditLabel {
+            kind: EditKind::ClearText,
+            cue: index,
+        },
+        expect: Expectation {
+            from: index,
+            removed: 1,
+            cues: vec![ExpectedCue {
+                text_raw: write.written,
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            }],
+            segments_from: located.segment_index,
+            segments_removed: 1,
+            segments_inserted: 1,
+        },
+    })
+}
+
 fn plan_set_override_tag(
     document: &SubtitleDocument,
     index: usize,

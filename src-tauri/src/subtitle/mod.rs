@@ -457,6 +457,25 @@ pub struct OverrideTagWrite {
     pub to: usize,
 }
 
+/// Empty one cue's text. `keep_tags` is the reference's Clear Text: the braced runs stay where
+/// they are and only the words go. See edit-bar-tasks.md B13.
+#[tauri::command]
+pub async fn subtitle_clear_text(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    keep_tags: bool,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::ClearText { cue, keep_tags },
+    )
+    .await
+}
+
 /// One override tag with a value the caller chose, over the same stretch a style toggle works on.
 /// The name and the value are checked by the planner, which refuses anything that could close the
 /// block it is written into. See edit-bar-tasks.md B12.
