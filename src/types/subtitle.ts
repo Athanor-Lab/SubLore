@@ -78,6 +78,9 @@ export type CueRow = {
  * A field the row does not declare is refused, so its control greys itself off `declaredFields`
  * rather than asking and reading the refusal.
  */
+/** The four inline style flags, spelled the way the backend's own enum takes them. */
+export type StyleFlagName = "bold" | "italic" | "underline" | "strikeout";
+
 export type AssFieldName =
   "style" | "actor" | "effect" | "layer" | "marginL" | "marginR" | "marginV";
 

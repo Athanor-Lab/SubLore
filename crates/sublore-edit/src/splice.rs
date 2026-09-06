@@ -66,6 +66,9 @@ pub enum EditKind {
     /// Its own kind, never `SetField`: the descriptor is not one of the fields the `Format:` line
     /// declares, and turning a line into a comment changes how many cues a player would draw.
     SetComment,
+    /// Which flag is on the label, for the reason `SetField` carries its field: bold and italic on
+    /// one line must never merge into one undo step.
+    ToggleStyle(sublore_formats::override_tags::StyleFlag),
     Insert,
     Delete,
     Split,

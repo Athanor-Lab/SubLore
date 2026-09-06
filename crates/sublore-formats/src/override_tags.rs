@@ -104,6 +104,58 @@ pub fn blocks(text: &str) -> Vec<Block> {
     out
 }
 
+/// One of the four flags a line can be styled with, inline. Closed on purpose: these four are the
+/// ones the panel draws, and each is a boolean the style starts and an override tag may change.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StyleFlag {
+    Bold,
+    Italic,
+    Underline,
+    Strikeout,
+}
+
+impl StyleFlag {
+    /// The tag that carries it, backslash included.
+    pub fn tag(self) -> &'static str {
+        match self {
+            StyleFlag::Bold => "\\b",
+            StyleFlag::Italic => "\\i",
+            StyleFlag::Underline => "\\u",
+            StyleFlag::Strikeout => "\\s",
+        }
+    }
+
+    /// Its name, for a refusal that has to say which flag it is about.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StyleFlag::Bold => "bold",
+            StyleFlag::Italic => "italic",
+            StyleFlag::Underline => "underline",
+            StyleFlag::Strikeout => "strikeout",
+        }
+    }
+
+    /// What a style sets it to, which is where a line starts before any tag of its own.
+    pub fn of(self, style: &crate::document::AssStyle) -> bool {
+        match self {
+            StyleFlag::Bold => style.bold,
+            StyleFlag::Italic => style.italic,
+            StyleFlag::Underline => style.underline,
+            StyleFlag::Strikeout => style.strikeout,
+        }
+    }
+}
+
+/// Whether a tag's value reads as on. ASS writes `1` for on and `0` for off inside a line, unlike
+/// the styles section, which writes `-1`; anything that is not a number leaves the state alone,
+/// which is what falling back to `initial` means here.
+pub fn flag_value(value: &str, initial: bool) -> bool {
+    value
+        .trim()
+        .parse::<i64>()
+        .map_or(initial, |number| number != 0)
+}
+
 /// One tag inside an override block: the name with its backslash, and the value that follows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Tag {
@@ -273,14 +325,21 @@ pub fn set_tag(text: &str, at: usize, name: &str, value: &str) -> (String, isize
 /// that brace opens. Raw rather than visible-only because the panel's box shows the line as the
 /// file spells it, braces included, so the caret it reports is already an offset into this text.
 fn block_at_raw(parsed: &[Block], at: usize) -> Option<usize> {
+    let braced = |block: &Block| matches!(block.kind, BlockKind::Override | BlockKind::Comment);
     for (index, block) in parsed.iter().enumerate() {
         if at < block.span.end {
             return Some(index);
         }
         if at == block.span.end {
+            // On a boundary, the braced side wins. Just past a closing brace the tags of the block
+            // that closed are the ones in force; just before an opening one, the block it opens is
+            // where a hand means the tag to go.
+            if braced(block) {
+                return Some(index);
+            }
             return Some(match parsed.get(index + 1) {
-                Some(_) => index + 1,
-                None => index,
+                Some(next) if braced(next) => index + 1,
+                _ => index,
             });
         }
     }

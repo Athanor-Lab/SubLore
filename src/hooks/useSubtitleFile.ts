@@ -8,6 +8,7 @@ import { type RowRef } from "../types/chrome";
 import {
   isSubtitleError,
   type AssFieldName,
+  type StyleFlagName,
   type CuePatch,
   type CueRow,
   type SubtitleError,
@@ -101,6 +102,9 @@ export type SubtitleFile = {
   /** Whether one cue is a line a player draws. Refused on a format with no descriptor, so its
    * control greys itself off the format rather than asking. See edit-bar-tasks.md B8. */
   setComment: (cue: number, comment: boolean) => Promise<void>;
+  /** One inline style flag over a stretch of a cue's text, in the bytes of the text as the file
+   * spells it. Equal offsets are a caret rather than a selection. See edit-bar-tasks.md B11. */
+  toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
   /** `before === cues.length` appends; the four below carry the backend's own argument names. */
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
   deleteCue: (cue: number) => Promise<void>;
@@ -377,6 +381,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const toggleStyle = useCallback(
+    (cue: number, flag: StyleFlagName, from: number, to: number) =>
+      command("subtitle_toggle_style", { cue, flag, from, to }),
+    [command],
+  );
+
   const insertCue = useCallback(
     (before: number, startMs: number, endMs: number, text: string) =>
       command("subtitle_insert", { before, startMs, endMs, text }),
@@ -471,6 +481,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setTimes,
     setField,
     setComment,
+    toggleStyle,
     insertCue,
     deleteCue,
     splitCue,

@@ -14,6 +14,7 @@ use sublore_edit::error::EditErrorKind;
 use sublore_edit::history::Run;
 use sublore_edit::plan::Edit;
 use sublore_edit::session::EditSession;
+use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{AssField, SubtitleDocument, SubtitleFormat};
 
 /// A typing pause, well inside `history::COALESCE_WINDOW`.
@@ -983,6 +984,96 @@ fn a_field_committed_as_whitespace_writes_nothing_however_often_it_is_committed(
         bytes.contains("Default,Bo ,0,0,0,"),
         "the value's own trailing space was trimmed on the way out"
     );
+}
+
+fn toggle_style(cue: usize, flag: StyleFlag, from: usize, to: usize) -> Edit {
+    Edit::ToggleStyle {
+        cue,
+        flag,
+        from,
+        to,
+    }
+}
+
+/// The text of one cue as the file spells it, braces included.
+fn raw_text(session: &EditSession, cue: usize) -> String {
+    let document = session.document();
+    let found = document.cues().nth(cue).expect("the cue is there");
+    document.slice(found.text).to_owned()
+}
+
+#[test]
+fn a_style_toggle_over_a_selection_wraps_it_and_leaves_the_rest_alone() {
+    // B11: the flag is off in the style, so the selection is turned on and turned back off at its
+    // far end, which is what the writer's shift is for.
+    let mut session = session("ass/clean/basic.ass");
+    let text = raw_text(&session, 0);
+    let at = text
+        .find("harbour")
+        .expect("the fixture's first line holds it");
+    session
+        .apply(
+            &toggle_style(0, StyleFlag::Bold, at, at + 7),
+            Run::New,
+            Instant::now(),
+        )
+        .expect("an ASS event takes an override tag");
+    assert_eq!(
+        raw_text(&session, 0),
+        format!("{}{{\\b1}}harbour{{\\b0}}{}", &text[..at], &text[at + 7..])
+    );
+
+    session.undo().expect("a step to undo").expect("a patch");
+    assert_eq!(raw_text(&session, 0), text, "one undo puts the line back");
+}
+
+#[test]
+fn a_style_toggle_at_a_caret_writes_one_tag_and_no_closing_one() {
+    let mut session = session("ass/clean/basic.ass");
+    let text = raw_text(&session, 0);
+    session
+        .apply(
+            &toggle_style(0, StyleFlag::Italic, 0, 0),
+            Run::New,
+            Instant::now(),
+        )
+        .expect("an ASS event takes an override tag");
+    assert_eq!(raw_text(&session, 0), format!("{{\\i1}}{text}"));
+}
+
+#[test]
+fn a_second_toggle_of_the_same_flag_turns_it_off_again() {
+    let mut session = session("ass/clean/basic.ass");
+    let text = raw_text(&session, 0);
+    let now = Instant::now();
+    session
+        .apply(&toggle_style(0, StyleFlag::Bold, 0, 0), Run::New, now)
+        .expect("the first toggle turns it on");
+    assert_eq!(raw_text(&session, 0), format!("{{\\b1}}{text}"));
+    session
+        .apply(
+            &toggle_style(0, StyleFlag::Bold, 5, 5),
+            Run::New,
+            now + APART,
+        )
+        .expect("the second reads the tag already there");
+    // The caret is inside the block the first write made, so the tag is replaced where it stood
+    // rather than a second one being added.
+    assert_eq!(raw_text(&session, 0), format!("{{\\b0}}{text}"));
+}
+
+#[test]
+fn a_style_toggle_is_refused_outside_the_cue_and_writes_nothing() {
+    let mut session = session("ass/clean/basic.ass");
+    let before = session.to_bytes();
+    session
+        .apply(
+            &toggle_style(0, StyleFlag::Bold, 0, 9999),
+            Run::New,
+            Instant::now(),
+        )
+        .expect_err("a range past the end of the text is refused");
+    assert_eq!(session.to_bytes(), before, "a refusal writes nothing");
 }
 
 fn set_comment(cue: usize, comment: bool) -> Edit {
