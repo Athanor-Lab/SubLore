@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { en } from "../i18n/en";
+import { commandToken, runCommand, type CommandId, type CommandRegistry } from "../types/chrome";
 import { type AssFieldName, type CueRow } from "../types/subtitle";
 import {
   CHARACTER_LIMIT,
@@ -41,6 +42,8 @@ type CurrentLineProps = {
   cues: CueRow[];
   /** One line's field. A selection write is a loop over this one and waits on the owner (D5). */
   onCommitField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
+  /** The command registry, so the panel's own buttons grey and run by the same rule (decision 24). */
+  commands: CommandRegistry;
 };
 
 /** The ASS fields the panel holds as a number: the drawing order and the three margins. */
@@ -147,6 +150,7 @@ export default function CurrentLine({
   onCommitTimes,
   cues,
   onCommitField,
+  commands,
 }: CurrentLineProps) {
   const text = cue?.text ?? "";
   const startMs = cue?.startMs ?? 0;
@@ -613,6 +617,24 @@ export default function CurrentLine({
     );
   }
 
+  /** One command from the registry, drawn as a button that greys and runs by the registry's rule. */
+  function commandButton(id: CommandId) {
+    const command = commands[id];
+    if (command === undefined) {
+      return null;
+    }
+    return (
+      <button
+        type="button"
+        className={`currentline__command currentline__${commandToken(id)}`}
+        disabled={!command.enabled}
+        onClick={() => runCommand(commands, id)}
+      >
+        {command.label}
+      </button>
+    );
+  }
+
   /**
    * One combo: a text field with the values this document already uses beside it. Drawn and greyed
    * on a row whose `Format:` line cannot hold the field, never absent (E3.1).
@@ -705,6 +727,11 @@ export default function CurrentLine({
           en.subtitle.currentLine.marginV,
           en.subtitle.currentLine.marginVName,
         )}
+      </div>
+      {/* Band 3, the commands the panel carries. Row three of the reference puts the style buttons
+        first and Next line last, so it goes at the end and the others arrive before it. */}
+      <div className="currentline__band currentline__actions">
+        {commandButton("subtitle.next-line")}
       </div>
       <textarea
         className="currentline__text"

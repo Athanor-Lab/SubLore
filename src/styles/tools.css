@@ -99,6 +99,21 @@
   font: inherit;
 }
 
+/* The commands the panel carries, drawn from the registry like the toolbar's own and greyed by the
+   same rule: a command that exists is drawn, and one that cannot run is greyed (decision 24). */
+.currentline__command {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.currentline__command:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
 /* The drawing order and the three margins: whole numbers, so a field four digits wide with the
    frame the times use and the digits centred, which is where the reference puts them (1.2). */
 .currentline__number {

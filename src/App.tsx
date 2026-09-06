@@ -547,6 +547,29 @@ export default function App() {
     await subtitle.insertCue(before, startMs, startMs + NEW_CUE_MS, "");
   }
 
+  /**
+   * The next cue, and on the last one the cue that becomes the next. The reference's own timing
+   * key: it is a navigation command everywhere else and an insert only at the end, so a translator
+   * working down a file never has to reach for a second control. See edit-bar-tasks.md C3.
+   */
+  async function nextLine() {
+    await flushEditors();
+    if (subtitle.summary === null) {
+      return;
+    }
+    const at = selection.active;
+    const last = subtitle.cues.length - 1;
+    if (at !== null && at < last) {
+      selection.move(at + 1, "plain");
+      return;
+    }
+    const previous = at === null ? null : (subtitle.cues[at] ?? null);
+    const before = at === null || previous === null ? subtitle.cues.length : at + 1;
+    const startMs = previous === null ? 0 : previous.endMs;
+    await subtitle.insertCue(before, startMs, startMs + NEW_CUE_MS, "");
+    selection.move(before, "plain");
+  }
+
   async function deleteCue() {
     await flushEditors();
     const at = selection.active;
@@ -1054,6 +1077,13 @@ export default function App() {
       run: () => void insertCue(),
     },
     {
+      id: "subtitle.next-line",
+      label: en.menu.subtitles.nextLine,
+      // A document with no rows can still take its first one, exactly as the insert above can.
+      enabled: subtitle.summary !== null,
+      run: () => void nextLine(),
+    },
+    {
       id: "subtitle.delete",
       label: en.menu.subtitles.delete,
       enabled: activeCue !== null,
@@ -1217,7 +1247,13 @@ export default function App() {
     {
       id: "subtitle",
       title: en.menu.subtitles.title,
-      items: ["subtitle.insert", "subtitle.delete", "subtitle.split", "subtitle.merge"],
+      items: [
+        "subtitle.insert",
+        "subtitle.next-line",
+        "subtitle.delete",
+        "subtitle.split",
+        "subtitle.merge",
+      ],
     },
     {
       id: "timing",
@@ -1470,6 +1506,7 @@ export default function App() {
                 onCommitTimes={subtitle.setTimes}
                 cues={subtitle.cues}
                 onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
+                commands={commands}
               />
             </section>
           </div>

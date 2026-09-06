@@ -58,9 +58,9 @@ const ROUNDING_PX = 2;
 /** One row of the grid, so the margin below is a row a person can see and not a number. */
 const ROW_HEIGHT = 28;
 
-/** What the two edges open at: 38% of the top row, and 18.5rem at the default root size. */
+/** What the two edges open at: 38% of the top row, and 19.5rem at the default root size. */
 const DEFAULT_VIDEO_FRACTION = 0.38;
-const DEFAULT_TOP_HEIGHT = 296;
+const DEFAULT_TOP_HEIGHT = 312;
 
 function rectOf(selector) {
   return browser.execute((css) => {
