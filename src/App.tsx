@@ -390,9 +390,12 @@ export default function App() {
 
   // How far the block may shrink before the column stops shrinking the current line and starts
   // pushing it out: the slack the line has over its own minimum, read off the rendered line.
+  // The block height at which the current line sits exactly on its own floor. Not clamped at the
+  // height the block already has: a line under its floor needs the block to grow, and a floor that
+  // could only say "no lower" left the panel drawing controls it had no room for.
   const minTopHeight = Math.max(
     MIN_TOP_HEIGHT * scale,
-    frame.toolsHeight - Math.max(0, frame.lineHeight - minCurrentLine),
+    frame.toolsHeight - (frame.lineHeight - minCurrentLine),
   );
   // What the tools column can use: itself, less the slack the current line has over the height its
   // own content asks for. A block taller than this makes the text box taller and nothing else.
@@ -1369,7 +1372,19 @@ export default function App() {
         </header>
         <div
           className="shell__body"
-          style={layout === null ? undefined : { height: layout.topHeight }}
+          // Clamped where it is applied and not only where it is dragged, for the reason the
+          // waveform's height is: a number stored at one interface size is not a reason to draw a
+          // column that cannot show what is in it.
+          style={
+            layout === null
+              ? undefined
+              : {
+                  height: Math.min(
+                    Math.max(layout.topHeight, minTopHeight),
+                    Math.max(minTopHeight, maxTopHeight),
+                  ),
+                }
+          }
         >
           <aside className="shell__rail">
             <ProjectRail project={project} onOpenFile={openAttachedFile} />

@@ -65,12 +65,6 @@ const CONTROLS = [
  * number to be looked at again. What it waits on is `MIN_CURRENT_LINE` and the stored waveform
  * height in `src/App.tsx`, which this change may not touch. See edit-bar-first-tasks.md E5.6.
  */
-const SHORTFALL = {
-  90: { floor: [".currentline__text"], wide: [] },
-  110: { floor: [".currentline__text"], wide: [] },
-  150: { floor: [".currentline__end", ".currentline__text"], wide: [".currentline__text"] },
-};
-
 /**
  * The rows of each fixture, and the length of each row's longest line under D1. Every number here
  * was derived from the fixture's own bytes: markup counts nothing, a drawing counts nothing, `\h`
@@ -301,9 +295,10 @@ function bandOrder() {
  * scrolls inside it, and a control on a band the panel is not showing is under the grid instead.
  *
  * Nothing is scrolled first. A control moved into view before the reading is taken cannot fail it,
- * so a sweep that scrolled would pass whatever the panel did. Where the panel is too short to show
- * every band at once, `reachedByScrolling` below is the separate, weaker reading, and what it is
- * weaker about is stated where it is used (E5.5).
+ * so a sweep that scrolled would pass whatever the panel did. There used to be a weaker reading
+ * beside this one, taken after scrolling to each control, for the sizes where the panel was too
+ * short to show every band at once. The block now grows until the current line reaches its own
+ * floor, so there is no such size left and nothing for that reading to say (E5.5).
  */
 function panelOutOfReach(wanted) {
   return browser.execute((names) => {
@@ -331,40 +326,6 @@ function panelOutOfReach(wanted) {
       }
     }
     return { swept: names.length - missing.length, missing, outOfReach };
-  }, wanted);
-}
-
-/**
- * The same reading, taken after the panel has been scrolled to each control. This is the weaker
- * one: it says a control the panel clips can still be reached through the panel's own scroll, and
- * it says nothing about whether it should have had to be. It exists so that the panel's scroll is
- * proved to work, not so that a clipped control can pass a reach check.
- */
-function reachedByScrolling(wanted) {
-  return browser.execute((names) => {
-    const panel = document.querySelector(".currentline");
-    if (panel === null) {
-      return null;
-    }
-    const outOfReach = [];
-    for (const name of names) {
-      const control = panel.querySelector(name);
-      if (control === null) {
-        outOfReach.push(`${name} MISSING`);
-        continue;
-      }
-      control.scrollIntoView({ block: "nearest" });
-      const rect = control.getBoundingClientRect();
-      const under = document.elementFromPoint(
-        rect.left + rect.width / 2,
-        rect.top + rect.height / 2,
-      );
-      if (under === null || !(under === control || control.contains(under))) {
-        outOfReach.push(name);
-      }
-    }
-    panel.scrollTop = 0;
-    return outOfReach;
   }, wanted);
 }
 
@@ -1177,7 +1138,9 @@ describe("the current line's bands", () => {
     // Emptied: the format's own default from style is zero, so clearing the field is an edit and
     // commits zero rather than leaving the field on nothing.
     await typeIntoNumber(toplevel, "marginV", "");
-    pressKey("Return");
+    // Left rather than confirmed: the document already holds zero, so there is nothing to send and
+    // what the criterion asks is that the field goes back to what the file has. See C6.4.
+    await clickElement(toplevel, ".currentline__layer");
     await waitFor(async () => ((await numberFields()).marginV.value === "0" ? 1 : null), {
       timeout: 15000,
       message: "the vertical margin to read zero after being cleared",
@@ -1238,27 +1201,22 @@ describe("the current line's bands", () => {
       ]) {
         toplevel = await resizeTo(toplevel.id, size.width, size.height);
         const at = `with a waveform, at ${percent} per cent in ${size.width}x${size.height}`;
-        const wide = size.width === WIDE_WIDTH;
-        // The shortfall as measured, pinned so it cannot grow in silence. Every control is drawn
-        // and every control is reachable through the panel's scroll; these are the ones the 84px
-        // the shell gives the panel does not show at once. See E5.6.
+        // Nothing clipped and nothing to scroll to. This used to pin a shortfall instead: with a
+        // waveform above it the panel was given 84 pixels and the text box was out of reach at
+        // every size, and at 150 per cent in the narrowest window the End field went with it. The
+        // block now grows until the current line reaches its own floor rather than stopping at the
+        // height it was stored at, so there is no shortfall left to pin. See E5.6.
         expect({ at, ...(await panelOutOfReach(CONTROLS)) }).toEqual({
           at,
           swept: CONTROLS.length,
           missing: [],
-          outOfReach: SHORTFALL[percent][wide ? "wide" : "floor"],
+          outOfReach: [],
         });
-        // What the panel does owe at that height: the scroll that reaches them, and every control
-        // answering once it is scrolled to.
         expect({ at, ...(await panelScroll()) }).toEqual({
           at,
-          clips: true,
+          clips: false,
           unreachable: false,
           sideways: false,
-        });
-        expect({ at, outOfReach: await reachedByScrolling(CONTROLS) }).toEqual({
-          at,
-          outOfReach: [],
         });
         expect({ at, faults: await narrowFaults() }).toEqual({ at, faults: [] });
         expect({ at, clipped: await clippedAtWindowEdge(SLOP_PX) }).toEqual({ at, clipped: [] });
