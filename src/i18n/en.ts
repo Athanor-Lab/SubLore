@@ -13,6 +13,8 @@ export const en = {
       /** The document to read from while translating. It is never written to. */
       openSource: "Open source subtitle…",
       closeSource: "Close source subtitle",
+      /** Makes the document being written from the one being read: same lines, no words yet. */
+      newTranslation: "New translation from source",
       openVideo: "Open video…",
       save: "Save",
       saveCopy: "Save a copy…",

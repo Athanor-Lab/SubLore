@@ -160,8 +160,9 @@ describe("the document being read from", () => {
   });
 
   it("draws no column until a source is open, and greys the two items that need one", async () => {
-    // Nothing open at all: a source is read beside a target, so there is nothing to read it beside.
-    expect(await fileItem(toplevel, "file-open-source")).toEqual({ drawn: true, disabled: true });
+    // Nothing open at all. Opening a source needs nothing before it, because a translation is
+    // begun from one; closing waits for there to be one. See side-by-side-tasks.md S2.
+    expect(await fileItem(toplevel, "file-open-source")).toEqual({ drawn: true, disabled: false });
     expect(await fileItem(toplevel, "file-close-source")).toEqual({ drawn: true, disabled: true });
 
     await openTarget(toplevel, target);
@@ -172,7 +173,7 @@ describe("the document being read from", () => {
     expect(await present(".cuelist__headcell--source")).toBe(false);
     expect(await present(".cuelist__source")).toBe(false);
 
-    // Now there is a target to read beside, and still nothing to close.
+    // A target changes neither of them: the open never needed one and the close still has nothing.
     expect(await fileItem(toplevel, "file-open-source")).toEqual({ drawn: true, disabled: false });
     expect(await fileItem(toplevel, "file-close-source")).toEqual({ drawn: true, disabled: true });
   });

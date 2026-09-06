@@ -13,10 +13,17 @@ import { passedTests, recordPassedTest, resetTally } from "./lib/tally.js";
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 283;
+const EXPECTED_TESTS = 287;
 
 // Keeps a run out of the real data dir. Created once in the launcher; workers inherit the value.
+const inherited = process.env.SUBLORE_E2E_DATA_HOME;
 process.env.SUBLORE_E2E_DATA_HOME ??= mkdtempSync(path.join(os.tmpdir(), "sublore-e2e-"));
+/**
+ * The tree this run made, or null when the caller handed one in. Removed at the end, because a run
+ * leaves about 77 MB behind and nothing was removing it: 318 of them filled a 31 GB /tmp and broke
+ * the next build with a quota error. A tree the caller named is the caller's to keep.
+ */
+const ownDataHome = inherited === undefined ? process.env.SUBLORE_E2E_DATA_HOME : null;
 process.env.XDG_DATA_HOME = process.env.SUBLORE_E2E_DATA_HOME;
 // Pinned before the line below points XDG_CACHE_HOME at this run's own tree: a real model lives in
 // the developer's cache, and `sourceModel` falls back to whatever XDG_CACHE_HOME says.
@@ -89,6 +96,19 @@ export const config = {
   port: driverPort,
   specs: ["./specs/*.spec.js"],
   maxInstances: 1,
+  /**
+   * One retry of a whole spec file, on the shared runner only. Five CI runs on 2026-09-06 each
+   * failed exactly one check and a different one every time, all of them timing, none of them
+   * reproducible here across many full runs: `video-aspect`, `editor`, `waveform-follow`,
+   * `current-line-bands` and `chrome`. That is the runner stalling, not five defects.
+   *
+   * It is a re-run of the file and not a softened assertion: a defect that fails deterministically
+   * fails twice and stays red, and the count guard below still demands every test. What it can
+   * hide is a defect that is genuinely intermittent in the product, so wdio's own line naming the
+   * retried file is the thing to read when this is on. Zero here on purpose: a flake on this
+   * machine is a flake worth seeing. See BACKLOG N40.
+   */
+  specFileRetries: process.env.CI === "true" ? 1 : 0,
   capabilities: [{ "tauri:options": { application: requireAppBinary() } }],
   framework: "mocha",
   mochaOpts: { ui: "bdd", timeout: 60000 },
@@ -140,8 +160,12 @@ export const config = {
   },
 
   onComplete: (exitCode, capabilities, config_, results) => {
+    // A failed run keeps its tree: what the app wrote is the evidence for why it failed.
     if (results.failed > 0) {
       return;
+    }
+    if (ownDataHome !== null) {
+      rmSync(ownDataHome, { recursive: true, force: true });
     }
     const passed = passedTests();
     if (passed.length < EXPECTED_TESTS) {

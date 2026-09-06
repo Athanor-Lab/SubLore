@@ -883,9 +883,18 @@ export default function App() {
     {
       id: "file.open-source",
       label: en.menu.file.openSource,
-      // A source is read beside a target, so there has to be a target to read it beside.
-      enabled: !choosing && subtitle.summary !== null,
+      // No target needed: a translation is begun from a source, so the source is opened first and
+      // the target is made from it. See side-by-side-tasks.md S2.
+      enabled: !choosing,
       run: () => void pick("subtitle", undefined, (path) => void source.open(path)),
+    },
+    {
+      id: "file.new-translation",
+      label: en.menu.file.newTranslation,
+      // There has to be something to translate from, and a document being written can be replaced
+      // only once its own edits are on disk, which the command says for itself when they are not.
+      enabled: source.summary !== null,
+      run: () => void subtitle.newTranslation(),
     },
     {
       id: "file.close-source",
@@ -1269,6 +1278,7 @@ export default function App() {
         "file.open-subtitle",
         "file.open-source",
         "file.close-source",
+        "file.new-translation",
         "video.open",
         "file.save",
         "file.save-copy",

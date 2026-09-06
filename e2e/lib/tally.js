@@ -26,9 +26,15 @@ export function recordPassedTest(title) {
 
 export function passedTests() {
   try {
-    return readFileSync(tallyFile, "utf8")
-      .split("\n")
-      .filter((line) => line !== "");
+    // Unique, because a retried spec file appends its passing tests a second time and a count that
+    // grew with a retry would let a deleted spec hide behind one. A title names one test.
+    return [
+      ...new Set(
+        readFileSync(tallyFile, "utf8")
+          .split("\n")
+          .filter((line) => line !== ""),
+      ),
+    ];
   } catch {
     return [];
   }
