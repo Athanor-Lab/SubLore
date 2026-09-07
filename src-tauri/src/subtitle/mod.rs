@@ -819,6 +819,28 @@ pub async fn subtitle_duplicate(
     edited(&app, state.slot(), revision, Edit::Duplicate { cues }).await
 }
 
+/// Two or more cues joined into the first of them, as one undo step. In file order, each named
+/// once; `keep_first_text` drops the others' words and keeps their time.
+#[tauri::command]
+pub async fn subtitle_join(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cues: Vec<usize>,
+    keep_first_text: bool,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::Join {
+            cues,
+            keep_first_text,
+        },
+    )
+    .await
+}
+
 /// The clipboard's own lines put in before `before`, as one undo step. `before` equal to the cue
 /// count appends. The fragment is read behind this document's header before anything is written.
 #[tauri::command]

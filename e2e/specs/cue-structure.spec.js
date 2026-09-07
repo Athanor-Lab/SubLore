@@ -474,6 +474,58 @@ describe("the cue structure edits", () => {
     await cursorTo(toplevel, rows.length);
   });
 
+  it("joins the lines it names into the first, and leaves the one between them", async () => {
+    // The first and the last, with the empty one between them left out: the cursor walks without
+    // taking the selection with it and Ctrl+Space adds the row it reaches (decision 5).
+    await cursorTo(toplevel, 1);
+    key("ctrl+Down", 2);
+    key("ctrl+space");
+    await waitFor(
+      async () => {
+        const rows = await gridRows();
+        return rows.filter((row) => row.selected).length === 2 ? rows : null;
+      },
+      { timeout: 15000, message: "the first and the last rows to be selected" },
+    );
+
+    await watchCommands();
+    await runFromMenu(toplevel, "subtitle-join-concat");
+
+    const joined = await waitForTexts([`${FIRST} ${SECOND}`, ""], "the two named lines as one");
+    expect(await takeCommands()).toEqual(["subtitle_join"]);
+    // The line that stays keeps its own start and takes the latest end of the two.
+    expect({ start: joined[0].start, end: joined[0].end }).toEqual({
+      start: "00:00:02.120",
+      end: "00:00:08.340",
+    });
+    // The line it did not name is still there, and the line that stays is what is selected.
+    expect(joined.map((row) => row.selected)).toEqual([true, false]);
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitForTexts([FIRST, "", SECOND], "one undo to put all three back");
+  });
+
+  it("keeps the first line's words when it is asked to, and its time either way", async () => {
+    await cursorTo(toplevel, 1);
+    key("ctrl+Down", 2);
+    key("ctrl+space");
+    await waitFor(
+      async () => {
+        const rows = await gridRows();
+        return rows.filter((row) => row.selected).length === 2 ? rows : null;
+      },
+      { timeout: 15000, message: "the first and the last rows to be selected" },
+    );
+
+    await runFromMenu(toplevel, "subtitle-join-keep-first");
+
+    const joined = await waitForTexts([FIRST, ""], "the first line's words alone");
+    expect(joined[0].end).toBe("00:00:08.340");
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitForTexts([FIRST, "", SECOND], "one undo to put all three back");
+  });
+
   it("takes the four back one undo each, and puts them back one redo each", async () => {
     // The same undo the text edits use, which is the criterion: the toolbar's own button, not a
     // second stack of the structure edits' own.
