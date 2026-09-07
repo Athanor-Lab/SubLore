@@ -46,7 +46,7 @@ import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { en } from "./i18n/en";
 import { fill } from "./i18n/format";
 import { commandFor, ownsTheKeyboard } from "./keyboard";
-import { widestRow } from "./measure";
+import { narrowest, scrollbarWidth, widestRow } from "./measure";
 import { requestQuit } from "./quit";
 import { replaceOne, type Match, type Query } from "./search";
 import {
@@ -145,6 +145,32 @@ function textSlack(text: Element): number {
   const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
   const wanted = line * TEXT_BOX_LINES + (Number.isFinite(padding) ? padding : 0);
   return Math.max(0, text.clientHeight - wanted);
+}
+
+/**
+ * The current line as the interface draws it, not as this document fills it: every field emptied of
+ * its value and every control live.
+ *
+ * A field is as wide as it is whether or not anything is written in it, and whether or not the open
+ * format can hold what it holds, but the engine reads a filled field a pixel wider than an empty
+ * one. Measured as it stands, the column's floor would move when a file was opened, which is the
+ * one thing it may not do (grid-columns-tasks.md G3).
+ */
+function asAnEmptyLine(panel: HTMLElement): void {
+  for (const control of panel.querySelectorAll("input, select, textarea, button")) {
+    if (control instanceof HTMLButtonElement) {
+      control.disabled = false;
+      continue;
+    }
+    if (
+      control instanceof HTMLInputElement ||
+      control instanceof HTMLSelectElement ||
+      control instanceof HTMLTextAreaElement
+    ) {
+      control.disabled = false;
+      control.value = "";
+    }
+  }
 }
 
 /**
@@ -284,9 +310,12 @@ export default function App() {
   // Null until the transport has been measured, which is before the first paint: a floor of zero
   // would be no floor at all, and a number here would be a floor read on one machine's fonts.
   const [transportFloor, setTransportFloor] = useState<number | null>(null);
+  /** What the current line cannot be drawn narrower than, which is the column's floor. Null until read. */
+  const [lineFieldFloor, setLineFieldFloor] = useState<number | null>(null);
   const [frame, setFrame] = useState({
     videoWidth: 0,
     videoHeight: 0,
+    sashWidth: 0,
     stageWidth: 0,
     stageHeight: 0,
     toolsWidth: 0,
@@ -369,6 +398,11 @@ export default function App() {
     // The picture's own box inside the video panel, so the panel's chrome can be told from the
     // part a picture can grow into.
     const stage = top.querySelector(".stage");
+    // The edge between the two panels, read as itself: the width left over between a row and the
+    // panels in it is three rounded readings subtracted from each other, and lands a pixel either
+    // side of the edge depending on where the split falls. A floor is asked of the window every
+    // time it moves, so a pixel of noise in it is a floor that will not hold still.
+    const sash = top.querySelector<HTMLElement>(".sash--video");
     // The one box in the column that grows to fill what it is given, so the only one whose own
     // content has to be asked for separately.
     const text = column.querySelector(".currentline__text");
@@ -381,6 +415,7 @@ export default function App() {
       setFrame({
         videoWidth: video === null ? 0 : video.clientWidth,
         videoHeight: video === null ? 0 : video.clientHeight,
+        sashWidth: sash === null ? 0 : sash.getBoundingClientRect().width,
         stageWidth: stage === null ? 0 : stage.clientWidth,
         stageHeight: stage === null ? 0 : stage.clientHeight,
         toolsWidth: column.clientWidth,
@@ -397,7 +432,7 @@ export default function App() {
         gridHeight: grid.clientHeight,
       });
     const observer = new ResizeObserver(measure);
-    for (const element of [column, top, grid, line, text, video, stage, rail]) {
+    for (const element of [column, top, grid, line, text, video, stage, rail, sash]) {
       if (element !== null) {
         observer.observe(element);
       }
@@ -439,7 +474,56 @@ export default function App() {
     };
   }, [scale, duration]);
 
+  // The same reading for the column beside it, and before the paint for the same reason. Keyed on
+  // the size and on nothing else: every field the line has is drawn whatever the open document
+  // declares, greyed where the format cannot hold it, so what the column has to hold is the same
+  // before and after a file is opened. Read again per document it would be a floor that moves when
+  // one is opened, by the fraction of a pixel a different style name costs (grid-columns-tasks G3).
+  useLayoutEffect(() => {
+    const column = toolsRef.current;
+    if (column === null) {
+      return;
+    }
+    let live = true;
+    const measure = () => {
+      const panel = column.querySelector<HTMLElement>(".currentline");
+      if (panel === null) {
+        return;
+      }
+      const needed = narrowest(panel, asAnEmptyLine);
+      if (needed === null || needed <= 0) {
+        return;
+      }
+      // What the column spends around the panel: its own edge, and the bar the panel's scroll takes
+      // out of the width the bands are laid out in. Both read off the styles rather than off the
+      // boxes as they stand, so the floor is not a number about the window it is measuring: a bar
+      // the panel is not spending yet is one the sash can ask for at any moment.
+      const edge = window.getComputedStyle(column);
+      const border =
+        Number.parseFloat(edge.borderLeftWidth) + Number.parseFloat(edge.borderRightWidth);
+      const around = (Number.isFinite(border) ? border : 0) + scrollbarWidth(panel);
+      if (live) {
+        setLineFieldFloor(Math.ceil(needed + around));
+      }
+    };
+    measure();
+    void document.fonts.ready.then(measure, () => {});
+    return () => {
+      live = false;
+    };
+  }, [scale]);
+
   const minVideoWidth = transportFloor ?? 0;
+  /**
+   * The narrowest the tools column may be: what the current line panel cannot be drawn under, which
+   * is its padding around the widest field the bands hold. The bands wrap, so what refuses to be
+   * made narrower is one field and never the row.
+   *
+   * Measured rather than named, for the reason the transport's floor is: a field is a label beside
+   * a box, and both are as wide as the machine's own fonts draw them. The constant below it is the
+   * height rule the column also has to keep. See S1 and grid-columns-tasks G3.
+   */
+  const minToolsWidth = Math.max(MIN_TOOLS_WIDTH * scale, lineFieldFloor ?? 0);
   const minCurrentLine = MIN_CURRENT_LINE * scale;
   const minWaveformHeight = MIN_WAVEFORM_HEIGHT * scale;
   // The grid's three rows are a fixed 28px at every size, so only its header is scaled, and never
@@ -453,22 +537,19 @@ export default function App() {
     layout === null ? 0 : Math.max(minVideoWidth, layout.videoFraction * frame.topWidth);
   const maxVideoWidth = Math.max(
     minVideoWidth,
-    frame.videoWidth + frame.toolsWidth - MIN_TOOLS_WIDTH * scale,
+    frame.videoWidth + frame.toolsWidth - minToolsWidth,
   );
   const asFraction = (width: number) =>
     frame.topWidth > 0 ? width / frame.topWidth : (layout?.videoFraction ?? 0);
 
   // What the block under the chrome asks for, which is one of the widths the window's own floor is
-  // the widest of: the rail, the two panels at their floors, and the edge between them. The gap
-  // between the row and the two panels in it is that edge, read off the row rather than named.
-  // Null until the video panel's floor is known, because a block floor short of it is not one.
+  // the widest of: the rail, the two panels at their floors, and the edge between them, each read
+  // off the box that draws it. Null until the video panel's floor is known, because a block floor
+  // short of it is not one.
   const minBlockWidth =
     transportFloor === null
       ? null
-      : frame.railWidth +
-        transportFloor +
-        Math.max(0, frame.topWidth - frame.videoWidth - frame.toolsWidth) +
-        MIN_TOOLS_WIDTH * scale;
+      : frame.railWidth + transportFloor + frame.sashWidth + minToolsWidth;
 
   // How far the block may shrink before the column stops shrinking the current line and starts
   // pushing it out: the slack the line has over its own minimum, read off the rendered line.
@@ -641,11 +722,14 @@ export default function App() {
     await subtitle.save();
   }
 
-  /** A copy elsewhere, which leaves a document with a file of its own unsaved. */
-  async function saveCopy() {
+  /**
+   * Write the document somewhere else and go on editing it there, which is what Save as means: the
+   * file it had keeps the bytes it had. See interface-spec 3.1, item 8.
+   */
+  async function saveAs() {
     await flushEditors();
-    // The chooser opens on the open file's own name, which is what a copy is usually called; a
-    // document that has never had a file has no name to offer.
+    // The chooser opens on the open file's own name; a document that has never had a file has no
+    // name to offer.
     await pick("subtitle-save", subtitle.summary?.path ?? undefined, (path) => {
       void subtitle.saveAs(path);
     });
@@ -1229,11 +1313,11 @@ export default function App() {
       run: () => void saveDocument(),
     },
     {
-      id: "file.save-copy",
-      label: en.menu.file.saveCopy,
-      accelerator: en.menu.keys.saveCopy,
+      id: "file.save-as",
+      label: en.menu.file.saveAs,
+      accelerator: en.menu.keys.saveAs,
       enabled: subtitle.summary !== null && !choosing,
-      run: () => void saveCopy(),
+      run: () => void saveAs(),
     },
     {
       id: "file.discard",
@@ -1854,7 +1938,7 @@ export default function App() {
         "file.close-source",
         "file.new-translation",
         "file.save",
-        "file.save-copy",
+        "file.save-as",
         "file.discard",
         "app.quit",
       ],
@@ -2001,7 +2085,7 @@ export default function App() {
       })),
   ];
   const toolbar: CommandId[][] = [
-    ["file.open-subtitle", "video.open", "file.save", "file.save-copy", "file.discard"],
+    ["file.open-subtitle", "video.open", "file.save", "file.save-as", "file.discard"],
     ["edit.undo", "edit.redo"],
   ];
 

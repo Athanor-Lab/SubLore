@@ -22,7 +22,7 @@ pub const CHOOSE_PROJECT_FILE: &str = "Choose a video or subtitle file";
 /// calls the accept button in both modes, and Alt+S is taken by the chooser's search.
 pub const CHOOSE_VIDEO: &str = "Choose a video";
 pub const CHOOSE_SUBTITLE: &str = "Choose a subtitle";
-pub const CHOOSE_SUBTITLE_SAVE: &str = "Save a copy of the subtitle";
+pub const CHOOSE_SUBTITLE_SAVE: &str = "Save the subtitle as";
 /// A first save is not a copy: it is where a document that has never had a file goes from now on
 /// (decision 24, B2), so it asks under its own title.
 pub const CHOOSE_SUBTITLE_FIRST_SAVE: &str = "Save the subtitle";
@@ -60,7 +60,8 @@ pub const CLOSE_FAILED_TITLE: &str = "Could not close";
 pub fn close_failed(reason: &str) -> String {
     format!(
         "Sublore could not finish closing, so the window is still open and may no longer be showing \
-         what is in memory.\n\n{reason}\n\nSave a copy from the toolbar before trying again."
+         what is in memory.\n\n{reason}\n\nSave the file elsewhere from the toolbar before trying \
+         again."
     )
 }
 

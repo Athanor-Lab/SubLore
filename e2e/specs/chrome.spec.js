@@ -43,14 +43,14 @@ const TITLES = [
 const OPENING = TITLES.filter((title) => !title.disabled);
 
 /** The File commands nothing open leaves usable. Each is drawn greyed rather than left out. */
-const GREYED_IN_FILE = ["file-save", "file-save-copy", "file-discard"];
+const GREYED_IN_FILE = ["file-save", "file-save-as", "file-discard"];
 
 /** Every command the bars T3 removed used to offer. Each has to reach both routes. */
 const FROM_THE_BARS = [
   "file-open-subtitle",
   "video-open",
   "file-save",
-  "file-save-copy",
+  "file-save-as",
   "edit-undo",
   "edit-redo",
 ];
@@ -265,7 +265,7 @@ describe("the menu bar and the toolbar", () => {
 
   it("walks the items with the arrows and steps over the disabled ones", async () => {
     // Nothing is open, so everything under the two source items is greyed: the translation it
-    // cannot make yet, then Save, Save a copy and Discard, which is one run down to Quit.
+    // cannot make yet, then Save, Save as and Discard, which is one run down to Quit.
     pressKey("alt");
     await waitForCursor("file-new");
     expect(
@@ -418,7 +418,7 @@ describe("the menu bar and the toolbar", () => {
     const status = await textOf(".statusbar__document");
 
     pressKey("ctrl+shift+s");
-    const chooser = await waitForChooser("Save a copy of the subtitle");
+    const chooser = await waitForChooser("Save the subtitle as");
     await cancelChooser(chooser, "subtitle-save");
     expect(await chooserClosed(chooser)).toBe(true);
     focusWindow(toplevel.id);

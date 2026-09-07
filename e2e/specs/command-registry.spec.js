@@ -45,7 +45,7 @@ const DECLARED = [
   "file-new-translation",
   "video-open",
   "file-save",
-  "file-save-copy",
+  "file-save-as",
   "file-discard",
   "app-quit",
   "asr-transcribe",
@@ -146,7 +146,7 @@ const TITLES = [
 ];
 
 /**
- * File with nothing open: Save, Save a copy and Discard are drawn and greyed, and so are the two
+ * File with nothing open: Save, Save as and Discard are drawn and greyed, and so are the two
  * that need a document to act on. Open source subtitle is not among them: a translation is begun
  * from a source, so opening one is the first gesture of all (M2.6 S1 and S2).
  */
@@ -157,7 +157,7 @@ const FILE_ITEMS = [
   { id: "file-close-source", disabled: true },
   { id: "file-new-translation", disabled: true },
   { id: "file-save", disabled: true },
-  { id: "file-save-copy", disabled: true },
+  { id: "file-save-as", disabled: true },
   { id: "file-discard", disabled: true },
   { id: "app-quit", disabled: false },
 ];
@@ -197,7 +197,7 @@ const TOOLBAR = [
   { id: "file-open-subtitle", disabled: false },
   { id: "video-open", disabled: false },
   { id: "file-save", disabled: true },
-  { id: "file-save-copy", disabled: true },
+  { id: "file-save-as", disabled: true },
   { id: "file-discard", disabled: true },
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
@@ -206,10 +206,10 @@ const TOOLBAR = [
 const NO_FILE_STATUS = "No subtitle file open.";
 
 /** The one greyed command drawn on both routes that also owns an accelerator of its own (C3). */
-const THREE_ROUTES = "file-save-copy";
+const THREE_ROUTES = "file-save-as";
 const THREE_ROUTES_KEY = "ctrl+shift+s";
 /** What that command raises before it sends anything, so a leak has a second shape to show in. */
-const THREE_ROUTES_CHOOSER = "Save a copy of the subtitle";
+const THREE_ROUTES_CHOOSER = "Save the subtitle as";
 
 /**
  * The rail's project menu with nothing open: three commands that need a project, greyed. Each asks
@@ -552,14 +552,14 @@ describe("the command registry", () => {
     );
 
     // Exactly the items that now work stop being grey. The document opened clean, so Save has
-    // nothing to write and Undo has nothing to take back: Save a copy is the whole difference on
+    // nothing to write and Undo has nothing to take back: Save as is the whole difference on
     // File, and it moved on both routes because both draw the one record. The fixture's three cues
     // seed the cursor onto row 0 (decision 5): insert, delete and merge all only need that, so they
     // ungrey too. Split stays gated behind a caret nothing has placed yet.
     expect(flips(empty, open)).toEqual([
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
-      { route: "menu", id: "file-save-copy", disabled: false },
+      { route: "menu", id: "file-save-as", disabled: false },
       // A document opens on its first row, so a row is selected and the three that act on a
       // selection wake with it. Paste over asks the clipboard nothing until it is chosen.
       { route: "menu", id: "edit-copy", disabled: false },
@@ -596,7 +596,7 @@ describe("the command registry", () => {
       { route: "menu", id: "time-start-later", disabled: false },
       { route: "menu", id: "time-end-earlier", disabled: false },
       { route: "menu", id: "time-end-later", disabled: false },
-      { route: "toolbar", id: "file-save-copy", disabled: false },
+      { route: "toolbar", id: "file-save-as", disabled: false },
     ]);
   });
 });

@@ -50,6 +50,39 @@ export function widestRow(row: HTMLElement, readings: readonly RowReading[]): nu
 }
 
 /**
+ * The narrowest a box can be drawn without its own content hanging out of it, which for a row of a
+ * label and a control is the label plus what that control refuses to go below.
+ *
+ * `min-content` and not `max-content`: a field whose control may shrink reports what it shrinks to,
+ * and one with a fixed width reports that width. Null only when the box is not in the page. Read
+ * for the same reason `widestRow` is: a number in this repo is a number about one machine's fonts.
+ *
+ * The reading is applied to the copy once it is in the page, so a box can be measured in a state it
+ * is not in, the way a row can.
+ */
+export function narrowest(box: HTMLElement, reading: RowReading = () => {}): number | null {
+  const host = box.parentElement;
+  if (host === null) {
+    return null;
+  }
+  const copy = box.cloneNode(true) as HTMLElement;
+  copy.style.position = "absolute";
+  copy.style.top = "0";
+  copy.style.left = "0";
+  copy.style.width = "min-content";
+  copy.style.visibility = "hidden";
+  copy.style.pointerEvents = "none";
+  copy.setAttribute("aria-hidden", "true");
+  host.append(copy);
+  try {
+    reading(copy);
+    return copy.getBoundingClientRect().width;
+  } finally {
+    copy.remove();
+  }
+}
+
+/**
  * The row's own width with everything on one line: its padding, its borders, its gaps, and each
  * child at the width that child asks for.
  */
@@ -83,4 +116,35 @@ function outerWidth(child: Element): number {
 function px(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * What a scrolling bar takes out of the box it is drawn in, at the thickness the box asks for.
+ *
+ * Read off a box of its own rather than off the panel, because a panel only spends it while it is
+ * scrolling and a floor that appeared with the bar would be a floor read off the window it is
+ * measuring. Zero where the bars are drawn over the content rather than beside it.
+ */
+export function scrollbarWidth(sample: HTMLElement): number {
+  const host = sample.parentElement;
+  if (host === null) {
+    return 0;
+  }
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.top = "0";
+  probe.style.left = "0";
+  probe.style.width = "100px";
+  probe.style.height = "100px";
+  probe.style.overflowY = "scroll";
+  probe.style.visibility = "hidden";
+  probe.style.pointerEvents = "none";
+  probe.style.scrollbarWidth = window.getComputedStyle(sample).scrollbarWidth;
+  probe.setAttribute("aria-hidden", "true");
+  host.append(probe);
+  try {
+    return Math.max(0, probe.offsetWidth - probe.clientWidth);
+  } finally {
+    probe.remove();
+  }
 }
