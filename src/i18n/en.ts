@@ -100,6 +100,10 @@ export const en = {
       endLater: "End 10 ms later",
     },
     view: {
+      layoutGridOnly: "Grid only",
+      layoutVideoGrid: "Video and grid",
+      layoutWaveformGrid: "Waveform and grid",
+      layoutFull: "Full",
       title: "View",
       waveform: "Waveform",
       centreOnCue: "Centre the waveform on the current line",

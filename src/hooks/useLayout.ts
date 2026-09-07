@@ -13,7 +13,12 @@ export type Layout = {
   waveAutoscroll: boolean;
   /** Whether moving the cursor takes the picture to that line's start. */
   videoFollowSelection: boolean;
+  /** Which panels the window draws, as the View menu's four radios name them. */
+  panels: PanelLayout;
 };
+
+/** The four the View menu offers. See interface-spec 3.7. */
+export type PanelLayout = "gridOnly" | "videoGrid" | "waveformGrid" | "full";
 
 /**
  * Where the panels were left, and how to say where they are now.

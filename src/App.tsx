@@ -28,7 +28,7 @@ import { useAudioPeaks } from "./hooks/useAudioPeaks";
 import { useCueSelection } from "./hooks/useCueSelection";
 import { LayerContext, useLayerRegistry } from "./hooks/useLayers";
 import { useAudioTracks } from "./hooks/useAudioTracks";
-import { useLayout } from "./hooks/useLayout";
+import { type PanelLayout, useLayout } from "./hooks/useLayout";
 import { useWindowFloor } from "./hooks/useWindowFloor";
 import { usePreview } from "./hooks/usePreview";
 import { useContributions, type Contribution } from "./hooks/useContributions";
@@ -206,6 +206,28 @@ function spliceUtf8(text: string, at: number, inserted: string): string {
   return decoder.decode(bytes.slice(0, cut)) + inserted + decoder.decode(bytes.slice(cut));
 }
 
+/**
+ * The four panel sets the View menu offers, in the order it draws them, with what each one needs
+ * before it can be picked. See interface-spec 3.7.
+ */
+const LAYOUTS: {
+  panel: PanelLayout;
+  /** The id's own spelling, hyphenated the way every other command id is. */
+  token: string;
+  label: string;
+  needs: "none" | "video" | "audio" | "both";
+}[] = [
+  { panel: "gridOnly", token: "grid-only", label: en.menu.view.layoutGridOnly, needs: "none" },
+  { panel: "videoGrid", token: "video-grid", label: en.menu.view.layoutVideoGrid, needs: "video" },
+  {
+    panel: "waveformGrid",
+    token: "waveform-grid",
+    label: en.menu.view.layoutWaveformGrid,
+    needs: "audio",
+  },
+  { panel: "full", token: "full", label: en.menu.view.layoutFull, needs: "both" },
+];
+
 /** The three ways the grid draws override tags, in the order View lists them. */
 const TAG_MODES: { mode: TagMode; label: string }[] = [
   { mode: "show", label: en.menu.view.tagsShow },
@@ -248,7 +270,10 @@ export default function App() {
   }, [layout?.interfaceScale]);
   // Decision 24 A4: View arrives with the first panel worth hiding. The choice lasts the session;
   // only the height outlives it (W6).
-  const [waveformShown, setWaveformShown] = useState(true);
+  /** Which panels the window draws, stored rather than remembered for this session alone (3.7). */
+  const panels: PanelLayout = layout?.panels ?? "full";
+  const videoShown = panels === "videoGrid" || panels === "full";
+  const waveformShown = panels === "waveformGrid" || panels === "full";
   // The audio region: the panel, its strip and the edge under them, drawn only when there are peaks
   // to draw and View has not turned them off. A panel with no provider takes no space. Declared
   // here because the effect that resolves the column's bounds is keyed on it.
@@ -379,7 +404,9 @@ export default function App() {
     }
     measure();
     return () => observer.disconnect();
-  }, [subtitle.openId]);
+    // The video panel is one of the boxes watched here and it comes and goes with the layout, so
+    // the set has to be built again when it does.
+  }, [subtitle.openId, videoShown]);
 
   // Every bound above is a number at 100 per cent, so each is taken against the size the user
   // picked; 1 is what the fallback in tokens.css draws at, before the layout has been read (S2).
@@ -1107,6 +1134,8 @@ export default function App() {
     }
   }
 
+  /** Whether the open media has audio to draw, which is what two of the four layouts need. */
+  const hasAudio = audio.tracks.length > 0;
   const dirty = subtitle.dirty || editorOpen || lineEdited;
   const blocked = subtitle.blockedPath !== null || subtitle.blockedNew;
   // Whatever the stored layout says, and following until it says otherwise: the panel is decoration
@@ -1684,6 +1713,20 @@ export default function App() {
       enabled: source.summary !== null,
       run: () => preview.toggleSource(),
     },
+    ...LAYOUTS.map(({ panel, token, label, needs }): Command => ({
+      id: `view.layout-${token}`,
+      label,
+      checked: panels === panel,
+      group: "layout",
+      // Greyed by what is loaded and not by what is drawn: picking a layout for a picture that is
+      // not open would be picking a panel with nothing in it (3.7).
+      enabled:
+        needs === "none" ||
+        (needs === "video" && ready) ||
+        (needs === "audio" && hasAudio) ||
+        (needs === "both" && ready && hasAudio),
+      run: () => storeLayout({ panels: panel }),
+    })),
     {
       id: "view.waveform-panel",
       label: en.menu.view.waveform,
@@ -1691,7 +1734,18 @@ export default function App() {
       // Enabled with no audio too: a toggle that disables itself when the thing it toggles is
       // absent tells the user the command is gone rather than that the panel has nothing to show.
       enabled: true,
-      run: () => setWaveformShown((shown) => !shown),
+      // The same setting the four radios write, so the toggle and the radios can never disagree:
+      // turning the wave off is picking the layout beside this one without it.
+      run: () =>
+        storeLayout({
+          panels: waveformShown
+            ? videoShown
+              ? "videoGrid"
+              : "gridOnly"
+            : videoShown
+              ? "full"
+              : "waveformGrid",
+        }),
     },
     {
       id: "wave.center-on-cue",
@@ -1917,6 +1971,10 @@ export default function App() {
       id: "view",
       title: en.menu.view.title,
       items: [
+        "view.layout-grid-only",
+        "view.layout-video-grid",
+        "view.layout-waveform-grid",
+        "view.layout-full",
         "view.tags-show",
         "view.tags-simplify",
         "view.tags-hide",
@@ -2032,33 +2090,38 @@ export default function App() {
             <ProjectRail project={project} onOpenFile={openAttachedFile} />
           </aside>
           <div className="shell__top" ref={topRef}>
-            <section
-              className="shell__video"
-              style={
-                layout === null
-                  ? undefined
-                  : {
-                      width: `${layout.videoFraction * 100}%`,
-                      // The floor holds where the panel is drawn, not only where it may be dragged:
-                      // a stored share opens the panel without a gesture anywhere near it.
-                      minWidth: transportFloor ?? undefined,
-                    }
-              }
-            >
-              <VideoStage hasVideo={ready} onRegionChange={setRegion} />
-              <VideoControls
-                enabled={ready}
-                paused={state.paused}
-                duration={state.duration ?? 0}
-                position={position}
-                onToggle={() => void togglePlayback()}
-                onSeek={(target) => void seek(target)}
-              />
-            </section>
+            {/* The picture and the wave are drawn by the layout the View menu holds, not by what is
+              loaded: a stage with nothing on it is still where a video would go (3.7). */}
+            {videoShown && (
+              <section
+                className="shell__video"
+                style={
+                  layout === null
+                    ? undefined
+                    : {
+                        width: `${layout.videoFraction * 100}%`,
+                        // The floor holds where the panel is drawn, not only where it may be dragged:
+                        // a stored share opens the panel without a gesture anywhere near it.
+                        minWidth: transportFloor ?? undefined,
+                      }
+                }
+              >
+                <VideoStage hasVideo={ready} onRegionChange={setRegion} />
+                <VideoControls
+                  enabled={ready}
+                  paused={state.paused}
+                  duration={state.duration ?? 0}
+                  position={position}
+                  onToggle={() => void togglePlayback()}
+                  onSeek={(target) => void seek(target)}
+                />
+              </section>
+            )}
             {/* The edge the owner asked for: the video gets bigger by dragging it (D1). It waits
               for the floor the same way it waits for the layout: an edge with no floor under it
-              could be dragged to a width that has no transport. */}
-            {layout !== null && transportFloor !== null && (
+              could be dragged to a width that has no transport, and it is not drawn at all when
+              there is no picture beside the tools to divide from them. */}
+            {videoShown && layout !== null && transportFloor !== null && (
               <Sash
                 axis="x"
                 edge="video"
