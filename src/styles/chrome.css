@@ -398,3 +398,65 @@
   color: inherit;
   font: inherit;
 }
+
+/* Jump to time: one field over the shell, closed the three ways every layer is (9.7). */
+.jumpto {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.jumpto__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: min(20rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.jumpto__field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.jumpto__label {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.jumpto__value {
+  flex: 1;
+  min-width: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.jumpto__refusal {
+  margin: 0;
+  color: var(--ink-warn);
+}
+
+.jumpto__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.jumpto__go,
+.jumpto__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}

@@ -100,6 +100,7 @@ const DECLARED = [
   "video-play-cue",
   "video-stop",
   "video-toggle-follow-selection",
+  "video-jump-to",
   "video-step-prev-frame",
   "video-step-next-frame",
   "video-prev-boundary",
