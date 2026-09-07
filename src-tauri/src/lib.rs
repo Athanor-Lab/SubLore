@@ -230,6 +230,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_set_times,
             subtitle::subtitle_insert,
             subtitle::subtitle_delete_many,
+            subtitle::subtitle_paste,
             subtitle::subtitle_split,
             subtitle::subtitle_merge,
             subtitle::subtitle_undo,

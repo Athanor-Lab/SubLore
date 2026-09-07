@@ -53,6 +53,7 @@ const DECLARED = [
   "edit-redo",
   "edit-cut",
   "edit-copy",
+  "edit-paste",
   "edit-paste-over",
   "edit-select-all",
   "edit-revert",
@@ -169,6 +170,7 @@ const EDIT_ITEMS = [
   { id: "edit-redo", disabled: true },
   { id: "edit-cut", disabled: true },
   { id: "edit-copy", disabled: true },
+  { id: "edit-paste", disabled: true },
   { id: "edit-paste-over", disabled: true },
   { id: "edit-select-all", disabled: true },
   { id: "edit-revert", disabled: true },
@@ -566,6 +568,7 @@ describe("the command registry", () => {
       // selection wake with it. Paste over asks the clipboard nothing until it is chosen.
       { route: "menu", id: "edit-cut", disabled: false },
       { route: "menu", id: "edit-copy", disabled: false },
+      { route: "menu", id: "edit-paste", disabled: false },
       { route: "menu", id: "edit-paste-over", disabled: false },
       { route: "menu", id: "edit-select-all", disabled: false },
       // The two clears need a line with something in it, which the fixture's first row is. Revert

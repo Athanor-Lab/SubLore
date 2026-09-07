@@ -128,6 +128,8 @@ export type SubtitleFile = {
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
   /** Several cues, in file order and each named once, as one undo step. */
   deleteCues: (cues: number[]) => Promise<void>;
+  /** The clipboard's lines in before a row, as one undo step. */
+  pasteCues: (before: number, text: string) => Promise<void>;
   /** `textOffset` counts UTF-8 bytes into the cue's text, which is what the backend splits on. */
   splitCue: (cue: number, textOffset: number, atMs: number) => Promise<void>;
   /** Joins `cue` with the one after it, so the last row has nothing to merge with. */
@@ -510,6 +512,11 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const pasteCues = useCallback(
+    (before: number, text: string) => command("subtitle_paste", { before, text }),
+    [command],
+  );
+
   const splitCue = useCallback(
     (cue: number, textOffset: number, atMs: number) =>
       command("subtitle_split", { cue, textOffset, atMs }),
@@ -608,6 +615,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     pasteOver,
     insertCue,
     deleteCues,
+    pasteCues,
     splitCue,
     mergeCue,
     undo,

@@ -163,9 +163,10 @@ describe("the clipboard", () => {
     });
   });
 
-  it("greys the four of them with nothing open, and wakes them with a document", async () => {
+  it("greys the five of them with nothing open, and wakes them with a document", async () => {
     expect(await editItem(toplevel, "edit-cut")).toEqual({ drawn: true, disabled: true });
     expect(await editItem(toplevel, "edit-copy")).toEqual({ drawn: true, disabled: true });
+    expect(await editItem(toplevel, "edit-paste")).toEqual({ drawn: true, disabled: true });
     expect(await editItem(toplevel, "edit-paste-over")).toEqual({ drawn: true, disabled: true });
     expect(await editItem(toplevel, "edit-select-all")).toEqual({ drawn: true, disabled: true });
 
@@ -181,6 +182,7 @@ describe("the clipboard", () => {
     // A document opens on its first row, so a row is selected and all of them can run.
     expect(await editItem(toplevel, "edit-cut")).toEqual({ drawn: true, disabled: false });
     expect(await editItem(toplevel, "edit-copy")).toEqual({ drawn: true, disabled: false });
+    expect(await editItem(toplevel, "edit-paste")).toEqual({ drawn: true, disabled: false });
     expect(await editItem(toplevel, "edit-select-all")).toEqual({ drawn: true, disabled: false });
   });
 
@@ -322,5 +324,35 @@ describe("the clipboard", () => {
       },
       { timeout: 15000, message: "one undo to put both of them back" },
     );
+  });
+
+  it("puts what the cut took back in, before the row the cursor is on", async () => {
+    // The clipboard still holds the pair the check above cut, so this is the other half of that
+    // gesture rather than a new fixture: what a cut takes out, a paste puts back.
+    await clickRow(toplevel, 2);
+    await waitFor(async () => ((await selectedCount()) === 1 ? 1 : null), {
+      timeout: 15000,
+      message: "the second row alone to be selected",
+    });
+
+    await fromEditMenu(toplevel, "edit-paste");
+    await waitFor(
+      async () => {
+        const rows = await rowTexts();
+        return rows.length === 5 && rows[1] === FIRST && rows[2] === THIRD ? 1 : null;
+      },
+      { timeout: 20000, message: "the two cut lines to land before the second row" },
+    );
+    // In before it, not over it: the row the cursor was on is still there, after them.
+    expect((await rowTexts())[3]).toBe(SECOND);
+    // And the rows that landed are the rows left selected, which is where the reference leaves
+    // them and what makes a second paste land somewhere a translator can predict.
+    expect(await selectedCount()).toBe(2);
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await rowTexts()).length === 3 ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take the whole paste back",
+    });
   });
 });

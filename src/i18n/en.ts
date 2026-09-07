@@ -33,6 +33,7 @@ export const en = {
       /** The clipboard group, in the order the reference's own Edit menu puts it. */
       cut: "Cut cues",
       copy: "Copy cues",
+      paste: "Paste cues",
       pasteOver: "Paste over cues",
       selectAll: "Select all cues",
       /** The four under the text box, in the order the reference's own row puts them. See B13. */
@@ -144,6 +145,7 @@ export const en = {
       cut: "Ctrl+X",
       copy: "Ctrl+C",
       deleteCues: "Ctrl+Delete",
+      paste: "Ctrl+V",
       pasteOver: "Ctrl+Shift+V",
       selectAll: "Ctrl+A",
       openSubtitle: "Ctrl+O",

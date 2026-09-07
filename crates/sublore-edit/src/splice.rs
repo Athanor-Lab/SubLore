@@ -82,6 +82,9 @@ pub enum EditKind {
     /// typing around it are never one undo step. See edit-bar-tasks.md B13.
     ClearText,
     Insert,
+    /// Its own kind, not `Insert` over more rows: a paste of forty lines must never merge into the
+    /// insert before it.
+    Paste,
     Delete,
     /// Its own kind, not `Delete` over more rows, for the reason `SetTexts` is its own: a cut that
     /// took forty lines must never merge into the delete before it.
