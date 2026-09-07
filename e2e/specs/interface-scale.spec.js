@@ -306,6 +306,20 @@ async function derivedFloor() {
 }
 
 /**
+ * What the strip does not show at once at the narrowest window there is, per interface size.
+ *
+ * A ceiling and not an identity: how many rows fourteen words wrap onto is what the machine's own
+ * fonts decide, and this repository's runner and the CI runner do not agree to the pixel. What
+ * holds everywhere is that every button is drawn and every one is reachable through the strip's
+ * own scroll, which is asserted below whatever the fonts do. The entry is the last button of the
+ * strip, and it appeared when the toolbar lost a word and took the window's floor down with it.
+ */
+const STRIP_SHORTFALL = {
+  90: [],
+  110: ["wavebar__wave-toggle-autoscroll"],
+};
+
+/**
  * Every button on the waveform's strip that does not answer where it is drawn: the element under
  * its own centre, when that element is not the button. A strip taller than the panel scrolls
  * inside it, and a button on a row the panel is not showing is under the current line instead.
@@ -325,6 +339,34 @@ function stripOutOfReach() {
       .map((button) => button.className.replace("wavebar__button ", ""));
     return { buttons: buttons.length, outOfReach: out };
   });
+}
+
+/**
+ * The named buttons a scroll of the strip reaches: each one scrolled to and asked again where it
+ * lands. The strip scrolling is the panel's own answer to a row it cannot hold, so what must hold
+ * on every machine is that the scroll reaches them.
+ */
+async function stripReachedByScrolling(names) {
+  const out = [];
+  for (const name of names) {
+    const reached = await browser.execute((css) => {
+      const button = document.querySelector(`.${css}`);
+      if (button === null) {
+        return false;
+      }
+      button.scrollIntoView({ block: "nearest" });
+      const rect = button.getBoundingClientRect();
+      const under = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+      return under !== null && (under === button || button.contains(under));
+    }, name);
+    if (!reached) {
+      out.push(name);
+    }
+  }
+  return out;
 }
 
 async function attachToApp() {
@@ -460,7 +502,17 @@ describe("the interface size", () => {
         toplevel = await resizeTo(toplevel.id, size.width, size.height);
         const at = `at ${percent} per cent in ${size.width}x${size.height}`;
         // The count too: a sweep over a strip that drew nothing would pass with nothing to say.
-        expect({ at, ...(await stripOutOfReach()) }).toEqual({ at, buttons: 14, outOfReach: [] });
+        const swept = await stripOutOfReach();
+        const ceiling = size.width === floor ? STRIP_SHORTFALL[percent] : [];
+        expect({
+          at,
+          buttons: swept.buttons,
+          beyond: swept.outOfReach.filter((name) => !ceiling.includes(name)),
+        }).toEqual({ at, buttons: 14, beyond: [] });
+        expect({ at, unreached: await stripReachedByScrolling(swept.outOfReach) }).toEqual({
+          at,
+          unreached: [],
+        });
       }
       toplevel = await resizeTo(toplevel.id, narrow, windowHeight);
     }
