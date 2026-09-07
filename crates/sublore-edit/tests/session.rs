@@ -390,6 +390,124 @@ fn an_edit_after_an_undo_drops_the_redo_tail() {
 const TWO_SRT_BLOCKS: &str = "1\n00:00:02,120 --> 00:00:04,880\nThe harbour was empty when we got there.\n\n2\n00:00:05,000 --> 00:00:08,340\nNobody had told the crew we were coming,\nso we sat on the dock until it got light.\n";
 
 #[test]
+fn a_duplicate_writes_each_named_line_again_and_leaves_the_ones_between_them() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    session
+        .apply(
+            &Edit::Duplicate { cues: vec![0, 2] },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first and the last are duplicated");
+
+    let texts: Vec<String> = session.views().iter().map(|row| row.text.clone()).collect();
+    assert_eq!(
+        texts,
+        vec![
+            "The harbour was empty when we got there.".to_owned(),
+            "The harbour was empty when we got there.".to_owned(),
+            "Nobody had told the crew we were coming,\nso we sat on the dock until it got light."
+                .to_owned(),
+            "By then the fog had eaten the boats.".to_owned(),
+            "By then the fog had eaten the boats.".to_owned(),
+        ],
+        "each copy sits after the line it copies, and the line between them is untouched"
+    );
+
+    session.undo().expect("undo").expect("a step");
+    assert_eq!(
+        session.to_bytes(),
+        original,
+        "one undo takes both copies back"
+    );
+}
+
+#[test]
+fn a_duplicated_run_lands_as_a_block_after_the_block_it_copies() {
+    let mut session = session("srt/clean/basic-lf.srt");
+
+    session
+        .apply(
+            &Edit::Duplicate { cues: vec![0, 1] },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first two are duplicated");
+
+    let texts: Vec<String> = session.views().iter().map(|row| row.text.clone()).collect();
+    let first = "The harbour was empty when we got there.".to_owned();
+    let second =
+        "Nobody had told the crew we were coming,\nso we sat on the dock until it got light."
+            .to_owned();
+    assert_eq!(
+        texts,
+        vec![
+            first.clone(),
+            second.clone(),
+            first,
+            second,
+            "By then the fog had eaten the boats.".to_owned(),
+        ],
+        "the two copies follow the two lines, in the order those two were written in"
+    );
+}
+
+#[test]
+fn a_duplicated_block_is_a_block_and_not_two_lines_stuck_together() {
+    let mut session = session("srt/clean/basic-lf.srt");
+
+    session
+        .apply(&Edit::Duplicate { cues: vec![2] }, Run::New, Instant::now())
+        .expect("the last line is duplicated");
+
+    let text = String::from_utf8(session.to_bytes()).expect("still UTF-8");
+    assert_eq!(session.views().len(), 4);
+    // The blank line between the block and its copy, at the end of a file that has no block after
+    // it: without it the two read back as one cue with an index line in its text.
+    assert!(
+        text.ends_with(
+            "boats.\n\n3\n00:00:09,100 --> 00:00:11,760\nBy then the fog had eaten the boats.\n"
+        ),
+        "the copy is its own block:\n{text}"
+    );
+}
+
+#[test]
+fn a_duplicated_ass_event_carries_the_fields_the_line_declares() {
+    let mut session = session("ass/clean/speakers.ass");
+    let (style, actor) = {
+        let rows = session.views();
+        (rows[1].style.clone(), rows[1].actor.clone())
+    };
+    assert_ne!(actor, "", "the fixture's second event names a speaker");
+
+    session
+        .apply(&Edit::Duplicate { cues: vec![1] }, Run::New, Instant::now())
+        .expect("the event is duplicated");
+
+    let rows = session.views();
+    assert_eq!(rows[2].style, style, "the copy names the same style");
+    assert_eq!(rows[2].actor, actor, "and the same speaker");
+    assert_eq!(rows[1].text, rows[2].text);
+}
+
+#[test]
+fn a_duplicate_refuses_cues_out_of_their_order_or_named_twice() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    for cues in [vec![2, 0], vec![1, 1], Vec::new()] {
+        let refused = session
+            .apply(&Edit::Duplicate { cues }, Run::New, Instant::now())
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+    assert_eq!(session.to_bytes(), original, "a refusal writes nothing");
+}
+
+#[test]
 fn a_paste_puts_the_lines_in_before_the_row_it_names() {
     let mut session = session("srt/clean/basic-lf.srt");
     let original = session.to_bytes();
@@ -649,6 +767,11 @@ fn every_mutation_kind_reaches_the_document_and_undoes_back_to_the_file() {
             1isize,
         ),
         ("srt/clean/basic-lf.srt", Edit::Delete { cue: 1 }, -1),
+        (
+            "srt/clean/basic-lf.srt",
+            Edit::Duplicate { cues: vec![0, 1] },
+            2,
+        ),
         (
             "srt/clean/basic-lf.srt",
             Edit::Paste {

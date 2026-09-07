@@ -351,6 +351,7 @@ export default function App() {
   // through a box rather than directly: the document is read before the selection exists.
   const rowsMovedRef = useRef<RowsMoved>(() => {});
   const selectRunRef = useRef<(from: number, to: number) => void>(() => {});
+  const selectRowsRef = useRef<(rows: number[]) => void>(() => {});
   /** Set by a paste, read by the patch it causes: the rows that land are the rows left selected. */
   const pasteLanding = useRef(false);
   const onRowsMoved = useCallback<RowsMoved>((at, removed, inserted) => {
@@ -393,6 +394,21 @@ export default function App() {
       // Plain first, which is also what sets the anchor the extension runs from.
       selection.move(from, "plain");
       selection.move(to, "extend");
+    };
+    selectRowsRef.current = (rows) => {
+      const [head, ...rest] = rows;
+      if (head === undefined) {
+        return;
+      }
+      selection.move(head, "plain");
+      for (const row of rest) {
+        selection.toggle(row);
+      }
+      // The cursor goes back to the first of them: a toggle takes it, and what a translator carries
+      // on from is the first line that landed, not the last.
+      if (rest.length > 0) {
+        selection.move(head, "cursorOnly");
+      }
     };
   }, [selection.rowsMoved, selection.move]);
 
@@ -734,6 +750,40 @@ export default function App() {
       return;
     }
     await subtitle.deleteCues(rows);
+  }
+
+  /**
+   * Every selected line written again after itself, as one undo step, with the copies left selected.
+   *
+   * Where each copy lands is worked out here rather than read back: a run of n rows is followed by
+   * its own n copies, and every run after it has moved down by the copies made before it.
+   */
+  async function duplicateCues() {
+    await flushEditors();
+    const rows = [...selection.selected]
+      .filter((row) => row < subtitle.cues.length)
+      .sort((one, two) => one - two);
+    if (rows.length === 0) {
+      return;
+    }
+    const copies: number[] = [];
+    let shift = 0;
+    let at = 0;
+    while (at < rows.length) {
+      let end = at;
+      while (end + 1 < rows.length && rows[end + 1] === rows[end] + 1) {
+        end += 1;
+      }
+      const length = end - at + 1;
+      const first = rows[end] + 1 + shift;
+      for (let step = 0; step < length; step += 1) {
+        copies.push(first + step);
+      }
+      shift += length;
+      at = end + 1;
+    }
+    await subtitle.duplicateCues(rows);
+    selectRowsRef.current(copies);
   }
 
   /**
@@ -1818,6 +1868,12 @@ export default function App() {
       run: () => void insertCue(),
     },
     {
+      id: "subtitle.duplicate",
+      label: en.menu.subtitles.duplicate,
+      enabled: selection.selected.size > 0,
+      run: () => void duplicateCues(),
+    },
+    {
       id: "subtitle.next-line",
       label: en.menu.subtitles.nextLine,
       // A document with no rows can still take its first one, exactly as the insert above can.
@@ -2050,6 +2106,7 @@ export default function App() {
       items: [
         "subtitle.insert",
         "subtitle.next-line",
+        "subtitle.duplicate",
         "subtitle.delete",
         "subtitle.split",
         "subtitle.merge",

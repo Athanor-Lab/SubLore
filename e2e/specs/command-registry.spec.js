@@ -94,6 +94,7 @@ const DECLARED = [
   "time-end-later",
   "subtitle-insert",
   "subtitle-next-line",
+  "subtitle-duplicate",
   "subtitle-delete",
   "subtitle-split",
   "subtitle-merge",
@@ -191,6 +192,7 @@ const EDIT_ITEMS = [
 const SUBTITLE_ITEMS = [
   { id: "subtitle-insert", disabled: true },
   { id: "subtitle-next-line", disabled: true },
+  { id: "subtitle-duplicate", disabled: true },
   { id: "subtitle-delete", disabled: true },
   { id: "subtitle-split", disabled: true },
   { id: "subtitle-merge", disabled: true },
@@ -583,6 +585,7 @@ describe("the command registry", () => {
       { route: "menu", id: "edit-replace", disabled: false },
       { route: "menu", id: "subtitle-insert", disabled: false },
       { route: "menu", id: "subtitle-next-line", disabled: false },
+      { route: "menu", id: "subtitle-duplicate", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous

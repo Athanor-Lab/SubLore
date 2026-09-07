@@ -817,6 +817,18 @@ pub async fn subtitle_delete(
     edited(&app, state.slot(), revision, Edit::Delete { cue }).await
 }
 
+/// Every named cue written again straight after itself, as one undo step. In file order, each named
+/// once; they need not be next to each other.
+#[tauri::command]
+pub async fn subtitle_duplicate(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cues: Vec<usize>,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(&app, state.slot(), revision, Edit::Duplicate { cues }).await
+}
+
 /// The clipboard's own lines put in before `before`, as one undo step. `before` equal to the cue
 /// count appends. The fragment is read behind this document's header before anything is written.
 #[tauri::command]
