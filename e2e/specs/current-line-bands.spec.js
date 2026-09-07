@@ -1,4 +1,4 @@
-/* global describe, it, before, after, document, window, Event, setTimeout */
+/* global describe, it, before, after, console, document, window, Event, setTimeout */
 /**
  * The current line's bands: the character count on the first one, and the row structure both bands
  * have to survive at every interface size. See sublore-meta docs/edit-bar-first-tasks.md, E1 and E5.
@@ -620,9 +620,9 @@ async function openSubtitle(toplevel, copy) {
   });
 }
 
-/** Put the cursor on a row by clicking its number cell, the way a person moves it. */
-async function goToRow(toplevel, position) {
-  const centre = await browser.execute((wanted) => {
+/** Where the number cell of a row is, in physical pixels, or null when the row is not rendered. */
+function rowCentre(position) {
+  return browser.execute((wanted) => {
     const rows = Array.from(document.querySelectorAll(".cuelist__row"));
     const row = rows.find(
       (candidate) => candidate.querySelector(".cuelist__pos")?.textContent === wanted,
@@ -635,21 +635,57 @@ async function goToRow(toplevel, position) {
     const dpr = window.devicePixelRatio;
     return { x: (rect.x + rect.width / 2) * dpr, y: (rect.y + rect.height / 2) * dpr };
   }, String(position));
-  if (centre === null) {
-    throw new Error(`row ${position} is not in the grid, so the cursor cannot be put on it`);
+}
+
+function rowIsActive(position) {
+  return browser.execute((wanted) => {
+    const rows = Array.from(document.querySelectorAll(".cuelist__row"));
+    const row = rows.find(
+      (candidate) => candidate.querySelector(".cuelist__pos")?.textContent === wanted,
+    );
+    return row?.classList.contains("cuelist__row--active") === true;
+  }, String(position));
+}
+
+/** What the grid says about itself, for a click that did not do what it was aimed to do. */
+function gridState() {
+  return browser.execute(() => ({
+    scrollTop: document.querySelector(".cuelist")?.scrollTop ?? null,
+    active: document.querySelector(".cuelist__row--active .cuelist__pos")?.textContent ?? null,
+  }));
+}
+
+/**
+ * Put the cursor on a row by clicking its number cell, the way a person moves it.
+ *
+ * Twice if the first one does not take: the grid scrolls itself to keep the cursor in view, so a
+ * rectangle read here can be stale by the time the button goes down on a loaded machine. The second
+ * attempt prints what the first one saw, so a run that needed it still says so. See e2e/README.md.
+ */
+async function goToRow(toplevel, position) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const centre = await rowCentre(position);
+    if (centre === null) {
+      throw new Error(`row ${position} is not in the grid, so the cursor cannot be put on it`);
+    }
+    clickAt(toplevel.absX + centre.x, toplevel.absY + centre.y);
+    try {
+      await waitFor(() => rowIsActive(position), {
+        timeout: attempt === 1 ? 5000 : 15000,
+        message: `the cursor to reach row ${position}`,
+      });
+      return;
+    } catch (error) {
+      if (attempt === 2) {
+        throw error;
+      }
+      const state = await gridState();
+      console.log(
+        `goToRow: row ${position} was clicked at ${centre.x},${centre.y} and did not take. ` +
+          `The grid is at scrollTop ${state.scrollTop} with row ${state.active} active. Clicking again.`,
+      );
+    }
   }
-  clickAt(toplevel.absX + centre.x, toplevel.absY + centre.y);
-  await waitFor(
-    () =>
-      browser.execute((wanted) => {
-        const rows = Array.from(document.querySelectorAll(".cuelist__row"));
-        const row = rows.find(
-          (candidate) => candidate.querySelector(".cuelist__pos")?.textContent === wanted,
-        );
-        return row?.classList.contains("cuelist__row--active") === true;
-      }, String(position)),
-    { timeout: 15000, message: `the cursor to reach row ${position}` },
-  );
 }
 
 /** Walk every row of an open fixture and read the count off each one. */

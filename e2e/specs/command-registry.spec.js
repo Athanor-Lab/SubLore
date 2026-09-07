@@ -93,6 +93,8 @@ const DECLARED = [
   "help-about",
   "video-toggle-subtitle-overlay",
   "video-show-source-on-video",
+  "video-jump-cue-start",
+  "video-jump-cue-end",
   "view-tags-show",
   "view-tags-simplify",
   "view-tags-hide",
@@ -106,14 +108,18 @@ const DECLARED = [
   "view-interface-scale-150",
 ];
 
-/** The bar with nothing open: every title present, and Audio greyed because no media has tracks. */
+/**
+ * The bar with nothing open: every title present, in the order the reference's own bar has them,
+ * and Audio greyed because no media has tracks.
+ */
 const TITLES = [
   { id: "file", label: "File", disabled: false },
   { id: "edit", label: "Edit", disabled: false },
   { id: "subtitle", label: "Subtitles", disabled: false },
   { id: "timing", label: "Timing", disabled: false },
-  { id: "view", label: "View", disabled: false },
+  { id: "video", label: "Video", disabled: false },
   { id: "audio", label: "Audio", disabled: true },
+  { id: "view", label: "View", disabled: false },
   { id: "help", label: "Help", disabled: false },
 ];
 
@@ -127,7 +133,6 @@ const FILE_ITEMS = [
   { id: "file-open-source", disabled: false },
   { id: "file-close-source", disabled: true },
   { id: "file-new-translation", disabled: true },
-  { id: "video-open", disabled: false },
   { id: "file-save", disabled: true },
   { id: "file-save-copy", disabled: true },
   { id: "file-discard", disabled: true },

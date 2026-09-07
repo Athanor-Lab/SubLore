@@ -1204,6 +1204,29 @@ export default function App() {
       },
     })),
     {
+      id: "video.jump-cue-start",
+      label: en.menu.video.jumpCueStart,
+      accelerator: en.menu.keys.videoToCueStart,
+      // A place on the picture to jump to and a line to take it from: both, or there is nothing.
+      enabled: state.status === "ready" && activeCue !== null,
+      run: () => {
+        if (activeCue !== null) {
+          void seek(activeCue.startMs / 1000);
+        }
+      },
+    },
+    {
+      id: "video.jump-cue-end",
+      label: en.menu.video.jumpCueEnd,
+      accelerator: en.menu.keys.videoToCueEnd,
+      enabled: state.status === "ready" && activeCue !== null,
+      run: () => {
+        if (activeCue !== null) {
+          void seek(activeCue.endMs / 1000);
+        }
+      },
+    },
+    {
       id: "edit.copy",
       label: en.menu.edit.copy,
       accelerator: en.menu.keys.copy,
@@ -1445,7 +1468,6 @@ export default function App() {
         "file.open-source",
         "file.close-source",
         "file.new-translation",
-        "video.open",
         "file.save",
         "file.save-copy",
         "file.discard",
@@ -1520,19 +1542,17 @@ export default function App() {
         "time.end-later",
       ],
     },
+    // Fifth of the eight titles, which is where the reference's own bar puts it: what is about the
+    // picture lives here and what is about the document lives in the four before it (3.4).
     {
-      id: "view",
-      title: en.menu.view.title,
+      id: "video",
+      title: en.menu.video.title,
       items: [
+        "video.open",
+        "video.jump-cue-start",
+        "video.jump-cue-end",
         "video.toggle-subtitle-overlay",
         "video.show-source-on-video",
-        "view.tags-show",
-        "view.tags-simplify",
-        "view.tags-hide",
-        "view.waveform-panel",
-        "wave.center-on-cue",
-        "wave.toggle-autoscroll",
-        ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
       ],
     },
     // A media with no audio, or no media at all, leaves this with no items: the title is still on
@@ -1541,6 +1561,19 @@ export default function App() {
       id: "audio",
       title: en.menu.audio.title,
       items: audio.tracks.map((track): CommandId => `audio.track.${track.id}`),
+    },
+    {
+      id: "view",
+      title: en.menu.view.title,
+      items: [
+        "view.tags-show",
+        "view.tags-simplify",
+        "view.tags-hide",
+        "view.waveform-panel",
+        "wave.center-on-cue",
+        "wave.toggle-autoscroll",
+        ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
+      ],
     },
     { id: "help", title: en.menu.help.title, items: ["help.about"] },
     // A module's own titles, after the core's. A title exists exactly when a module pushed one with
