@@ -109,11 +109,18 @@ const BARE_SHORTFALL = {
  * paid here rather than fixed for the reason the paragraph above gives: what fixes it is N38, and
  * N38 needs the owner. Every control is still drawn and every one is still reachable by scrolling
  * the panel, which is what these two checks actually guard.
+ *
+ * **2026-09-07 again, and it is that same button row a third time.** Save a copy became Save as on
+ * the toolbar, and the toolbar is one of the rows the window's floor is measured off, so the
+ * narrowest window there is at 90 per cent is a word narrower than it was. The bands wrap one line
+ * sooner in it and Bold, the first control of the button row, goes behind the scroll where it
+ * already was at the other two sizes. Paid here for the reason above: N38 is what clears the row.
  */
 const SHORTFALL = {
   90: {
     floor: [
       ".currentline__text",
+      ".currentline__edit-style-bold",
       ".currentline__colour-primary",
       ".currentline__subtitle-next-line",
     ],
