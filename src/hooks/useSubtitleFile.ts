@@ -126,7 +126,6 @@ export type SubtitleFile = {
   newTranslation: () => Promise<void>;
   /** `before === cues.length` appends; the four below carry the backend's own argument names. */
   insertCue: (before: number, startMs: number, endMs: number, text: string) => Promise<void>;
-  deleteCue: (cue: number) => Promise<void>;
   /** Several cues, in file order and each named once, as one undo step. */
   deleteCues: (cues: number[]) => Promise<void>;
   /** The clipboard's lines in before a row, as one undo step. */
@@ -510,8 +509,6 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
-  const deleteCue = useCallback((cue: number) => command("subtitle_delete", { cue }), [command]);
-
   const deleteCues = useCallback(
     (cues: number[]) => command("subtitle_delete_many", { cues }),
     [command],
@@ -624,7 +621,6 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     copyCues,
     pasteOver,
     insertCue,
-    deleteCue,
     deleteCues,
     pasteCues,
     duplicateCues,

@@ -19,11 +19,13 @@ const TEXT_INPUT_TYPES = ["text", "search", "url", "email", "tel", "password", "
 const FIELD_CHORDS: ReadonlySet<string> = new Set(["a", "c", "v", "x", "y", "z"]);
 
 /**
- * The keys a text field keeps even under a modifier: moving the caret and selecting with it.
+ * The keys a text field keeps even under a modifier: moving the caret, selecting with it, and
+ * taking out the word in front of it.
  *
  * Ctrl+Left is a word backwards in every text box there has ever been, and the grid's own context
  * puts the video's boundary and frame commands on the same chords. Which one gets it turns on where
- * the caret is, exactly as it does for Ctrl+A. See interface-spec 10.5.
+ * the caret is, exactly as it does for Ctrl+A. Ctrl+Delete is here for the same reason: in a box it
+ * takes out a word, and outside one it takes out the selected lines. See interface-spec 10.5.
  */
 const FIELD_NAVIGATION: ReadonlySet<string> = new Set([
   "arrowleft",
@@ -32,6 +34,7 @@ const FIELD_NAVIGATION: ReadonlySet<string> = new Set([
   "arrowdown",
   "home",
   "end",
+  "delete",
 ]);
 
 /**
@@ -115,6 +118,14 @@ type Chord = {
   value: string;
 };
 
+/**
+ * The keys an accelerator spells by name, and the `key` each one arrives as. `code` would be the
+ * physical key, and these are the same key on every layout there is, so `key` says what it is.
+ */
+const NAMED_KEYS: Record<string, string> = {
+  delete: "delete",
+};
+
 /** The arrow tokens an accelerator spells, and the `key` each one arrives as. */
 const ARROWS: Record<string, string> = {
   left: "arrowleft",
@@ -150,6 +161,10 @@ function parseAccelerator(text: string | undefined): Chord | null {
   const arrow = ARROWS[token.toLowerCase()];
   if (arrow !== undefined) {
     return { ctrl, shift, alt, on: "key", value: arrow };
+  }
+  const named = NAMED_KEYS[token.toLowerCase()];
+  if (named !== undefined) {
+    return { ctrl, shift, alt, on: "key", value: named };
   }
   if (/^[0-9]$/.test(token)) {
     return { ctrl, shift, alt, on: "code", value: `Digit${token}` };

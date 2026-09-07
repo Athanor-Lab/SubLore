@@ -318,10 +318,71 @@ describe("the cue structure edits", () => {
     await runFromMenu(toplevel, "subtitle-delete");
 
     await waitForTexts([FIRST, "", SECOND], "the last cue gone");
-    expect(await takeCommands()).toEqual(["subtitle_delete"]);
+    // One row selected is one row named: the command that carries a selection carries a set of one.
+    expect(await takeCommands()).toEqual(["subtitle_delete_many"]);
     expect(await textOf(".statusbar__document")).toContain("3 cues");
     expect(await present(".statusbar__error")).toBe(false);
     expect(readFileSync(copy).equals(openedBytes)).toBe(true);
+  });
+
+  it("takes every line the selection holds, in one step, on Ctrl+Delete", async () => {
+    await cursorTo(toplevel, 1);
+    key("shift+Down");
+    const ranged = await waitFor(
+      async () => {
+        const rows = await gridRows();
+        return rows[1]?.cursor === true ? rows : null;
+      },
+      { timeout: 15000, message: "the first two rows to be selected" },
+    );
+    expect(ranged.map((row) => row.selected)).toEqual([true, true, false]);
+
+    key("ctrl+Delete");
+
+    // Both of them, not the one the cursor is on: what Delete takes is the selection.
+    const left = await waitForTexts([SECOND], "the two selected lines gone");
+    expect(left.map((row) => row.cursor)).toEqual([true]);
+    expect(await textOf(".statusbar__document")).toContain("1 cue");
+
+    // One step, whatever it took: a delete of two rows that were two undo steps would leave one
+    // of them out of the grid here.
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitForTexts([FIRST, "", SECOND], "one undo to put both lines back");
+  });
+
+  it("leaves Ctrl+Delete to the text box, where it is a word and not a line", async () => {
+    await cursorTo(toplevel, 1);
+    // One character in rather than none: `placeCaret` walks the caret right, and a walk of zero
+    // steps is a value xdotool refuses.
+    await placeCaret(toplevel, 1);
+    const before = await browser.execute(
+      () => document.querySelector(".currentline__text")?.value ?? null,
+    );
+
+    key("ctrl+Delete");
+
+    // The box takes it and loses a word; the grid keeps every row it had. A command that fired
+    // through a caret would take the line the translator is typing into.
+    await waitFor(
+      async () => {
+        const now = await browser.execute(
+          () => document.querySelector(".currentline__text")?.value ?? null,
+        );
+        return now !== before ? 1 : null;
+      },
+      { timeout: 15000, message: "the box to lose the word after the caret" },
+    );
+    expect((await gridRows()).length).toBe(3);
+
+    // The box commits what is in it when it loses the keyboard, so the word it lost is a real edit
+    // by the time the cursor moves, and one undo is what puts the line back for the checks below.
+    await cursorTo(toplevel, 2);
+    await waitFor(async () => ((await gridRows())[0]?.text !== FIRST ? 1 : null), {
+      timeout: 15000,
+      message: "the word the box lost to reach the row",
+    });
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitForTexts([FIRST, "", SECOND], "the line the box was typed into, back as it was");
   });
 
   it("writes every selected line again after itself, and leaves the copies selected", async () => {
@@ -489,12 +550,14 @@ describe("the cue structure edits", () => {
     expect(grown.map((row) => row.cursor)).toEqual([false, false, true, false]);
     expect(grown.map((row) => row.selected)).toEqual([true, true, true, false]);
 
-    // Now a row goes from under them. The cursor stays on the row that took its place, and the
-    // selection comes up with the rows rather than swallowing the one that moved into the gap.
+    // Now a row goes from under them. Delete takes the selection, so the selection is brought down
+    // onto one row first and what is asserted is where the cursor lands: on the row that took the
+    // deleted one's place, never past the end.
+    await cursorTo(toplevel, 3);
     await runFromMenu(toplevel, "subtitle-delete");
     const shrunk = await waitForTexts([FIRST, "", ""], "the cursor's cue gone");
     expect(shrunk.map((row) => row.cursor)).toEqual([false, false, true]);
-    expect(shrunk.map((row) => row.selected)).toEqual([true, true, false]);
+    expect(shrunk.map((row) => row.selected)).toEqual([false, false, true]);
   });
 
   it("never leaves the cursor past the end when the last cue is the one deleted", async () => {
