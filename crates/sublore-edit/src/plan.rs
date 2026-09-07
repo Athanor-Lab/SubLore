@@ -102,6 +102,17 @@ pub enum Edit {
         end_ms: u32,
         text: String,
     },
+    /// The clipboard's own lines, put in before `before` exactly as they are spelled.
+    /// `before == cues().count()` appends.
+    ///
+    /// The fragment is read behind this document's own header before anything is written: an ASS
+    /// event means nothing without the `Format:` line that names its columns, and a fragment this
+    /// document cannot read is refused rather than written. What lands is the fragment itself, so a
+    /// paste keeps every field the copy carried.
+    Paste {
+        before: usize,
+        fragment: String,
+    },
     Delete {
         cue: usize,
     },
@@ -198,6 +209,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             end_ms,
             text,
         } => plan_insert(document, *before, *start_ms, *end_ms, text),
+        Edit::Paste { before, fragment } => plan_paste(document, *before, fragment),
         Edit::Delete { cue } => plan_delete(document, *cue),
         Edit::DeleteMany { cues } => plan_delete_many(document, cues),
         Edit::Split {
@@ -2156,6 +2168,209 @@ fn first_ass_event(
         text.to_owned(),
         format.format_segment.saturating_add(1),
         1,
+    ))
+}
+
+/// The fragment with this document's own line terminator, ending in one.
+fn as_written(fragment: &str, newline: &str) -> String {
+    let normalized = diff::normalize(fragment);
+    let mut written = normalized.replace('\n', newline);
+    if !written.ends_with(newline) {
+        written.push_str(newline);
+    }
+    written
+}
+
+/// What a fragment holds, read behind this document's own header: its cues, and how many segments
+/// it adds to the file it is going into.
+///
+/// The header is what makes the fragment mean anything at all, and reading it through this
+/// document's header rather than its own is also what makes a copy from another file land spelled
+/// the way this one spells things.
+fn read_fragment(
+    document: &SubtitleDocument,
+    fragment: &str,
+) -> Result<(Vec<ExpectedCue>, usize), EditError> {
+    let body = document.source().body();
+    let segments = document.segments();
+    let first_cue = segments
+        .iter()
+        .position(|segment| matches!(segment.kind, SegmentKind::Cue(_)));
+    let head_end = first_cue
+        .and_then(|at| segments.get(at))
+        .map_or(body.len(), |segment| segment.span.start);
+    let head_segments = first_cue.unwrap_or(segments.len());
+    let Some(head) = body.get(..head_end) else {
+        return Err(EditError::new(
+            EditErrorKind::BadRange,
+            "the document's header does not end where its first cue starts",
+        ));
+    };
+
+    let mut whole = String::with_capacity(head.len().saturating_add(fragment.len()));
+    whole.push_str(head);
+    // A header that never got a terminator would take the fragment's first line onto its own.
+    if !head.is_empty() && terminator_len(head) == 0 {
+        whole.push_str(default_newline(document));
+    }
+    whole.push_str(fragment);
+
+    let parsed = sublore_formats::parse(document.format(), whole.as_bytes())
+        .map_err(|error| EditError::from_parse(EditErrorKind::NotApplicable, error))?;
+    let cues: Vec<ExpectedCue> = parsed
+        .cues()
+        .map(|cue| ExpectedCue {
+            text_raw: parsed.slice(cue.text).to_owned(),
+            start_ms: cue.start.millis(),
+            end_ms: cue.end.millis(),
+        })
+        .collect();
+    if cues.is_empty() {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the fragment holds no cue this document could read",
+        ));
+    }
+    let added = parsed
+        .segments()
+        .len()
+        .checked_sub(head_segments)
+        .ok_or_else(|| {
+            EditError::new(
+                EditErrorKind::NotApplicable,
+                "the fragment read back shorter than the header it was read behind",
+            )
+        })?;
+    Ok((cues, added))
+}
+
+fn plan_paste(
+    document: &SubtitleDocument,
+    before: usize,
+    fragment: &str,
+) -> Result<Planned, EditError> {
+    let count = document.cues().count();
+    if before > count {
+        return Err(EditError::new(
+            EditErrorKind::NoSuchCue,
+            format!("cue {before}: the document holds {count}"),
+        ));
+    }
+    let newline = default_newline(document);
+    let written = as_written(fragment, newline);
+    let (cues, added) = read_fragment(document, &written)?;
+
+    // A blank line separates two blocks in an SRT or a VTT; an ASS event is followed by the next
+    // one. It goes on the side facing the content already there.
+    let blank = match document.format() {
+        SubtitleFormat::Ass => "",
+        SubtitleFormat::Srt | SubtitleFormat::Vtt => newline,
+    };
+    let blanks = usize::from(!blank.is_empty());
+
+    let (at, inserted, segments_from, segments_inserted) = if before < count {
+        let target = locate(document, before)?;
+        (
+            target.segment.span.start,
+            format!("{written}{blank}"),
+            target.segment_index,
+            added.saturating_add(blanks),
+        )
+    } else if let Some(last) = count
+        .checked_sub(1)
+        .and_then(|at| locate(document, at).ok())
+    {
+        let slice = document.slice(last.segment.span);
+        let mut inserted = String::new();
+        // The last block never got a terminator when the file ends without one.
+        if terminator_len(slice) == 0 {
+            inserted.push_str(newline);
+        }
+        inserted.push_str(blank);
+        inserted.push_str(&written);
+        (
+            last.segment.span.end,
+            inserted,
+            last.segment_index.saturating_add(1),
+            added.saturating_add(blanks),
+        )
+    } else {
+        empty_document_paste(document, &written, added)?
+    };
+
+    Ok(Planned {
+        splice: Splice::new(at, String::new(), inserted),
+        label: EditLabel {
+            kind: EditKind::Paste,
+            cue: before,
+        },
+        expect: Expectation {
+            from: before,
+            removed: 0,
+            cues,
+            segments_from,
+            segments_removed: 0,
+            segments_inserted,
+        },
+    })
+}
+
+/// Where a paste goes in a document with no cue in it: after the events section's own `Format:`
+/// line in an ASS, which is not always the last section, and at the end of the body otherwise.
+fn empty_document_paste(
+    document: &SubtitleDocument,
+    written: &str,
+    added: usize,
+) -> Result<(usize, String, usize, usize), EditError> {
+    let newline = default_newline(document);
+    if document.format() == SubtitleFormat::Ass {
+        let Some(format) = document.ass_event_format() else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                "the file declares no events section to put a line in",
+            ));
+        };
+        let anchor = document
+            .segments()
+            .get(format.format_segment)
+            .ok_or_else(|| {
+                EditError::new(
+                    EditErrorKind::NotApplicable,
+                    "the events section's format line is not where the parser left it",
+                )
+            })?;
+        let mut inserted = String::new();
+        if terminator_len(document.slice(anchor.span)) == 0 {
+            inserted.push_str(newline);
+        }
+        inserted.push_str(written);
+        return Ok((
+            anchor.span.end,
+            inserted,
+            format.format_segment.saturating_add(1),
+            added,
+        ));
+    }
+
+    let body = document.source().body();
+    let segments = document.segments();
+    let last_is_blank = segments
+        .last()
+        .is_some_and(|segment| matches!(segment.kind, SegmentKind::Blank));
+    let mut inserted = String::new();
+    if !body.is_empty() && terminator_len(body) == 0 {
+        inserted.push_str(newline);
+    }
+    let blank_added = !body.is_empty() && !last_is_blank;
+    if blank_added {
+        inserted.push_str(newline);
+    }
+    inserted.push_str(written);
+    Ok((
+        body.len(),
+        inserted,
+        segments.len(),
+        added.saturating_add(usize::from(blank_added)),
     ))
 }
 

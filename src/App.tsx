@@ -350,10 +350,18 @@ export default function App() {
   // The two states the grid indexes by row live below, so the patch that moves rows reaches them
   // through a box rather than directly: the document is read before the selection exists.
   const rowsMovedRef = useRef<RowsMoved>(() => {});
-  const onRowsMoved = useCallback<RowsMoved>(
-    (at, removed, inserted) => rowsMovedRef.current(at, removed, inserted),
-    [],
-  );
+  const selectRunRef = useRef<(from: number, to: number) => void>(() => {});
+  /** Set by a paste, read by the patch it causes: the rows that land are the rows left selected. */
+  const pasteLanding = useRef(false);
+  const onRowsMoved = useCallback<RowsMoved>((at, removed, inserted) => {
+    rowsMovedRef.current(at, removed, inserted);
+    if (pasteLanding.current) {
+      pasteLanding.current = false;
+      if (removed === 0 && inserted > 0) {
+        selectRunRef.current(at, at + inserted - 1);
+      }
+    }
+  }, []);
   // What a module's activation puts on screen, and how far it has got while it runs. Two states,
   // because a module may publish a table without doing anything long, and the reverse.
   const modulePanels = useModulePanels();
@@ -381,7 +389,12 @@ export default function App() {
   const selection = useCueSelection(subtitle.cues.length, subtitle.openId);
   useEffect(() => {
     rowsMovedRef.current = selection.rowsMoved;
-  }, [selection.rowsMoved]);
+    selectRunRef.current = (from, to) => {
+      // Plain first, which is also what sets the anchor the extension runs from.
+      selection.move(from, "plain");
+      selection.move(to, "extend");
+    };
+  }, [selection.rowsMoved, selection.move]);
 
   // Every bound a sash is given comes from here rather than from a number: a fixed maximum would
   // clip a panel on a small window and waste room on a large one (W6). The current line is
@@ -721,6 +734,21 @@ export default function App() {
       return;
     }
     await subtitle.deleteCues(rows);
+  }
+
+  /**
+   * The clipboard's cues in before the row the cursor is on, as one undo step, and the rows that
+   * land are the ones left selected. With no row to go before they go at the end.
+   */
+  async function pasteCues() {
+    await flushEditors();
+    const text = await invoke<string>("clipboard_read").catch(() => "");
+    if (text === "") {
+      return;
+    }
+    pasteLanding.current = true;
+    await subtitle.pasteCues(selection.active ?? subtitle.cues.length, text);
+    pasteLanding.current = false;
   }
 
   /** The clipboard's lines over the selected rows, in order, as one undo step. */
@@ -1710,6 +1738,16 @@ export default function App() {
       run: () => void copyCues(),
     },
     {
+      id: "edit.paste",
+      label: en.menu.edit.paste,
+      accelerator: en.menu.keys.paste,
+      // The clipboard is not read to answer this: asking it on every render would put a GTK call
+      // behind every keystroke. A paste with nothing to paste does nothing, and says so by doing
+      // nothing rather than by being greyed.
+      enabled: subtitle.summary !== null,
+      run: () => void pasteCues(),
+    },
+    {
       id: "edit.paste-over",
       label: en.menu.edit.pasteOver,
       accelerator: en.menu.keys.pasteOver,
@@ -1986,6 +2024,7 @@ export default function App() {
         "edit.redo",
         "edit.cut",
         "edit.copy",
+        "edit.paste",
         "edit.paste-over",
         "edit.select-all",
         "edit.revert",

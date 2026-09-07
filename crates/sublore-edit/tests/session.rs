@@ -386,6 +386,160 @@ fn an_edit_after_an_undo_drops_the_redo_tail() {
     );
 }
 
+/// What a copy of the first two cues of `basic-lf.srt` puts on the clipboard.
+const TWO_SRT_BLOCKS: &str = "1\n00:00:02,120 --> 00:00:04,880\nThe harbour was empty when we got there.\n\n2\n00:00:05,000 --> 00:00:08,340\nNobody had told the crew we were coming,\nso we sat on the dock until it got light.\n";
+
+#[test]
+fn a_paste_puts_the_lines_in_before_the_row_it_names() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    session
+        .apply(
+            &Edit::Paste {
+                before: 2,
+                fragment: TWO_SRT_BLOCKS.to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("two blocks land");
+
+    let rows = session.views();
+    assert_eq!(rows.len(), 5, "three cues and the two that were pasted");
+    assert_eq!(rows[2].text, "The harbour was empty when we got there.");
+    assert_eq!(rows[3].start_ms, 5_000, "and their times came with them");
+    assert_eq!(
+        rows[4].text, "By then the fog had eaten the boats.",
+        "the row they went in before is still after them"
+    );
+
+    session.undo().expect("undo").expect("a step");
+    assert_eq!(session.to_bytes(), original, "one undo takes both back");
+}
+
+#[test]
+fn a_paste_at_the_end_appends_and_keeps_the_blank_line_between_blocks() {
+    let mut session = session("srt/clean/basic-lf.srt");
+
+    session
+        .apply(
+            &Edit::Paste {
+                before: 3,
+                fragment: TWO_SRT_BLOCKS.to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("two blocks land at the end");
+
+    let text = String::from_utf8(session.to_bytes()).expect("still UTF-8");
+    assert_eq!(session.views().len(), 5);
+    assert!(
+        text.contains("boats.\n\n1\n00:00:02,120"),
+        "a blank line separates the last block from the first pasted one:\n{text}"
+    );
+}
+
+#[test]
+fn a_paste_keeps_the_fields_an_ass_event_carries() {
+    let mut session = session("ass/clean/speakers.ass");
+    let carried = {
+        let rows = session.views();
+        (rows[1].style.clone(), rows[1].actor.clone())
+    };
+    assert_ne!(carried.1, "", "the fixture's second event names a speaker");
+    let line = String::from_utf8(session.to_bytes())
+        .expect("still UTF-8")
+        .lines()
+        .filter(|line| line.starts_with("Dialogue:"))
+        .nth(1)
+        .expect("a second event")
+        .to_owned();
+
+    session
+        .apply(
+            &Edit::Paste {
+                before: 0,
+                fragment: format!("{line}\n"),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the event lands");
+
+    let rows = session.views();
+    assert_eq!(rows[0].style, carried.0, "the style came with the line");
+    assert_eq!(rows[0].actor, carried.1, "and so did the speaker");
+}
+
+#[test]
+fn a_paste_into_a_script_with_no_events_lands_under_its_format_line() {
+    let mut session = session("ass/clean/no-events.ass");
+    assert_eq!(session.views().len(), 0, "the fixture has no events");
+
+    session
+        .apply(
+            &Edit::Paste {
+                before: 0,
+                fragment: "Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Pasted.\n".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the event lands");
+
+    let text = String::from_utf8(session.to_bytes()).expect("still UTF-8");
+    assert_eq!(session.views().len(), 1);
+    assert_eq!(session.views()[0].text, "Pasted.");
+    // Under the section's own format line, which is what says the event went into `[Events]` and
+    // not onto the end of a file whose last section is something else.
+    let format_at = text.find("Format: Layer").expect("the events format line");
+    let event_at = text.find("Dialogue:").expect("the pasted event");
+    assert!(format_at < event_at, "the event follows the format line");
+}
+
+#[test]
+fn a_paste_into_an_empty_srt_writes_the_only_block_it_has() {
+    let mut session = session("srt/clean/empty.srt");
+    assert_eq!(session.views().len(), 0, "the fixture has no cues");
+
+    session
+        .apply(
+            &Edit::Paste {
+                before: 0,
+                fragment: "1\n00:00:01,000 --> 00:00:02,000\nPasted.\n".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the block lands");
+
+    assert_eq!(session.views().len(), 1);
+    assert_eq!(session.views()[0].text, "Pasted.");
+}
+
+#[test]
+fn a_paste_refuses_what_this_document_cannot_read() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    for fragment in ["", "not a cue at all\n"] {
+        let refused = session
+            .apply(
+                &Edit::Paste {
+                    before: 0,
+                    fragment: fragment.to_owned(),
+                },
+                Run::New,
+                Instant::now(),
+            )
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+    assert_eq!(session.to_bytes(), original, "a refusal writes nothing");
+}
+
 #[test]
 fn a_cut_takes_the_cues_it_names_and_leaves_the_one_between_them() {
     let mut session = session("srt/clean/basic-lf.srt");
@@ -495,6 +649,14 @@ fn every_mutation_kind_reaches_the_document_and_undoes_back_to_the_file() {
             1isize,
         ),
         ("srt/clean/basic-lf.srt", Edit::Delete { cue: 1 }, -1),
+        (
+            "srt/clean/basic-lf.srt",
+            Edit::Paste {
+                before: 1,
+                fragment: "9\n00:00:20,000 --> 00:00:21,000\nPasted.\n".to_owned(),
+            },
+            1,
+        ),
         (
             "srt/clean/basic-lf.srt",
             Edit::DeleteMany { cues: vec![0, 1] },
