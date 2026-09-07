@@ -99,6 +99,7 @@ const DECLARED = [
   "video-play-cue",
   "video-stop",
   "video-toggle-follow-selection",
+  "video-jump-to",
   "video-jump-cue-start",
   "video-jump-cue-end",
   "view-tags-show",
