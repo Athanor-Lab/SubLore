@@ -103,6 +103,8 @@ const DECLARED = [
   "video-jump-to",
   "video-step-prev-frame",
   "video-step-next-frame",
+  "video-jump-back",
+  "video-jump-forward",
   "video-prev-boundary",
   "video-next-boundary",
   "video-jump-cue-start",

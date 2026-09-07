@@ -923,6 +923,12 @@ export default function App() {
     await seek((forward ? landing.startMs : landing.endMs) / 1000);
   }
 
+  /**
+   * How many frames the picture jumps by. Ten, which is what the reference opens at; it makes the
+   * number a preference and Sublore will when it has a preferences dialog to put it in.
+   */
+  const JUMP_FRAMES = 10;
+
   /** The step the boundaries move by. One size, no larger variant under Shift (owner ruling 23). */
   const NUDGE_MS = 10;
 
@@ -1382,6 +1388,20 @@ export default function App() {
       run: () => void stepVideo(1),
     },
     {
+      id: "video.jump-back",
+      label: en.menu.video.jumpBack,
+      accelerator: en.menu.keys.videoJumpBack,
+      enabled: state.status === "ready",
+      run: () => void stepVideo(-JUMP_FRAMES),
+    },
+    {
+      id: "video.jump-forward",
+      label: en.menu.video.jumpForward,
+      accelerator: en.menu.keys.videoJumpForward,
+      enabled: state.status === "ready",
+      run: () => void stepVideo(JUMP_FRAMES),
+    },
+    {
       id: "video.prev-boundary",
       label: en.menu.video.prevBoundary,
       accelerator: en.menu.keys.videoPrevBoundary,
@@ -1733,6 +1753,8 @@ export default function App() {
         // of the picture's navigation belongs.
         "video.step-prev-frame",
         "video.step-next-frame",
+        "video.jump-back",
+        "video.jump-forward",
         "video.prev-boundary",
         "video.next-boundary",
         "video.toggle-subtitle-overlay",
