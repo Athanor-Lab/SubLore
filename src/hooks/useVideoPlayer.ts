@@ -53,6 +53,8 @@ export type VideoPlayer = {
   playRange: (from: number, to: number) => Promise<void>;
   /** What the open media is, or null when the read failed and the error was reported. */
   details: () => Promise<VideoDetails | null>;
+  /** Move by whole frames, back when negative. A picture that is playing is left alone. */
+  step: (frames: number) => Promise<void>;
   setRegion: (region: VideoRegion) => void;
 };
 
@@ -197,6 +199,18 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     }
   }, []);
 
+  const step = useCallback(async (frames: number) => {
+    const mine = opening.current;
+    setErrorCode(null);
+    try {
+      await invoke("video_step", { frames });
+    } catch (error) {
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
+    }
+  }, []);
+
   const details = useCallback(async (): Promise<VideoDetails | null> => {
     const mine = opening.current;
     setErrorCode(null);
@@ -255,6 +269,7 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     seek,
     playRange,
     details,
+    step,
     setRegion,
   };
 }

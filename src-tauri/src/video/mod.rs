@@ -247,6 +247,12 @@ pub async fn video_close(state: State<'_, VideoState>) -> Result<(), VideoError>
     refused("video_close", state.player().close())
 }
 
+/// Move the picture by whole frames. Negative goes back; a picture that is playing is left alone.
+#[tauri::command]
+pub async fn video_step(state: State<'_, VideoState>, frames: i64) -> Result<(), VideoError> {
+    refused("video_step", state.player().step(frames))
+}
+
 /// What the open media is: the read-only dialog behind Video details (interface-spec 9.9).
 #[tauri::command]
 pub async fn video_details(state: State<'_, VideoState>) -> Result<VideoDetails, VideoError> {

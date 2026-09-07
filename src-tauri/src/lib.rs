@@ -239,6 +239,7 @@ pub fn run() -> tauri::Result<()> {
             video::video_open,
             video::video_close,
             video::video_details,
+            video::video_step,
             video::video_play,
             video::video_pause,
             video::video_seek,

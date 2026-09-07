@@ -771,6 +771,52 @@ impl Player {
         Ok(())
     }
 
+    /// Move the picture by whole frames, forward or back.
+    ///
+    /// One frame either way is mpv's own step, which lands exactly on the next decoded frame. More
+    /// than one is a relative seek of that many frames at the media's own rate, because mpv has no
+    /// command for stepping several and calling the one-frame step in a loop would decode each of
+    /// them. A picture that is playing is left alone, which is what the reference does: the keys
+    /// are for looking at a still. See interface-spec 10.5.
+    pub fn step(&self, frames: i64) -> Result<(), VideoError> {
+        let mpv = self.handle()?;
+        self.loaded_duration()?;
+        if !self.state()?.paused || frames == 0 {
+            return Ok(());
+        }
+        match frames {
+            1 => mpv
+                .command("frame-step", &[])
+                .map_err(|error| from_mpv(error, "frame-step")),
+            -1 => mpv
+                .command("frame-back-step", &[])
+                .map_err(|error| from_mpv(error, "frame-back-step")),
+            _ => {
+                let rate = self.frame_rate()?;
+                let seconds = frames as f64 / rate;
+                mpv.command("seek", &[&format!("{seconds}"), "relative+exact"])
+                    .map_err(|error| from_mpv(error, "seek"))
+            }
+        }
+    }
+
+    /// How many frames a second the open media runs at, as the container says or as the output
+    /// estimates. A media that will not say is one this cannot count frames on.
+    fn frame_rate(&self) -> Result<f64, VideoError> {
+        let mpv = self.handle()?;
+        let rate = mpv
+            .get_property::<f64>("container-fps")
+            .ok()
+            .or_else(|| mpv.get_property::<f64>("estimated-vf-fps").ok())
+            .filter(|rate| rate.is_finite() && *rate > 0.0);
+        rate.ok_or_else(|| {
+            VideoError::new(
+                VideoErrorCode::CommandFailed,
+                "this media does not say how many frames a second it runs at",
+            )
+        })
+    }
+
     /// What the open media is, for the details dialog. See interface-spec 9.9.
     pub fn details(&self) -> Result<VideoDetails, VideoError> {
         let mpv = self.handle()?;

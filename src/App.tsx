@@ -287,6 +287,7 @@ export default function App() {
     seek,
     playRange,
     details: readVideoDetails,
+    step: stepVideo,
     setRegion,
   } = useVideoPlayer(layers.covered);
   const audio = useAudioTracks(state.path, state.status === "ready");
@@ -881,6 +882,45 @@ export default function App() {
     await playRange((live?.startMs ?? cue.startMs) / 1000, (live?.endMs ?? cue.endMs) / 1000);
   }
 
+  /**
+   * The next place the picture stops when walking a line's own edges: the nearer of the current
+   * line's start and end on that side of the playhead, and the next line's own edge once the
+   * playhead is past both. The cursor moves with it, which is what makes the walk continue.
+   * See interface-spec 10.5.
+   */
+  async function toBoundary(forward: boolean) {
+    if (state.status !== "ready") {
+      return;
+    }
+    const at = selection.active;
+    const cue = at === null ? null : (subtitle.cues[at] ?? null);
+    const now = position * 1000;
+    if (cue !== null) {
+      // A millisecond of margin, or a playhead sitting on a boundary would stop there for ever: the
+      // clock is a float and a seek lands near where it was asked, not on it.
+      const edges = [cue.startMs, cue.endMs].filter((ms) =>
+        forward ? ms > now + 1 : ms < now - 1,
+      );
+      if (edges.length > 0) {
+        await seek((forward ? Math.min(...edges) : Math.max(...edges)) / 1000);
+        return;
+      }
+    }
+    // Past both edges: the line the cursor is on becomes the next one, and the picture goes to the
+    // edge of that one the walk was heading for.
+    const next = at === null ? (forward ? 0 : subtitle.cues.length - 1) : at + (forward ? 1 : -1);
+    const landing = subtitle.cues[next];
+    if (landing === undefined) {
+      return;
+    }
+    // The walk moves the cursor itself and then takes the picture to the edge it was heading for,
+    // so the follow is told this row is already followed: without that it would drag the picture to
+    // that line's start a moment later and undo the walk.
+    followedRow.current = next;
+    selection.move(next, "plain");
+    await seek((forward ? landing.startMs : landing.endMs) / 1000);
+  }
+
   /** The step the boundaries move by. One size, no larger variant under Shift (owner ruling 23). */
   const NUDGE_MS = 10;
 
@@ -1319,6 +1359,34 @@ export default function App() {
       },
     },
     {
+      id: "video.step-prev-frame",
+      label: en.menu.video.stepPrevFrame,
+      accelerator: en.menu.keys.videoStepBack,
+      enabled: state.status === "ready",
+      run: () => void stepVideo(-1),
+    },
+    {
+      id: "video.step-next-frame",
+      label: en.menu.video.stepNextFrame,
+      accelerator: en.menu.keys.videoStepForward,
+      enabled: state.status === "ready",
+      run: () => void stepVideo(1),
+    },
+    {
+      id: "video.prev-boundary",
+      label: en.menu.video.prevBoundary,
+      accelerator: en.menu.keys.videoPrevBoundary,
+      enabled: state.status === "ready" && subtitle.cues.length > 0,
+      run: () => void toBoundary(false),
+    },
+    {
+      id: "video.next-boundary",
+      label: en.menu.video.nextBoundary,
+      accelerator: en.menu.keys.videoNextBoundary,
+      enabled: state.status === "ready" && subtitle.cues.length > 0,
+      run: () => void toBoundary(true),
+    },
+    {
       id: "edit.copy",
       label: en.menu.edit.copy,
       accelerator: en.menu.keys.copy,
@@ -1650,6 +1718,13 @@ export default function App() {
         "video.toggle-follow-selection",
         "video.jump-cue-start",
         "video.jump-cue-end",
+        // The reference reaches these four from the keyboard alone. They are drawn because every
+        // command in the registry is drawn (command-registry-tasks C1), and this is where the rest
+        // of the picture's navigation belongs.
+        "video.step-prev-frame",
+        "video.step-next-frame",
+        "video.prev-boundary",
+        "video.next-boundary",
         "video.toggle-subtitle-overlay",
         "video.show-source-on-video",
       ],
