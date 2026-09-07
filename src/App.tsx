@@ -5,6 +5,7 @@ import { choosePath, type ChooseKind } from "./chooser";
 import AboutDialog from "./components/AboutDialog";
 import StyleEditor from "./components/StyleEditor";
 import CueList from "./components/CueList";
+import { type TagMode } from "./components/cueView";
 import CurrentLine from "./components/CurrentLine";
 import FindBar, { type FindMode } from "./components/FindBar";
 import MenuBar from "./components/MenuBar";
@@ -200,6 +201,13 @@ function spliceUtf8(text: string, at: number, inserted: string): string {
   const decoder = new TextDecoder();
   return decoder.decode(bytes.slice(0, cut)) + inserted + decoder.decode(bytes.slice(cut));
 }
+
+/** The three ways the grid draws override tags, in the order View lists them. */
+const TAG_MODES: { mode: TagMode; label: string }[] = [
+  { mode: "show", label: en.menu.view.tagsShow },
+  { mode: "simplify", label: en.menu.view.tagsSimplify },
+  { mode: "hide", label: en.menu.view.tagsHide },
+];
 
 const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
   { id: "edit.style-bold", flag: "bold", label: en.menu.edit.bold },
@@ -488,6 +496,8 @@ export default function App() {
   // them all.
   const [choosing, setChoosing] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  /** How the grid draws override tags. Shown as the file spells them until told otherwise. */
+  const [tagMode, setTagMode] = useState<TagMode>("show");
   /** Which declared style the editor is open over, or null while it is closed. See B10. */
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
@@ -1346,6 +1356,15 @@ export default function App() {
       enabled: true,
       run: () => storeLayout({ waveAutoscroll: !waveAutoscroll }),
     },
+    // The three ways the grid draws override tags, a radio set like the sizes below (7.4).
+    ...TAG_MODES.map(({ mode, label }): Command => ({
+      id: `view.tags-${mode}`,
+      label,
+      checked: tagMode === mode,
+      group: "tags",
+      enabled: true,
+      run: () => setTagMode(mode),
+    })),
     // Radio items, drawn the way the Audio menu draws its track list.
     ...interfaceScales.map(({ percent, scale }): Command => ({
       id: `view.interface-scale-${percent}`,
@@ -1507,6 +1526,9 @@ export default function App() {
       items: [
         "video.toggle-subtitle-overlay",
         "video.show-source-on-video",
+        "view.tags-show",
+        "view.tags-simplify",
+        "view.tags-hide",
         "view.waveform-panel",
         "wave.center-on-cue",
         "wave.toggle-autoscroll",
@@ -1774,6 +1796,7 @@ export default function App() {
             key={subtitle.openId}
             cues={subtitle.cues}
             sourceCues={source.cues}
+            tagMode={tagMode}
             selection={selection}
             multiline={subtitle.summary?.format !== "ass"}
             flushRef={flushGrid}

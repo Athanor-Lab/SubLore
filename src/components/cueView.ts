@@ -258,3 +258,50 @@ export function lengthOf(startMs: number, endMs: number): string {
 export function lengthLabel(cue: CueRow): string {
   return lengthOf(cue.startMs, cue.endMs);
 }
+
+/**
+ * How the grid draws a line's override tags: as they are, as a placeholder, or not at all.
+ *
+ * The text box is never any of these. It edits the file's own text and a mode that hid part of it
+ * there would let a translator overwrite what they cannot see.
+ */
+export type TagMode = "show" | "simplify" | "hide";
+
+/** What the placeholder is where a braced run stood. The reference's own default character. */
+const TAG_MARK = "\u2600";
+
+/** The longest a cell is laid out. Past it the rest is an ellipsis, as the reference does. */
+const CELL_LIMIT = 512;
+
+/**
+ * One line as the grid draws it under `mode`.
+ *
+ * A brace with no closing one takes the rest of the line with it, which is what a renderer does
+ * with it too: everything from that brace onwards is inside the run.
+ */
+export function drawnText(text: string, mode: TagMode): string {
+  let drawn = text;
+  if (mode !== "show") {
+    let out = "";
+    let start = 0;
+    for (;;) {
+      const open = text.indexOf("{", start);
+      if (open === -1) {
+        out += text.slice(start);
+        break;
+      }
+      out += text.slice(start, open);
+      if (mode === "simplify") {
+        out += TAG_MARK;
+      }
+      const close = text.indexOf("}", open);
+      if (close === -1) {
+        start = -1;
+        break;
+      }
+      start = close + 1;
+    }
+    drawn = out;
+  }
+  return drawn.length > CELL_LIMIT ? `${drawn.slice(0, CELL_LIMIT)}...` : drawn;
+}

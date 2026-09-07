@@ -12,7 +12,7 @@ import {
 import { type CueSelection } from "../hooks/useCueSelection";
 import { en } from "../i18n/en";
 import { type CueRow } from "../types/subtitle";
-import { CPS_LIMIT, readingRate, timecode } from "./cueView";
+import { CPS_LIMIT, drawnText, readingRate, timecode, type TagMode } from "./cueView";
 
 /**
  * Fixed row height in CSS pixels. The whole windowing calculation is this number, which is why it
@@ -33,6 +33,8 @@ type CueListProps = {
    * column away. Aligned by index and by nothing else. See side-by-side-tasks.md S1.
    */
   sourceCues: CueRow[];
+  /** How the grid draws override tags. The editor below it always shows the file's own text. */
+  tagMode: TagMode;
   /** The cursor and the selection, held by the shell: the tools column reads the cursor too (T5). */
   selection: CueSelection;
   /** ASS writes line breaks as `\N` inside one field, so a real one cannot be committed there. */
@@ -56,6 +58,7 @@ type CueListProps = {
 export default function CueList({
   cues,
   sourceCues,
+  tagMode,
   selection,
   multiline,
   flushRef,
@@ -396,11 +399,13 @@ export default function CueList({
                       }
                     }}
                   >
-                    {cue.text}
+                    {drawnText(cue.text, tagMode)}
                   </span>
                 )}
                 {columns.source && (
-                  <span className="cuelist__source">{sourceCues[index]?.text ?? ""}</span>
+                  <span className="cuelist__source">
+                    {drawnText(sourceCues[index]?.text ?? "", tagMode)}
+                  </span>
                 )}
               </div>
             );
