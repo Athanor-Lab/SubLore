@@ -51,6 +51,7 @@ const DECLARED = [
   "asr-transcribe",
   "edit-undo",
   "edit-redo",
+  "edit-cut",
   "edit-copy",
   "edit-paste-over",
   "edit-select-all",
@@ -166,6 +167,7 @@ const FILE_ITEMS = [
 const EDIT_ITEMS = [
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
+  { id: "edit-cut", disabled: true },
   { id: "edit-copy", disabled: true },
   { id: "edit-paste-over", disabled: true },
   { id: "edit-select-all", disabled: true },
@@ -560,8 +562,9 @@ describe("the command registry", () => {
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-as", disabled: false },
-      // A document opens on its first row, so a row is selected and the three that act on a
+      // A document opens on its first row, so a row is selected and the four that act on a
       // selection wake with it. Paste over asks the clipboard nothing until it is chosen.
+      { route: "menu", id: "edit-cut", disabled: false },
       { route: "menu", id: "edit-copy", disabled: false },
       { route: "menu", id: "edit-paste-over", disabled: false },
       { route: "menu", id: "edit-select-all", disabled: false },

@@ -697,6 +697,32 @@ export default function App() {
     await invoke("clipboard_write", { text: lines }).catch(() => undefined);
   }
 
+  /**
+   * The selected cues onto the clipboard and then out of the document, as one undo step.
+   *
+   * The copy goes first and the rows go only once it has been written: a cut whose clipboard write
+   * failed would have taken the lines away with nothing to paste back.
+   */
+  async function cutCues() {
+    await flushEditors();
+    const rows = [...selection.selected].sort((one, two) => one - two);
+    if (rows.length === 0) {
+      return;
+    }
+    const lines = await subtitle.copyCues(rows);
+    if (lines === "") {
+      return;
+    }
+    const written = await invoke("clipboard_write", { text: lines }).then(
+      () => true,
+      () => false,
+    );
+    if (!written) {
+      return;
+    }
+    await subtitle.deleteCues(rows);
+  }
+
   /** The clipboard's lines over the selected rows, in order, as one undo step. */
   async function pasteOverCues() {
     const rows = [...selection.selected].sort((one, two) => one - two);
@@ -1670,6 +1696,13 @@ export default function App() {
       run: () => void toBoundary(true),
     },
     {
+      id: "edit.cut",
+      label: en.menu.edit.cut,
+      accelerator: en.menu.keys.cut,
+      enabled: selection.selected.size > 0,
+      run: () => void cutCues(),
+    },
+    {
       id: "edit.copy",
       label: en.menu.edit.copy,
       accelerator: en.menu.keys.copy,
@@ -1951,6 +1984,7 @@ export default function App() {
       items: [
         "edit.undo",
         "edit.redo",
+        "edit.cut",
         "edit.copy",
         "edit.paste-over",
         "edit.select-all",
