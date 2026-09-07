@@ -77,6 +77,10 @@ const MAX_INTERFACE_SCALE: f64 = 1.5;
 /// line shows the wrong part of the media on any file longer than its own window.
 const DEFAULT_WAVE_AUTOSCROLL: bool = true;
 
+/// Whether moving the cursor takes the picture to the line's start. On, which is what the reference
+/// opens at: a translator who moves down the grid expects the frame to move with them.
+const DEFAULT_VIDEO_FOLLOW_SELECTION: bool = true;
+
 /// What the panels were left at. Every field carries a default so a file written by an older
 /// version, or one a hand has been in, reads as far as it goes and defaults the rest.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -87,6 +91,7 @@ pub struct Layout {
     pub top_height: f64,
     pub interface_scale: f64,
     pub wave_autoscroll: bool,
+    pub video_follow_selection: bool,
 }
 
 impl Default for Layout {
@@ -97,6 +102,7 @@ impl Default for Layout {
             top_height: DEFAULT_TOP_HEIGHT,
             interface_scale: DEFAULT_INTERFACE_SCALE,
             wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
+            video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
         }
     }
 }
@@ -149,6 +155,7 @@ impl Layout {
             // A boolean has no range to fall outside of, so there is nothing to clamp and nothing
             // to warn about: it is either in the file or it is the default.
             wave_autoscroll: self.wave_autoscroll,
+            video_follow_selection: self.video_follow_selection,
         }
     }
 }
@@ -348,6 +355,7 @@ mod tests {
             top_height: 305.0,
             interface_scale: 1.25,
             wave_autoscroll: false,
+            video_follow_selection: false,
         };
         write_to(&path, left).expect("a layout written under the temp dir");
         assert_eq!(read_from(&path), left);
@@ -440,6 +448,7 @@ mod tests {
                 top_height: 260.0,
                 interface_scale: 1.25,
                 wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
+                video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
             }
         );
     }
@@ -460,6 +469,25 @@ mod tests {
             )
             .expect("a layout under the temp dir");
             assert_eq!(read_from(&path).wave_autoscroll, wanted);
+        }
+    }
+
+    /// The same as the one above, for the toggle that takes the picture to the line: a default of
+    /// on means a stored off is the value that can be lost, so off is the one written first.
+    #[test]
+    fn the_video_follow_survives_a_write_in_both_positions() {
+        let dir = TempDir::new("video-follow-both-ways");
+        let path = dir.join(LAYOUT_FILE);
+        for wanted in [false, true] {
+            write_to(
+                &path,
+                Layout {
+                    video_follow_selection: wanted,
+                    ..Layout::default()
+                },
+            )
+            .expect("a layout under the temp dir");
+            assert_eq!(read_from(&path).video_follow_selection, wanted);
         }
     }
 
@@ -514,6 +542,7 @@ mod tests {
                     top_height: broken,
                     interface_scale: broken,
                     wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
+                    video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
                 }
                 .sane(),
                 Layout::default(),
@@ -559,6 +588,7 @@ mod tests {
             top_height: 260.0,
             interface_scale: 1.25,
             wave_autoscroll: false,
+            video_follow_selection: false,
         };
         write_to(&path, second).expect("the second layout");
         assert_eq!(read_from(&path), second);

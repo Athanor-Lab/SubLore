@@ -268,8 +268,10 @@ describe("the times follow the playhead", () => {
       { timeout: 40000, message: "the video to be ready to play" },
     );
 
-    await seekTo(INSIDE_SECOND);
+    // The cursor first and the picture after it: moving the cursor takes the picture to that
+    // line's start, so a seek made before it would be undone by the move.
     await cursorTo(toplevel, 2);
+    await seekTo(INSIDE_SECOND);
     // Read, not assumed: the seek asked for a time and the player landed where it landed.
     const paused = asTimecode(await playhead());
 

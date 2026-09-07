@@ -19,7 +19,9 @@ import WaveBar, { type WaveBarButton } from "./components/WaveBar";
 import Waveform, { type LiveTimes } from "./components/Waveform";
 import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
+import VideoDetailsPanel from "./components/VideoDetails";
 import VideoStage from "./components/VideoStage";
+import { type VideoDetails } from "./types/video";
 import { useAudioPeaks } from "./hooks/useAudioPeaks";
 import { useCueSelection } from "./hooks/useCueSelection";
 import { LayerContext, useLayerRegistry } from "./hooks/useLayers";
@@ -280,8 +282,11 @@ export default function App() {
     open,
     close: closeVideo,
     togglePlayback,
+    play: playVideo,
+    pause: pauseVideo,
     seek,
     playRange,
+    details: readVideoDetails,
     setRegion,
   } = useVideoPlayer(layers.covered);
   const audio = useAudioTracks(state.path, state.status === "ready");
@@ -510,6 +515,8 @@ export default function App() {
   const [tagMode, setTagMode] = useState<TagMode>("show");
   /** Which declared style the editor is open over, or null while it is closed. See B10. */
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
+  /** What Video details is showing, and nothing on screen while it is null. */
+  const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   // The find band, and what it is looking for. The query outlives a close so reopening the band
@@ -946,6 +953,28 @@ export default function App() {
   // Whatever the stored layout says, and following until it says otherwise: the panel is decoration
   // on any file longer than its own window if it does not follow the line.
   const waveAutoscroll = layout?.waveAutoscroll ?? true;
+  // The same default the reference opens at: the picture goes where the cursor goes (3.5, item 10).
+  const videoFollowSelection = layout?.videoFollowSelection ?? true;
+  // Which row the picture was last taken to, so an edit on the row the cursor is already on does
+  // not seek: the reference follows a change of line and nothing else.
+  const followedRow = useRef<number | null>(null);
+  useEffect(() => {
+    const at = selection.active;
+    if (followedRow.current === at) {
+      return;
+    }
+    followedRow.current = at;
+    const cue = at === null ? undefined : subtitle.cues[at];
+    if (!videoFollowSelection || !ready || cue === undefined) {
+      return;
+    }
+    void (async () => {
+      // Stopped first and then moved, which is the order the reference uses: a seek under a running
+      // picture is a jump the playback walks straight back off.
+      await pauseVideo();
+      await seek(cue.startMs / 1000);
+    })();
+  }, [selection.active, subtitle.cues, videoFollowSelection, ready, pauseVideo, seek]);
 
   // S1: the View menu's five interface sizes, matching the Rust bounds in layout.rs.
   const interfaceScales = [
@@ -1218,6 +1247,46 @@ export default function App() {
       label: en.menu.video.close,
       enabled: state.status === "ready",
       run: () => void closeVideo(),
+    },
+    {
+      id: "video.details",
+      label: en.menu.video.details,
+      enabled: state.status === "ready",
+      // A media that will not answer leaves the dialog shut, and the refusal reaches the status
+      // bar the way every other video refusal does.
+      run: () =>
+        void readVideoDetails().then((found) => {
+          if (found !== null) {
+            setVideoDetails(found);
+          }
+        }),
+    },
+    {
+      id: "video.play",
+      label: en.menu.video.play,
+      accelerator: en.menu.keys.videoPlay,
+      enabled: state.status === "ready",
+      run: () => void playVideo(),
+    },
+    {
+      id: "video.play-cue",
+      label: en.menu.video.playCue,
+      enabled: state.status === "ready" && activeCue !== null,
+      run: () => void playCue("line"),
+    },
+    {
+      id: "video.stop",
+      label: en.menu.video.stop,
+      enabled: state.status === "ready",
+      run: () => void pauseVideo(),
+    },
+    {
+      id: "video.toggle-follow-selection",
+      label: en.menu.video.followSelection,
+      checked: videoFollowSelection,
+      // Alive with no video too, for the reason the waveform's own follow is (24 A2).
+      enabled: true,
+      run: () => storeLayout({ videoFollowSelection: !videoFollowSelection }),
     },
     {
       id: "video.jump-cue-start",
@@ -1566,6 +1635,11 @@ export default function App() {
       items: [
         "video.open",
         "video.close",
+        "video.details",
+        "video.play",
+        "video.play-cue",
+        "video.stop",
+        "video.toggle-follow-selection",
         "video.jump-cue-start",
         "video.jump-cue-end",
         "video.toggle-subtitle-overlay",
@@ -1947,6 +2021,9 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {videoDetails !== null && (
+          <VideoDetailsPanel details={videoDetails} onClose={() => setVideoDetails(null)} />
+        )}
         {/* The style the editor was opened over may go with an undo or a reopen, so the panel is
           drawn only while the document still declares one at that place. */}
         {editingStyle !== null && subtitle.summary?.styles[editingStyle] !== undefined && (
