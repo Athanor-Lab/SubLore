@@ -353,36 +353,42 @@ fn saving_writes_the_edit_where_the_file_came_from_and_keeps_a_backup() {
 }
 
 #[test]
-fn save_as_writes_a_copy_and_leaves_the_file_being_edited_unsaved() {
+fn save_as_takes_the_file_it_wrote_and_leaves_the_one_it_came_from_alone() {
     let scratch = Scratch::new("save-as");
     let slot = SessionSlot::default();
-    let copy = scratch.copy_of("fixtures/subtitles/srt/clean/basic-lf.srt");
-    let original = fs::read(&copy).expect("copy read");
+    let came_from = scratch.copy_of("fixtures/subtitles/srt/clean/basic-lf.srt");
+    let original = fs::read(&came_from).expect("copy read");
     let elsewhere = scratch.join("elsewhere.srt");
-    open(&slot, &copy);
-    apply_edit(&slot, 0, text(1, "Only in the copy.")).expect("accepted");
+    open(&slot, &came_from);
+    apply_edit(&slot, 0, text(1, "Only in the new file.")).expect("accepted");
 
-    let saved = save_as(&slot, 1, &elsewhere.to_string_lossy(), scratch.backups()).expect("a copy");
+    let saved =
+        save_as(&slot, 1, &elsewhere.to_string_lossy(), scratch.backups()).expect("a write");
 
     assert_eq!(Path::new(&saved.path), elsewhere.as_path());
     assert!(
-        String::from_utf8_lossy(&fs::read(&elsewhere).expect("copy read"))
-            .contains("Only in the copy.")
+        String::from_utf8_lossy(&fs::read(&elsewhere).expect("read")).contains("Only in the new")
     );
     assert_eq!(
-        fs::read(&copy).expect("source read"),
+        fs::read(&came_from).expect("source read"),
         original,
-        "save-as does not write the file the session was opened from"
+        "save as does not write the file the session was opened from"
     );
 
-    // The file being edited still has unsaved work: the write says so, and closing it asks.
-    assert!(saved.dirty, "a copy elsewhere is not this file being saved");
-    assert_eq!(
-        close_session(&slot, false)
-            .expect_err("the edit is still unsaved")
-            .code,
-        SubtitleErrorCode::UnsavedChanges
+    // The document is the file it was saved as: its bytes are on disk, so it is not unsaved work,
+    // and the save after it writes there rather than back to the file it came from.
+    assert!(!saved.dirty, "what was just written is not unsaved work");
+    apply_edit(&slot, 1, text(2, "Written after the save as.")).expect("accepted");
+    save(&slot, 2, scratch.backups()).expect("the plain save");
+    assert!(
+        String::from_utf8_lossy(&fs::read(&elsewhere).expect("read")).contains("Written after")
     );
+    assert_eq!(
+        fs::read(&came_from).expect("source read"),
+        original,
+        "and the file it came from is still the one it was"
+    );
+    close_session(&slot, false).expect("a saved document closes without discarding");
 }
 
 #[test]
