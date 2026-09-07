@@ -293,6 +293,13 @@ describe("the menu bar and the toolbar", () => {
     await waitForOpenMenu("Edit");
     pressKey("Right");
     await waitForOpenMenu("Subtitles");
+    // Subtitles opens on a row that holds a list of its own, and right is what walks into one; the
+    // walk along the bar carries on from inside it, which is what a menu bar has always done.
+    pressKey("Right");
+    await waitFor(() => present(".menubar__menu--sub"), {
+      timeout: 15000,
+      message: "the list on the first row of Subtitles to open",
+    });
     pressKey("Right");
     await waitForOpenMenu("Timing");
     // Video is next and Audio after it, and Audio has nothing behind it with no media open, so
@@ -328,8 +335,9 @@ describe("the menu bar and the toolbar", () => {
     pressKey("alt");
     await waitForOpenMenu("File");
     // File, Edit, Subtitles, Timing, Video, View, Help: the walk the test above asserts, taken
-    // here to reach About. Audio is skipped because with nothing open it has no track to list.
-    for (let step = 0; step < 6; step += 1) {
+    // here to reach About. Audio is skipped because with nothing open it has no track to list, and
+    // Subtitles costs a press of its own, into the list its first row holds.
+    for (let step = 0; step < 7; step += 1) {
       pressKey("Right");
     }
     await waitForOpenMenu("Help");

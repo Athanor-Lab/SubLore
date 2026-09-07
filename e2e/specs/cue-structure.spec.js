@@ -22,6 +22,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
+import { intoList } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -41,11 +42,14 @@ const SPLIT_OFFSET = SECOND_HEAD.length;
  * midpoint is what the shell chooses (BACKLOG.md M2.7 E3).
  */
 const SPLIT_AT = "00:00:06.670";
-/** An inserted cue starts where the cursor's own cue ended and runs two seconds. */
+/**
+ * An inserted cue starts where the cursor's own cue ended and takes the room to the line after it,
+ * which in this fixture is the 120 ms gap rather than the two seconds it would run given room.
+ */
 const INSERTED_START = "00:00:04.880";
-const INSERTED_END = "00:00:06.880";
+const INSERTED_END = "00:00:05.000";
 /** The same pair as the SRT writer spells it, for reading the saved file back. */
-const INSERTED_TIMING_LINE = "00:00:04,880 --> 00:00:06,880";
+const INSERTED_TIMING_LINE = "00:00:04,880 --> 00:00:05,000";
 
 /** Writes go to the harness temp dir: the committed fixture is copied, never opened for editing. */
 function workingCopy() {
@@ -181,6 +185,7 @@ async function runFromMenu(toplevel, token) {
     timeout: 15000,
     message: "the Subtitles dropdown to be the open one",
   });
+  await intoList((css) => clickElement(toplevel, css), token);
   expect(await disabledOf(`#menuitem-${token}`)).toBe(false);
   await clickElement(toplevel, `#menuitem-${token}`);
   await waitFor(async () => ((await openMenu()) === null ? true : null), {
@@ -290,7 +295,7 @@ describe("the cue structure edits", () => {
     expect(before[0].cursor).toBe(true);
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-insert");
+    await runFromMenu(toplevel, "subtitle-insert-after");
 
     const after = await waitForTexts(
       [FIRST, "", SECOND, THIRD],
@@ -299,6 +304,8 @@ describe("the cue structure edits", () => {
     // One command, and the one the menu item names. A route that ran twice, or that ran something
     // else on the way, shows up here as a second name rather than as a document that looks right.
     expect(await takeCommands()).toEqual(["subtitle_insert"]);
+    // From where the line above it ends to where the line below it starts: the new cue takes the
+    // room there is, rather than a fixed length that would run over the line after it.
     expect(after[1].start).toBe(INSERTED_START);
     expect(after[1].end).toBe(INSERTED_END);
     // The rows around it keep their own timings: an insert is not a re-timing.
@@ -531,7 +538,7 @@ describe("the cue structure edits", () => {
     expect(await present(".statusbar__error")).toBe(false);
   });
 
-  it("keeps the cursor and the selection on the lines they were on when rows move", async () => {
+  it("takes the cursor to the line an insert makes, and to the one a delete leaves behind", async () => {
     // A range across all three rows, built the way the grid builds one: a click, then two extends.
     await cursorTo(toplevel, 1);
     key("shift+Down", 2);
@@ -544,11 +551,13 @@ describe("the cue structure edits", () => {
     );
     expect(ranged.map((row) => row.selected)).toEqual([true, true, true]);
 
-    // The new cue goes in under the cursor, so nothing either state points at has moved.
-    await runFromMenu(toplevel, "subtitle-insert");
+    // The new cue goes in under the cursor and takes both states with it: what a translator does
+    // next is type into the line they just asked for, so it is the line the cursor is on and the
+    // only one selected, whatever was selected before.
+    await runFromMenu(toplevel, "subtitle-insert-after");
     const grown = await waitForTexts([FIRST, "", SECOND, ""], "the inserted cue below the cursor");
-    expect(grown.map((row) => row.cursor)).toEqual([false, false, true, false]);
-    expect(grown.map((row) => row.selected)).toEqual([true, true, true, false]);
+    expect(grown.map((row) => row.cursor)).toEqual([false, false, false, true]);
+    expect(grown.map((row) => row.selected)).toEqual([false, false, false, true]);
 
     // Now a row goes from under them. Delete takes the selection, so the selection is brought down
     // onto one row first and what is asserted is where the cursor lands: on the row that took the
