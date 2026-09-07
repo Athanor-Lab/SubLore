@@ -45,6 +45,15 @@ export const en = {
       /** Here until an Audio title of its own arrives with the milestone that registers it. */
       transcribe: "Transcribe…",
     },
+    /**
+     * The Video menu, fifth of the eight titles: File, Edit, Subtitle, Timing, Video, Audio, View,
+     * Help. Its own items are the ones about the picture rather than about the document.
+     */
+    video: {
+      title: "Video",
+      jumpCueStart: "Jump to cue start",
+      jumpCueEnd: "Jump to cue end",
+    },
     timing: {
       title: "Timing",
       prevCue: "Previous line",

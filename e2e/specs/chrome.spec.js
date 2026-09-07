@@ -33,8 +33,9 @@ const TITLES = [
   { id: "edit", label: "Edit", disabled: false },
   { id: "subtitle", label: "Subtitles", disabled: false },
   { id: "timing", label: "Timing", disabled: false },
-  { id: "view", label: "View", disabled: false },
+  { id: "video", label: "Video", disabled: false },
   { id: "audio", label: "Audio", disabled: true },
+  { id: "view", label: "View", disabled: false },
   { id: "help", label: "Help", disabled: false },
 ];
 
@@ -262,8 +263,8 @@ describe("the menu bar and the toolbar", () => {
   });
 
   it("walks the items with the arrows and steps over the disabled ones", async () => {
-    // Nothing is open, so File has two disabled runs to step over rather than one: the source's
-    // close and the translation it cannot make yet, then Save, Save a copy and Discard.
+    // Nothing is open, so everything under the two source items is greyed: the translation it
+    // cannot make yet, then Save, Save a copy and Discard, which is one run down to Quit.
     pressKey("alt");
     await waitForCursor("file-open-subtitle");
     expect(
@@ -273,11 +274,7 @@ describe("the menu bar and the toolbar", () => {
     pressKey("Down");
     await waitForCursor("file-open-source");
     pressKey("Down");
-    await waitForCursor("video-open");
-    pressKey("Down");
     await waitForCursor("app-quit");
-    pressKey("Up");
-    await waitForCursor("video-open");
     pressKey("Up");
     await waitForCursor("file-open-source");
 
@@ -295,6 +292,10 @@ describe("the menu bar and the toolbar", () => {
     await waitForOpenMenu("Subtitles");
     pressKey("Right");
     await waitForOpenMenu("Timing");
+    // Video is next and Audio after it, and Audio has nothing behind it with no media open, so
+    // the walk steps over it exactly as it steps over a greyed item inside a dropdown.
+    pressKey("Right");
+    await waitForOpenMenu("Video");
     pressKey("Right");
     await waitForOpenMenu("View");
     pressKey("Right");
@@ -323,13 +324,11 @@ describe("the menu bar and the toolbar", () => {
   it("activates the item under the cursor on Enter", async () => {
     pressKey("alt");
     await waitForOpenMenu("File");
-    // File, Edit, Subtitles, Timing, View, Help: the walk the test above asserts, taken here to
-    // reach About. Audio is skipped because with nothing open it has no track to list.
-    pressKey("Right");
-    pressKey("Right");
-    pressKey("Right");
-    pressKey("Right");
-    pressKey("Right");
+    // File, Edit, Subtitles, Timing, Video, View, Help: the walk the test above asserts, taken
+    // here to reach About. Audio is skipped because with nothing open it has no track to list.
+    for (let step = 0; step < 6; step += 1) {
+      pressKey("Right");
+    }
     await waitForOpenMenu("Help");
     await waitForCursor("help-about");
 

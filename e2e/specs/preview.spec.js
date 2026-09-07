@@ -203,12 +203,12 @@ async function openVideo(toplevel, file) {
   focusWindow(toplevel.id);
 }
 
-/** Whether View's own item is marked, read off the menu it lives in. */
+/** Whether the item is marked, read off the menu it lives in, which is Video (interface-spec 3.4). */
 async function subtitlesChecked(toplevel) {
-  await clickElement(toplevel, ".menubar__title--view");
+  await clickElement(toplevel, ".menubar__title--video");
   await waitFor(() => present(".menubar__item--video-toggle-subtitle-overlay"), {
     timeout: 15000,
-    message: "the View menu to open on its subtitle item",
+    message: "the Video menu to open on its subtitle item",
   });
   return browser.execute(
     () =>
@@ -225,12 +225,12 @@ async function toggleSubtitles(toplevel) {
   return !before;
 }
 
-/** The state of View's other toggle: which of the two documents the frame draws. See S3. */
+/** The state of the other toggle: which of the two documents the frame draws. See S3. */
 async function sourceOnVideo(toplevel) {
-  await clickElement(toplevel, ".menubar__title--view");
+  await clickElement(toplevel, ".menubar__title--video");
   await waitFor(() => present(".menubar__item--video-show-source-on-video"), {
     timeout: 15000,
-    message: "the View menu to open on its source item",
+    message: "the Video menu to open on its source item",
   });
   return browser.execute(() => {
     const item = document.querySelector(".menubar__item--video-show-source-on-video");
@@ -344,7 +344,7 @@ describe("the document on the video frame", () => {
     );
   });
 
-  it("takes the document off the frame from View, and puts it back", async () => {
+  it("takes the document off the frame from the Video menu, and puts it back", async () => {
     expect(await toggleSubtitles(toplevel)).toBe(false);
     await waitForDrawn(
       `external tracks 1, selected yes, visible no, ${EDITED_FIRST_CUE.length} chars at the playhead`,
@@ -358,7 +358,7 @@ describe("the document on the video frame", () => {
     );
     // Turning it back on is not a re-open: the item is marked again and nothing was reloaded.
     expect(await subtitlesChecked(toplevel)).toBe(true);
-    await clickElement(toplevel, ".menubar__title--view");
+    await clickElement(toplevel, ".menubar__title--video");
   });
 
   it("draws the source on the frame while the toggle asks for it, and the translation again after", async () => {
@@ -387,7 +387,35 @@ describe("the document on the video frame", () => {
       drawing(EDITED_FIRST_CUE.length),
       `the translation's ${EDITED_FIRST_CUE.length} characters back on the frame`,
     );
-    await clickElement(toplevel, ".menubar__title--view");
+    await clickElement(toplevel, ".menubar__title--video");
+  });
+
+  it("jumps the picture to the current line's start and to its end, from the Video menu", async () => {
+    const clock = () =>
+      browser.execute(() => document.querySelector(".controls__time")?.textContent ?? null);
+    const fromVideoMenu = async (token) => {
+      await clickElement(toplevel, ".menubar__title--video");
+      await waitFor(() => present(`.menubar__item--${token}`), {
+        timeout: 15000,
+        message: `the Video menu to open on ${token}`,
+      });
+      await clickElement(toplevel, `.menubar__item--${token}`);
+    };
+
+    // The short fixture is the open document and its first cue runs 0 to 9 seconds, so the two
+    // jumps land on two readings a clock can tell apart.
+    await clickRow(toplevel, FIRST_ROW);
+    await fromVideoMenu("video-jump-cue-end");
+    await waitFor(async () => ((await clock())?.startsWith("0:09") === true ? 1 : null), {
+      timeout: 15000,
+      message: "the picture to jump to the line's end",
+    });
+
+    await fromVideoMenu("video-jump-cue-start");
+    await waitFor(async () => ((await clock())?.startsWith("0:00") === true ? 1 : null), {
+      timeout: 15000,
+      message: "the picture to jump back to the line's start",
+    });
   });
 
   it("never writes the subtitle file it is drawing from, and keeps no backup of it", async () => {
