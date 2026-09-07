@@ -210,13 +210,23 @@ function spliceUtf8(text: string, at: number, inserted: string): string {
  * The four panel sets the View menu offers, in the order it draws them, with what each one needs
  * before it can be picked. See interface-spec 3.7.
  */
-const LAYOUTS: { panel: PanelLayout; label: string; needs: "none" | "video" | "audio" | "both" }[] =
-  [
-    { panel: "gridOnly", label: en.menu.view.layoutGridOnly, needs: "none" },
-    { panel: "videoGrid", label: en.menu.view.layoutVideoGrid, needs: "video" },
-    { panel: "waveformGrid", label: en.menu.view.layoutWaveformGrid, needs: "audio" },
-    { panel: "full", label: en.menu.view.layoutFull, needs: "both" },
-  ];
+const LAYOUTS: {
+  panel: PanelLayout;
+  /** The id's own spelling, hyphenated the way every other command id is. */
+  token: string;
+  label: string;
+  needs: "none" | "video" | "audio" | "both";
+}[] = [
+  { panel: "gridOnly", token: "grid-only", label: en.menu.view.layoutGridOnly, needs: "none" },
+  { panel: "videoGrid", token: "video-grid", label: en.menu.view.layoutVideoGrid, needs: "video" },
+  {
+    panel: "waveformGrid",
+    token: "waveform-grid",
+    label: en.menu.view.layoutWaveformGrid,
+    needs: "audio",
+  },
+  { panel: "full", token: "full", label: en.menu.view.layoutFull, needs: "both" },
+];
 
 /** The three ways the grid draws override tags, in the order View lists them. */
 const TAG_MODES: { mode: TagMode; label: string }[] = [
@@ -1703,8 +1713,8 @@ export default function App() {
       enabled: source.summary !== null,
       run: () => preview.toggleSource(),
     },
-    ...LAYOUTS.map(({ panel, label, needs }): Command => ({
-      id: `view.layout-${panel}`,
+    ...LAYOUTS.map(({ panel, token, label, needs }): Command => ({
+      id: `view.layout-${token}`,
       label,
       checked: panels === panel,
       group: "layout",

@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window */
+/* global describe, it, before, after, document, window */
 /**
  * The View menu's four panel layouts: the grid alone, with the picture, with the wave, or with both.
  *
@@ -124,6 +124,14 @@ describe("the four panel layouts", () => {
     rmSync(storedLayout(), { force: true });
     await browser.reloadSession();
     toplevel = await attachToApp();
+  });
+
+  // The store is shared with every other spec in the run, and this file leaves the window on the
+  // grid alone. With no media open that is the only layout that can be picked, so the way back is
+  // the store itself: deleted, the next app opens at everything, which is what every other spec
+  // expects to find.
+  after(() => {
+    rmSync(storedLayout(), { force: true });
   });
 
   it("opens on everything, and greys the three that need something that is not open", async () => {
