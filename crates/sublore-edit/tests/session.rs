@@ -1500,3 +1500,48 @@ fn the_first_line_goes_inside_its_own_section() {
     // And the file still parses as one event, which is the whole of what "inside" means here.
     assert_eq!(session.views().len(), 1);
 }
+
+/// Several cues retimed in one step, and one undo takes all of them back.
+///
+/// The check that matters is the one in the middle: the cue between the two that moved is named in
+/// the expectation and has to come back unchanged, because the splice replaced the bytes it sits in.
+#[test]
+fn many_cues_are_retimed_as_one_undo_step() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let before = session.to_bytes();
+    let untouched = session.views()[1].clone();
+
+    session
+        .apply(
+            &Edit::SetManyTimes {
+                edits: vec![(0, 1_000, 2_000), (2, 30_000, 31_500)],
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("two cues retimed");
+
+    let views = session.views();
+    assert_eq!((views[0].start_ms, views[0].end_ms), (1_000, 2_000));
+    assert_eq!((views[2].start_ms, views[2].end_ms), (30_000, 31_500));
+    assert_eq!(views[1], untouched, "the cue between them moved");
+
+    session.undo().expect("one undo");
+    assert_eq!(session.to_bytes(), before, "one step, not two");
+}
+
+/// The three refusals: cues out of order, a cue named twice, and a start after its end.
+#[test]
+fn a_timing_edit_refuses_what_it_cannot_write() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    for edits in [
+        vec![(2, 1_000, 2_000), (0, 3_000, 4_000)],
+        vec![(1, 1_000, 2_000), (1, 3_000, 4_000)],
+        vec![(0, 5_000, 1_000)],
+    ] {
+        let refused = session
+            .apply(&Edit::SetManyTimes { edits }, Run::New, Instant::now())
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+}

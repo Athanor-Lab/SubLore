@@ -350,6 +350,31 @@ pub struct CueTextDto {
     pub text: String,
 }
 
+/// One cue's new pair of times, for a write that names several at once.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CueTimesDto {
+    pub cue: usize,
+    pub start_ms: u32,
+    pub end_ms: u32,
+}
+
+/// Several cues retimed as one undo step: what shifting a selection and making times continuous
+/// both are. See docs/timing-tasks.md.
+#[tauri::command]
+pub async fn subtitle_set_many_times(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    edits: Vec<CueTimesDto>,
+) -> Result<CuePatchDto, SubtitleError> {
+    let edits = edits
+        .into_iter()
+        .map(|one| (one.cue, one.start_ms, one.end_ms))
+        .collect();
+    edited(&app, state.slot(), revision, Edit::SetManyTimes { edits }).await
+}
+
 #[tauri::command]
 pub async fn subtitle_set_texts(
     app: AppHandle,

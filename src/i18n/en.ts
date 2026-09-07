@@ -74,6 +74,9 @@ export const en = {
       nextCue: "Next line",
       startToPlayhead: "Set start to playhead",
       endToPlayhead: "Set end to playhead",
+      shiftToPlayhead: "Shift selection to playhead",
+      continuousStart: "Make times continuous, change start",
+      continuousEnd: "Make times continuous, change end",
       toCueStart: "Jump to cue start",
       toCueEnd: "Jump to cue end",
       selectAtPlayhead: "Select cue at playhead",
@@ -154,6 +157,7 @@ export const en = {
       videoToCueEnd: "Ctrl+2",
       startToPlayhead: "Ctrl+3",
       endToPlayhead: "Ctrl+4",
+      shiftToPlayhead: "Ctrl+6",
       find: "Ctrl+F",
       /** The one accelerator with no modifier at all, which is why the field rule has two halves. */
       findNext: "F3",

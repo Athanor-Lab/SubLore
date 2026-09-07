@@ -64,6 +64,12 @@ pub enum Edit {
         start_ms: u32,
         end_ms: u32,
     },
+    /// The same edit over several cues, as one undo step. Triples are `(cue, start_ms, end_ms)`,
+    /// strictly ascending by cue, each cue named once. What the times mean is the caller's: this
+    /// writes them and checks them back. See docs/timing-tasks.md.
+    SetManyTimes {
+        edits: Vec<(usize, u32, u32)>,
+    },
     /// One declared field of one ASS event, written verbatim. The text field is not among the
     /// fields `AssField` can name. See docs/ass-field-write-tasks.md W3.
     SetField {
@@ -157,6 +163,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
     match edit {
         Edit::SetText { cue, text } => plan_set_text(document, *cue, text),
         Edit::SetTexts { edits } => plan_set_texts(document, edits),
+        Edit::SetManyTimes { edits } => plan_set_many_times(document, edits),
         Edit::SetTimes {
             cue,
             start_ms,
@@ -952,6 +959,153 @@ fn plan_set_texts(
         splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
         label: EditLabel {
             kind: EditKind::SetTexts,
+            cue: *first,
+        },
+        expect: Expectation {
+            from: *first,
+            removed: run.len(),
+            cues,
+            segments_from,
+            segments_removed: segments_run,
+            segments_inserted: segments_run,
+        },
+    })
+}
+
+/// One region of a cue's line holding both its timestamps, rewritten.
+struct TimeWrite {
+    range: std::ops::Range<usize>,
+    inserted: String,
+}
+
+/// The bytes that carry a cue's two timestamps, with the new ones in them.
+///
+/// The region runs from the first timestamp to the second and keeps whatever the file wrote between
+/// them: the arrow, the ASS fields, a VTT setting. Which of the two comes first in the line is the
+/// file's business, not the caller's.
+fn time_write(
+    document: &SubtitleDocument,
+    located: &Located<'_>,
+    start_ms: u32,
+    end_ms: u32,
+) -> Result<TimeWrite, EditError> {
+    let cue = located.cue;
+    let (first_span, second_span) = ordered(cue);
+    if first_span.end > second_span.start {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cue's timestamps overlap in the file",
+        ));
+    }
+    let (first_ms, second_ms) = if cue.start.raw().start <= cue.end.raw().start {
+        (start_ms, end_ms)
+    } else {
+        (end_ms, start_ms)
+    };
+    let first = render_timecode(first_ms, shape_of(document.slice(first_span)))?;
+    let second = render_timecode(second_ms, shape_of(document.slice(second_span)))?;
+    let between = document.slice(Span::new(first_span.end, second_span.start));
+    Ok(TimeWrite {
+        range: first_span.start..second_span.end,
+        inserted: format!("{first}{between}{second}"),
+    })
+}
+
+/// Several cues retimed in one splice, so they are one undo step.
+///
+/// Built the way `plan_set_texts` builds its own: one splice over the whole run the edits touch,
+/// with every cue in between copied through and named in the expectation, because a splice that
+/// replaces a range has to prove that what it did not mean to change did not change.
+fn plan_set_many_times(
+    document: &SubtitleDocument,
+    edits: &[(usize, u32, u32)],
+) -> Result<Planned, EditError> {
+    let (Some((first, _, _)), Some((last, _, _))) = (edits.first(), edits.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a timing edit naming no cues",
+        ));
+    };
+    // Strictly ascending, each cue once: two writes over one line would drop the bytes between them.
+    if edits.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues must be given in file order, each one named once",
+        ));
+    }
+    if let Some((cue, start_ms, end_ms)) = edits.iter().find(|(_, start, end)| start > end) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!("cue {cue}: the start {start_ms} is after the end {end_ms}"),
+        ));
+    }
+
+    let run = locate_run(document, *first, *last)?;
+    let (Some(head), Some(tail)) = (run.first(), run.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a timing edit naming no cues",
+        ));
+    };
+    let segments_from = head.segment_index;
+    let segments_run = tail
+        .segment_index
+        .saturating_sub(segments_from)
+        .saturating_add(1);
+
+    let mut writes = Vec::with_capacity(edits.len());
+    let mut cues = Vec::with_capacity(run.len());
+    let mut pending = edits.iter().peekable();
+    for (offset, located) in run.iter().enumerate() {
+        let index = first.saturating_add(offset);
+        let text_raw = document.slice(located.cue.text).to_owned();
+        match pending.next_if(|(at, _, _)| *at == index) {
+            Some((_, start_ms, end_ms)) => {
+                writes.push(time_write(document, located, *start_ms, *end_ms)?);
+                cues.push(ExpectedCue {
+                    text_raw,
+                    start_ms: *start_ms,
+                    end_ms: *end_ms,
+                });
+            }
+            None => cues.push(ExpectedCue {
+                text_raw,
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            }),
+        }
+    }
+
+    let (Some(opening), Some(closing)) = (writes.first(), writes.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a timing edit naming no cues",
+        ));
+    };
+    let span = Span::new(opening.range.start, closing.range.end);
+
+    let body = document.source().body();
+    let mut inserted = String::new();
+    let mut cursor = span.start;
+    for write in &writes {
+        let Some(between) = body.get(cursor..write.range.start) else {
+            return Err(EditError::new(
+                EditErrorKind::BadRange,
+                format!(
+                    "the write at {} does not follow the one ending at {cursor}",
+                    write.range.start
+                ),
+            ));
+        };
+        inserted.push_str(between);
+        inserted.push_str(&write.inserted);
+        cursor = write.range.end;
+    }
+
+    Ok(Planned {
+        splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::SetManyTimes,
             cue: *first,
         },
         expect: Expectation {
