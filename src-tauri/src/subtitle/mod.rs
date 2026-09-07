@@ -817,6 +817,18 @@ pub async fn subtitle_delete(
     edited(&app, state.slot(), revision, Edit::Delete { cue }).await
 }
 
+/// Several cues removed as one undo step. In file order, each named once; they need not be next to
+/// each other, because a selection need not be.
+#[tauri::command]
+pub async fn subtitle_delete_many(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cues: Vec<usize>,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(&app, state.slot(), revision, Edit::DeleteMany { cues }).await
+}
+
 #[tauri::command]
 pub async fn subtitle_split(
     app: AppHandle,

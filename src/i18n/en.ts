@@ -31,6 +31,7 @@ export const en = {
       italic: "Italic",
       underline: "Underline",
       /** The clipboard group, in the order the reference's own Edit menu puts it. */
+      cut: "Cut cues",
       copy: "Copy cues",
       pasteOver: "Paste over cues",
       selectAll: "Select all cues",
@@ -140,6 +141,7 @@ export const en = {
     /** Drawn beside a menu item. Each key is handled by whichever component owns that command. */
     keys: {
       new: "Ctrl+N",
+      cut: "Ctrl+X",
       copy: "Ctrl+C",
       pasteOver: "Ctrl+Shift+V",
       selectAll: "Ctrl+A",

@@ -387,6 +387,101 @@ fn an_edit_after_an_undo_drops_the_redo_tail() {
 }
 
 #[test]
+fn a_cut_takes_the_cues_it_names_and_leaves_the_one_between_them() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+    let middle = session.views()[1].text.clone();
+
+    session
+        .apply(
+            &Edit::DeleteMany { cues: vec![0, 2] },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first and the last go");
+
+    let rows = session.views();
+    assert_eq!(rows.len(), 1, "the cue that was not named stays");
+    assert_eq!(
+        rows[0].text, middle,
+        "and it is the one that was between them"
+    );
+
+    session.undo().expect("undo").expect("a step");
+    assert_eq!(
+        session.to_bytes(),
+        original,
+        "one undo puts both of them back"
+    );
+}
+
+#[test]
+fn a_cut_over_a_run_writes_the_file_the_rest_of_it_makes() {
+    let mut session = session("srt/clean/basic-lf.srt");
+
+    session
+        .apply(
+            &Edit::DeleteMany { cues: vec![0, 1] },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first two go");
+
+    // The bytes, not the row count: a delete that left the blank line of the block it removed
+    // would read back as the same one cue and say nothing.
+    assert_eq!(
+        String::from_utf8(session.to_bytes()).expect("still UTF-8"),
+        "3\n00:00:09,100 --> 00:00:11,760\nBy then the fog had eaten the boats.\n",
+        "what is left is the last block and nothing else"
+    );
+}
+
+#[test]
+fn a_cut_in_an_ass_leaves_the_header_it_did_not_name() {
+    let mut session = session("ass/clean/basic.ass");
+    let header = String::from_utf8(session.to_bytes())
+        .expect("still UTF-8")
+        .split("[Events]")
+        .next()
+        .expect("a header before the events")
+        .to_owned();
+
+    session
+        .apply(
+            &Edit::DeleteMany { cues: vec![0, 1] },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first two events go");
+
+    let after = String::from_utf8(session.to_bytes()).expect("still UTF-8");
+    assert_eq!(session.views().len(), 1, "one event is left");
+    assert!(
+        after.starts_with(&header),
+        "every byte before the events is where it was:\n{after}"
+    );
+    assert_eq!(
+        after.matches("Dialogue:").count(),
+        1,
+        "and only the event that was not named is written"
+    );
+}
+
+#[test]
+fn a_cut_refuses_cues_out_of_their_order_or_named_twice() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    for cues in [vec![2, 0], vec![1, 1], Vec::new()] {
+        let refused = session
+            .apply(&Edit::DeleteMany { cues }, Run::New, Instant::now())
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+    assert_eq!(session.to_bytes(), original, "a refusal writes nothing");
+}
+
+#[test]
 fn every_mutation_kind_reaches_the_document_and_undoes_back_to_the_file() {
     let cases = [
         (
@@ -400,6 +495,11 @@ fn every_mutation_kind_reaches_the_document_and_undoes_back_to_the_file() {
             1isize,
         ),
         ("srt/clean/basic-lf.srt", Edit::Delete { cue: 1 }, -1),
+        (
+            "srt/clean/basic-lf.srt",
+            Edit::DeleteMany { cues: vec![0, 1] },
+            -2,
+        ),
         (
             "srt/clean/basic-lf.srt",
             Edit::Split {

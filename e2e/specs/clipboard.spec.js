@@ -163,7 +163,8 @@ describe("the clipboard", () => {
     });
   });
 
-  it("greys the three of them with nothing open, and wakes them with a document", async () => {
+  it("greys the four of them with nothing open, and wakes them with a document", async () => {
+    expect(await editItem(toplevel, "edit-cut")).toEqual({ drawn: true, disabled: true });
     expect(await editItem(toplevel, "edit-copy")).toEqual({ drawn: true, disabled: true });
     expect(await editItem(toplevel, "edit-paste-over")).toEqual({ drawn: true, disabled: true });
     expect(await editItem(toplevel, "edit-select-all")).toEqual({ drawn: true, disabled: true });
@@ -177,7 +178,8 @@ describe("the clipboard", () => {
       { timeout: 20000, message: "the fixture to open" },
     );
 
-    // A document opens on its first row, so a row is selected and all three can run.
+    // A document opens on its first row, so a row is selected and all of them can run.
+    expect(await editItem(toplevel, "edit-cut")).toEqual({ drawn: true, disabled: false });
     expect(await editItem(toplevel, "edit-copy")).toEqual({ drawn: true, disabled: false });
     expect(await editItem(toplevel, "edit-select-all")).toEqual({ drawn: true, disabled: false });
   });
@@ -245,5 +247,80 @@ describe("the clipboard", () => {
 
     // Nothing moved, so nothing was written: pasting a document over itself is a no-op edit.
     expect(await present(".statusbar__dirty")).toBe(false);
+  });
+
+  it("takes the cue out of the document and puts it on the clipboard", async () => {
+    await clickRow(toplevel, 2);
+    await waitFor(async () => ((await selectedCount()) === 1 ? 1 : null), {
+      timeout: 15000,
+      message: "the second row alone to be selected",
+    });
+
+    await fromEditMenu(toplevel, "edit-cut");
+    await waitFor(
+      async () => {
+        const rows = await rowTexts();
+        return rows.length === 2 && rows[0] === FIRST && rows[1] === THIRD ? 1 : null;
+      },
+      { timeout: 20000, message: "the second row to go and the other two to close over it" },
+    );
+
+    // Where it went: the same round trip the copy check makes, so the cut is a copy as well as a
+    // delete rather than a delete that happened to empty the clipboard.
+    await clickRow(toplevel, 1);
+    await fromEditMenu(toplevel, "edit-paste-over");
+    await waitFor(async () => ((await rowTexts())[0] === SECOND ? 1 : null), {
+      timeout: 20000,
+      message: "the cut line to come back over the first row",
+    });
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await rowTexts())[0] === FIRST ? 1 : null), {
+      timeout: 15000,
+      message: "one undo to take the paste back",
+    });
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(
+      async () => {
+        const rows = await rowTexts();
+        return rows.length === 3 && rows[1] === SECOND ? 1 : null;
+      },
+      { timeout: 15000, message: "one more undo to put the cut row back" },
+    );
+  });
+
+  it("takes a scattered pair and leaves the row standing between them", async () => {
+    await clickRow(toplevel, 1);
+    await waitFor(async () => ((await selectedCount()) === 1 ? 1 : null), {
+      timeout: 15000,
+      message: "the first row alone to be selected",
+    });
+    // The cursor walks without taking the selection with it, and Ctrl+Space adds the row it
+    // reaches: the only route to a scattered set there is (decision 5).
+    pressKey("ctrl+Down");
+    pressKey("ctrl+Down");
+    pressKey("ctrl+space");
+    await waitFor(async () => ((await selectedCount()) === 2 ? 1 : null), {
+      timeout: 15000,
+      message: "the first and the third rows to be selected",
+    });
+
+    await fromEditMenu(toplevel, "edit-cut");
+    await waitFor(
+      async () => {
+        const rows = await rowTexts();
+        return rows.length === 1 && rows[0] === SECOND ? 1 : null;
+      },
+      { timeout: 20000, message: "the two named rows to go and the one between them to stay" },
+    );
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(
+      async () => {
+        const rows = await rowTexts();
+        return rows.length === 3 && rows[0] === FIRST && rows[2] === THIRD ? 1 : null;
+      },
+      { timeout: 15000, message: "one undo to put both of them back" },
+    );
   });
 });

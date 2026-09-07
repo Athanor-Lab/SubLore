@@ -83,6 +83,9 @@ pub enum EditKind {
     ClearText,
     Insert,
     Delete,
+    /// Its own kind, not `Delete` over more rows, for the reason `SetTexts` is its own: a cut that
+    /// took forty lines must never merge into the delete before it.
+    DeleteMany,
     Split,
     Merge,
 }

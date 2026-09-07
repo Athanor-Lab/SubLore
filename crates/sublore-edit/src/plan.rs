@@ -105,6 +105,12 @@ pub enum Edit {
     Delete {
         cue: usize,
     },
+    /// The same edit over several cues, as one undo step. Strictly ascending, each cue named once;
+    /// they need not be next to each other, because a selection need not be. The cues left standing
+    /// between them are kept exactly as they are written.
+    DeleteMany {
+        cues: Vec<usize>,
+    },
     /// `text_offset` is a byte offset into the normalized text of `cue`.
     Split {
         cue: usize,
@@ -193,6 +199,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             text,
         } => plan_insert(document, *before, *start_ms, *end_ms, text),
         Edit::Delete { cue } => plan_delete(document, *cue),
+        Edit::DeleteMany { cues } => plan_delete_many(document, cues),
         Edit::Split {
             cue,
             text_offset,
@@ -2219,11 +2226,13 @@ fn default_newline(document: &SubtitleDocument) -> &'static str {
     }
 }
 
-fn plan_delete(document: &SubtitleDocument, index: usize) -> Result<Planned, EditError> {
-    let located = locate(document, index)?;
+/// Which segments go with the cue at segment `at`: itself, and the blank line that separates its
+/// block from the next.
+///
+/// The blank belongs to the block being removed. An ASS blank separates sections, so it stays
+/// unless it would join the one on the other side. M2.1.
+fn delete_region(document: &SubtitleDocument, at: usize) -> (usize, usize) {
     let segments = document.segments();
-    let at = located.segment_index;
-
     let follows = segments
         .get(at.saturating_add(1))
         .is_some_and(|segment| matches!(segment.kind, SegmentKind::Blank));
@@ -2232,9 +2241,7 @@ fn plan_delete(document: &SubtitleDocument, index: usize) -> Result<Planned, Edi
             .get(at.saturating_sub(1))
             .is_some_and(|segment| matches!(segment.kind, SegmentKind::Blank));
 
-    // The blank line that separates blocks belongs to the block being removed. An ASS blank
-    // separates sections, so it stays unless it would join the one on the other side. M2.1.
-    let (from, to) = match document.format() {
+    match document.format() {
         SubtitleFormat::Ass => {
             if follows && precedes {
                 (at, at.saturating_add(1))
@@ -2251,7 +2258,108 @@ fn plan_delete(document: &SubtitleDocument, index: usize) -> Result<Planned, Edi
                 (at, at)
             }
         }
+    }
+}
+
+/// Several cues removed as one undo step, each with the blank line that follows it.
+///
+/// One splice from the first named cue to the last, with everything between them that was not named
+/// written back exactly as it stands: a selection is not always a run, and the cues left standing
+/// inside it must come through a cut untouched.
+fn plan_delete_many(document: &SubtitleDocument, cues: &[usize]) -> Result<Planned, EditError> {
+    let (Some(first), Some(last)) = (cues.first(), cues.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a delete naming no cues",
+        ));
     };
+    // Strictly ascending, each cue once: a cue named twice would have its bytes counted twice.
+    if cues.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues must be given in file order, each one named once",
+        ));
+    }
+
+    let run = locate_run(document, *first, *last)?;
+    let segments = document.segments();
+    let mut region_from = usize::MAX;
+    let mut region_to = 0usize;
+    let mut dropped = Vec::new();
+    let mut kept = Vec::new();
+    let mut naming = cues.iter().peekable();
+    for (offset, located) in run.iter().enumerate() {
+        let index = first.saturating_add(offset);
+        if naming.next_if(|at| **at == index).is_some() {
+            let (from, to) = delete_region(document, located.segment_index);
+            region_from = region_from.min(from);
+            region_to = region_to.max(to);
+            dropped.push((from, to));
+        } else {
+            region_from = region_from.min(located.segment_index);
+            region_to = region_to.max(located.segment_index);
+            kept.push(ExpectedCue {
+                text_raw: document.slice(located.cue.text).to_owned(),
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            });
+        }
+    }
+    if region_from > region_to {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a delete naming no cues",
+        ));
+    }
+
+    // Written back rather than sliced around: the region holds the blanks and the cues that were
+    // not named, and those come through unchanged whatever order the naming was in.
+    let mut inserted = String::new();
+    let mut stays = 0usize;
+    for at in region_from..=region_to {
+        if dropped.iter().any(|(from, to)| at >= *from && at <= *to) {
+            continue;
+        }
+        let Some(segment) = segments.get(at) else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                "the cues' segments moved while the edit was planned",
+            ));
+        };
+        inserted.push_str(document.slice(segment.span));
+        stays += 1;
+    }
+
+    let (Some(opening), Some(closing)) = (segments.get(region_from), segments.get(region_to))
+    else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues' segments moved while the edit was planned",
+        ));
+    };
+    let region = Span::new(opening.span.start, closing.span.end);
+
+    Ok(Planned {
+        splice: Splice::new(region.start, document.slice(region).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::DeleteMany,
+            cue: *first,
+        },
+        expect: Expectation {
+            from: *first,
+            removed: last.saturating_sub(*first).saturating_add(1),
+            cues: kept,
+            segments_from: region_from,
+            segments_removed: region_to.saturating_sub(region_from).saturating_add(1),
+            segments_inserted: stays,
+        },
+    })
+}
+
+fn plan_delete(document: &SubtitleDocument, index: usize) -> Result<Planned, EditError> {
+    let located = locate(document, index)?;
+    let segments = document.segments();
+    let (from, to) = delete_region(document, located.segment_index);
 
     let (Some(first), Some(last)) = (segments.get(from), segments.get(to)) else {
         return Err(EditError::new(
