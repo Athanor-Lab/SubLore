@@ -9,6 +9,7 @@ export const en = {
   menu: {
     file: {
       title: "File",
+      new: "New",
       openSubtitle: "Open subtitle…",
       /** The document to read from while translating. It is never written to. */
       openSource: "Open source subtitle…",
@@ -124,6 +125,7 @@ export const en = {
     },
     /** Drawn beside a menu item. Each key is handled by whichever component owns that command. */
     keys: {
+      new: "Ctrl+N",
       copy: "Ctrl+C",
       pasteOver: "Ctrl+Shift+V",
       selectAll: "Ctrl+A",

@@ -224,6 +224,7 @@ pub fn run() -> tauri::Result<()> {
             fonts::fonts_installed,
             subtitle::subtitle_open_source,
             subtitle::subtitle_close_source,
+            subtitle::subtitle_new,
             subtitle::subtitle_new_translation,
             subtitle::subtitle_set_times,
             subtitle::subtitle_insert,

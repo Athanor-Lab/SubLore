@@ -86,6 +86,10 @@ export type SubtitleFile = {
   error: SubtitleError | null;
   /** Set when an open was refused because the open file has unsaved edits. */
   blockedPath: string | null;
+  /** Whether a New was refused for the same reason an open is: unsaved work in its way. */
+  blockedNew: boolean;
+  /** A document with nothing in it. Refused, and remembered, while unsaved work is in the way. */
+  newDocument: () => Promise<void>;
   /** Counts successful opens. The list is keyed on it, so a new file starts at the top. */
   openId: number;
   /** The transcription run whose cues are the open document, or null. See BACKLOG.md M3.5. */
@@ -179,6 +183,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   const [savedInPlace, setSavedInPlace] = useState(false);
   const [error, setError] = useState<SubtitleError | null>(null);
   const [blockedPath, setBlockedPath] = useState<string | null>(null);
+  const [blockedNew, setBlockedNew] = useState(false);
   const [openId, setOpenId] = useState(0);
   const [adoptedRunId, setAdoptedRunId] = useState<number | null>(null);
 
@@ -269,9 +274,37 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [openFile, serialize],
   );
 
+  /** The empty document, with `discard` saying whether the work in its way may go. */
+  const makeNew = useCallback(
+    async (discard: boolean) => {
+      setError(null);
+      setSaved(null);
+      try {
+        applyOpened(await invoke<SubtitleOpened>("subtitle_new", { discard }));
+        setAdoptedRunId(null);
+        setBlockedNew(false);
+        setBlockedPath(null);
+      } catch (failure) {
+        const rejected = toSubtitleError(failure);
+        // The same shape an open takes: unsaved work leaves what is on screen alone and waits for
+        // the user to say it may go.
+        setBlockedNew(rejected.code === "unsavedChanges");
+        setError(rejected);
+      }
+    },
+    [applyOpened],
+  );
+
+  const newDocument = useCallback(() => serialize(() => makeNew(false)), [makeNew, serialize]);
+
   const discardAndOpen = useCallback(
     () =>
       serialize(async () => {
+        // Whichever was refused: a New makes the empty document, an open opens the file it named.
+        if (blockedNew) {
+          await makeNew(true);
+          return;
+        }
         if (blockedPath === null) {
           return;
         }
@@ -285,7 +318,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
         }
         await openFile(blockedPath);
       }),
-    [blockedPath, openFile, serialize],
+    [blockedNew, blockedPath, makeNew, openFile, serialize],
   );
 
   /**
@@ -541,6 +574,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     savedInPlace,
     error,
     blockedPath,
+    blockedNew,
+    newDocument,
     openId,
     adoptedRunId,
     open,

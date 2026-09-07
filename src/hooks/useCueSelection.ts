@@ -111,7 +111,9 @@ export function useCueSelection(count: number, openId: number): CueSelection {
 
       // Worked out before both updaters rather than inside them: the selection's fallback is the
       // cursor's new row, and an updater cannot see where the other one landed.
-      const cursor = active === null || left === 0 ? null : settle(active);
+      // A document with no rows has no cursor, and the row that arrives takes it: a first line the
+      // cursor never reaches is one the panel cannot be typed into.
+      const cursor = left === 0 ? null : active === null ? Math.min(at, left - 1) : settle(active);
       setActive(cursor);
       setSelected((current) => {
         const next = new Set<number>();

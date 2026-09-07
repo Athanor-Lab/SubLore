@@ -226,7 +226,15 @@ fn no_clean_fixture_parses_as_a_single_segment() {
     for (path, bytes) in fixtures(&clean, &EXTENSIONS, MIN_CLEAN) {
         let document = round_trip(&path, &bytes);
         let cues = document.cues().count();
-        assert!(cues > 0, "{} must yield cues", path.display());
+        // A file that spells no event yields none, and that is the shape of a script with nothing
+        // written in it yet. Every file that does spell one has to give it back.
+        let spelled = String::from_utf8_lossy(&bytes);
+        let has_events = spelled.contains("Dialogue:") || spelled.contains("Comment:");
+        assert!(
+            cues > 0 || !has_events,
+            "{} must yield cues",
+            path.display()
+        );
         assert!(
             document.segments().len() >= 2,
             "{} lumped the whole file into {} segment(s)",

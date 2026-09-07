@@ -289,6 +289,20 @@ pub async fn subtitle_new_translation(
     made
 }
 
+/// A document with nothing in it, which is what File then New opens. See interface-spec 3.1.
+#[tauri::command]
+pub async fn subtitle_new(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    discard: bool,
+) -> Result<SubtitleOpened, SubtitleError> {
+    let slot = state.slot();
+    let made = blocking(move || new_document(&slot, discard)).await;
+    // A new document is a new thing to draw on the frame, whether it was made or refused.
+    crate::preview::refresh(&app).await;
+    made
+}
+
 #[tauri::command]
 pub async fn subtitle_close(
     app: AppHandle,
@@ -1015,6 +1029,47 @@ pub fn new_translation(
     Ok(opened)
 }
 
+/// The document New starts from: an ASS script with one declared style and no events.
+///
+/// ASS and not SRT because it is the format that can hold everything the editor writes, styles and
+/// override tags included, and a translator who starts here can still export the rest. The style
+/// line is the one the reference's own new script carries, at Sublore's own default size.
+const NEW_DOCUMENT: &str = "[Script Info]\r
+ScriptType: v4.00+\r
+WrapStyle: 0\r
+ScaledBorderAndShadow: yes\r
+PlayResX: 1920\r
+PlayResY: 1080\r
+\r
+[V4+ Styles]\r
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\r
+Style: Default,Arial,54,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,60,60,40,1\r
+\r
+[Events]\r
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\r
+";
+
+/// An empty document, open and untitled. `discard` is the user having chosen to lose the edits the
+/// open file has; without it the refusal comes back and the file on screen stays.
+pub fn new_document(slot: &SessionSlot, discard: bool) -> Result<SubtitleOpened, SubtitleError> {
+    let mut guard = lock(slot)?;
+    if !discard && guard.as_ref().is_some_and(EditSession::dirty) {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnsavedChanges,
+            "the open file has edits that are not on disk",
+        ));
+    }
+    let document =
+        parse(SubtitleFormat::Ass, NEW_DOCUMENT.as_bytes()).map_err(SubtitleError::from_parse)?;
+    let summary = summarize(None, &document);
+    // Blank and not untitled: an empty document holds no work, so it is not unsaved work either.
+    let session = EditSession::blank(document);
+    let opened = opened_payload(&session, summary);
+    crate::log::info!("subtitle: a new document, empty and with nothing to lose");
+    *guard = Some(session);
+    Ok(opened)
+}
+
 /// Close the open file. `discard` is the user having chosen to lose the edits; without it an
 /// unsaved file stays open.
 pub fn close_session(slot: &SessionSlot, discard: bool) -> Result<(), SubtitleError> {
@@ -1698,8 +1753,63 @@ fn newline_str(newline: Newline) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{rows, AssField, AssFieldDto};
+    use super::{new_document, rows, AssField, AssFieldDto, SessionSlot, SubtitleErrorCode};
     use sublore_edit::diff::CueView;
+
+    /// The document New opens has to be one the parser accepts, one the style editor finds a style
+    /// in, and one with no line in it: an empty script that carried a cue would be a surprise.
+    #[test]
+    fn a_new_document_is_an_empty_script_with_a_style_in_it() {
+        let slot = SessionSlot::default();
+        let opened = new_document(&slot, false).expect("a new document");
+        assert_eq!(opened.summary.format, "ass");
+        assert_eq!(opened.summary.cue_count, 0);
+        assert!(opened.cues.is_empty());
+        assert_eq!(
+            opened
+                .summary
+                .styles
+                .iter()
+                .map(|style| style.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Default"],
+        );
+        assert_eq!(opened.summary.path, None);
+    }
+
+    /// The same refusal opening a file gives, and for the same reason: unsaved work is never lost
+    /// without the user having said so.
+    #[test]
+    fn a_new_document_waits_for_the_unsaved_work_in_its_way() {
+        let slot = SessionSlot::default();
+        new_document(&slot, false).expect("the first new document");
+        {
+            let mut guard = slot.lock().expect("the session lock");
+            let session = guard.as_mut().expect("a session");
+            session
+                .apply(
+                    &sublore_edit::plan::Edit::Insert {
+                        before: 0,
+                        start_ms: 0,
+                        end_ms: 1000,
+                        text: "Something unsaved".to_owned(),
+                    },
+                    sublore_edit::history::Run::New,
+                    std::time::Instant::now(),
+                )
+                .expect("an edit on the new document");
+        }
+        let refused = new_document(&slot, false).expect_err("a refusal");
+        assert_eq!(refused.code, SubtitleErrorCode::UnsavedChanges);
+        // And it goes through once the user has said the work may go.
+        assert_eq!(
+            new_document(&slot, true)
+                .expect("a new document after discarding")
+                .summary
+                .cue_count,
+            0,
+        );
+    }
 
     fn view() -> CueView {
         CueView {

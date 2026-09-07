@@ -38,6 +38,7 @@ import { findToplevel } from "../lib/x11.js";
  * loudly as an item with no entry behind it (C1).
  */
 const DECLARED = [
+  "file-new",
   "file-open-subtitle",
   "file-open-source",
   "file-close-source",
@@ -136,6 +137,7 @@ const TITLES = [
  * from a source, so opening one is the first gesture of all (M2.6 S1 and S2).
  */
 const FILE_ITEMS = [
+  { id: "file-new", disabled: false },
   { id: "file-open-subtitle", disabled: false },
   { id: "file-open-source", disabled: false },
   { id: "file-close-source", disabled: true },
