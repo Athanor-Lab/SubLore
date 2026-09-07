@@ -807,16 +807,6 @@ pub async fn subtitle_insert(
     .await
 }
 
-#[tauri::command]
-pub async fn subtitle_delete(
-    app: AppHandle,
-    state: State<'_, SubtitleState>,
-    revision: u64,
-    cue: usize,
-) -> Result<CuePatchDto, SubtitleError> {
-    edited(&app, state.slot(), revision, Edit::Delete { cue }).await
-}
-
 /// The clipboard's own lines put in before `before`, as one undo step. `before` equal to the cue
 /// count appends. The fragment is read behind this document's header before anything is written.
 #[tauri::command]
