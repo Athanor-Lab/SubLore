@@ -90,6 +90,9 @@ pub enum EditKind {
     /// took forty lines must never merge into the delete before it.
     DeleteMany,
     Duplicate,
+    /// Its own kind, not `Merge` over more rows: a join of six lines must never merge into the
+    /// merge before it.
+    Join,
     Split,
     Merge,
 }

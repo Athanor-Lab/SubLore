@@ -100,6 +100,8 @@ const DECLARED = [
   "subtitle-duplicate",
   "subtitle-delete",
   "subtitle-split",
+  "subtitle-join-concat",
+  "subtitle-join-keep-first",
   "subtitle-merge",
   "help-about",
   "video-toggle-subtitle-overlay",
@@ -201,6 +203,8 @@ const SUBTITLE_ITEMS = [
   { id: "subtitle-duplicate", disabled: true },
   { id: "subtitle-delete", disabled: true },
   { id: "subtitle-split", disabled: true },
+  { id: "subtitle-join-concat", disabled: true },
+  { id: "subtitle-join-keep-first", disabled: true },
   { id: "subtitle-merge", disabled: true },
 ];
 

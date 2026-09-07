@@ -134,6 +134,10 @@ export const en = {
       /** Goes to the next cue, and makes one when the cursor is on the last. */
       nextLine: "Next line",
       duplicate: "Duplicate cues",
+      /** The submenu the two below sit in, which is where the interface puts them. */
+      join: "Join cues",
+      joinConcat: "Concatenate",
+      joinKeepFirst: "Keep first",
       delete: "Delete cues",
       split: "Split cue",
       merge: "Merge with next",

@@ -390,6 +390,143 @@ fn an_edit_after_an_undo_drops_the_redo_tail() {
 const TWO_SRT_BLOCKS: &str = "1\n00:00:02,120 --> 00:00:04,880\nThe harbour was empty when we got there.\n\n2\n00:00:05,000 --> 00:00:08,340\nNobody had told the crew we were coming,\nso we sat on the dock until it got light.\n";
 
 #[test]
+fn a_join_puts_every_text_on_the_first_line_and_takes_the_latest_end() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    session
+        .apply(
+            &Edit::Join {
+                cues: vec![0, 1],
+                keep_first_text: false,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first two join");
+
+    let rows = session.views();
+    assert_eq!(rows.len(), 2, "two lines became one");
+    assert_eq!(
+        rows[0].text,
+        "The harbour was empty when we got there. Nobody had told the crew we were coming,\nso we sat on the dock until it got light.",
+        "one text after the other, with a space between them"
+    );
+    assert_eq!(
+        rows[0].start_ms, 2_120,
+        "the first line keeps its own start"
+    );
+    assert_eq!(
+        rows[0].end_ms, 8_340,
+        "and takes the end of the last of them"
+    );
+
+    session.undo().expect("undo").expect("a step");
+    assert_eq!(session.to_bytes(), original, "one undo puts both back");
+}
+
+#[test]
+fn a_join_that_keeps_the_first_text_drops_the_others_words_and_not_their_time() {
+    let mut session = session("srt/clean/basic-lf.srt");
+
+    session
+        .apply(
+            &Edit::Join {
+                cues: vec![0, 1],
+                keep_first_text: true,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first two join");
+
+    let rows = session.views();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].text, "The harbour was empty when we got there.");
+    assert_eq!(
+        rows[0].end_ms, 8_340,
+        "the time of the line that went is kept"
+    );
+}
+
+#[test]
+fn a_join_over_a_hole_leaves_the_line_it_did_not_name() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let middle = session.views()[1].text.clone();
+
+    session
+        .apply(
+            &Edit::Join {
+                cues: vec![0, 2],
+                keep_first_text: false,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first and the last join");
+
+    let rows = session.views();
+    assert_eq!(rows.len(), 2, "the two named became one, the third stayed");
+    assert_eq!(rows[0].end_ms, 11_760, "the latest end of the two named");
+    assert_eq!(
+        rows[1].text, middle,
+        "and the line between them is untouched"
+    );
+}
+
+#[test]
+fn a_join_keeps_the_fields_the_first_line_declares() {
+    let mut session = session("ass/clean/speakers.ass");
+    let (style, actor) = {
+        let rows = session.views();
+        (rows[1].style.clone(), rows[1].actor.clone())
+    };
+    assert_ne!(actor, "", "the fixture's second event names a speaker");
+
+    session
+        .apply(
+            &Edit::Join {
+                cues: vec![1, 2],
+                keep_first_text: false,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the last two join");
+
+    // Five events in the fixture, two of them joined into one.
+    let rows = session.views();
+    assert_eq!(rows.len(), 4);
+    assert_eq!(rows[1].style, style, "the line that stays keeps its style");
+    assert_eq!(rows[1].actor, actor, "and its speaker");
+    assert_eq!(
+        rows[1].end_ms, 9_440,
+        "and takes the end of the one it took in"
+    );
+}
+
+#[test]
+fn a_join_refuses_one_cue_and_cues_out_of_their_order() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    for cues in [vec![0], Vec::new(), vec![2, 0], vec![1, 1]] {
+        let refused = session
+            .apply(
+                &Edit::Join {
+                    cues,
+                    keep_first_text: false,
+                },
+                Run::New,
+                Instant::now(),
+            )
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+    assert_eq!(session.to_bytes(), original, "a refusal writes nothing");
+}
+
+#[test]
 fn a_duplicate_writes_each_named_line_again_and_leaves_the_ones_between_them() {
     let mut session = session("srt/clean/basic-lf.srt");
     let original = session.to_bytes();
@@ -795,6 +932,14 @@ fn every_mutation_kind_reaches_the_document_and_undoes_back_to_the_file() {
             1,
         ),
         ("srt/clean/basic-lf.srt", Edit::Merge { cue: 0 }, -1),
+        (
+            "srt/clean/basic-lf.srt",
+            Edit::Join {
+                cues: vec![0, 1],
+                keep_first_text: false,
+            },
+            -1,
+        ),
         (
             "srt/clean/basic-lf.srt",
             Edit::SetTimes {

@@ -802,6 +802,29 @@ export default function App() {
   }
 
   /**
+   * Two or more selected lines joined into the first of them, as one undo step, with the line that
+   * stays left selected.
+   *
+   * `keepFirstText` drops the others' words and keeps their time, which is what a translator wants
+   * where two lines carry one sentence twice, once as a stub.
+   */
+  async function joinCues(keepFirstText: boolean) {
+    await flushEditors();
+    const rows = [...selection.selected]
+      .filter((row) => row < subtitle.cues.length)
+      .sort((one, two) => one - two);
+    if (rows.length < 2) {
+      return;
+    }
+    landing.current = { rows: [rows[0]] };
+    try {
+      await subtitle.joinCues(rows, keepFirstText);
+    } finally {
+      landing.current = null;
+    }
+  }
+
+  /**
    * The clipboard's cues in before the row the cursor is on, as one undo step, and the rows that
    * land are the ones left selected. With no row to go before they go at the end.
    */
@@ -1984,6 +2007,18 @@ export default function App() {
       run: () => void splitCue(),
     },
     {
+      id: "subtitle.join-concat",
+      label: en.menu.subtitles.joinConcat,
+      enabled: selection.selected.size > 1,
+      run: () => void joinCues(false),
+    },
+    {
+      id: "subtitle.join-keep-first",
+      label: en.menu.subtitles.joinKeepFirst,
+      enabled: selection.selected.size > 1,
+      run: () => void joinCues(true),
+    },
+    {
       id: "subtitle.merge",
       label: en.menu.subtitles.merge,
       // The last row has nothing after it to join, which is the greying M2.7 E3 names.
@@ -2210,6 +2245,13 @@ export default function App() {
         "subtitle.duplicate",
         "subtitle.delete",
         "subtitle.split",
+        // The two ways of joining lines sit in a list of their own, which is where the interface
+        // puts them (interface-spec 3.3 item 8).
+        {
+          id: "subtitle-join",
+          label: en.menu.subtitles.join,
+          items: ["subtitle.join-concat", "subtitle.join-keep-first"],
+        },
         "subtitle.merge",
       ],
     },

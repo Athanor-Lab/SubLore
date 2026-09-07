@@ -127,6 +127,13 @@ pub enum Edit {
     Duplicate {
         cues: Vec<usize>,
     },
+    /// Two or more cues joined into the first of them, as one undo step. Strictly ascending, each
+    /// named once; they need not be next to each other. The first keeps its start and its fields
+    /// and takes the latest end of them all, and its text is either every text in turn or its own.
+    Join {
+        cues: Vec<usize>,
+        keep_first_text: bool,
+    },
     /// `text_offset` is a byte offset into the normalized text of `cue`.
     Split {
         cue: usize,
@@ -218,6 +225,10 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
         Edit::Delete { cue } => plan_delete(document, *cue),
         Edit::DeleteMany { cues } => plan_delete_many(document, cues),
         Edit::Duplicate { cues } => plan_duplicate(document, cues),
+        Edit::Join {
+            cues,
+            keep_first_text,
+        } => plan_join(document, cues, *keep_first_text),
         Edit::Split {
             cue,
             text_offset,
@@ -2480,6 +2491,187 @@ fn delete_region(document: &SubtitleDocument, at: usize) -> (usize, usize) {
             }
         }
     }
+}
+
+/// Two or more cues joined into the first of them, as one undo step.
+///
+/// The first named cue keeps its start, its style and every other field it declares, takes the
+/// latest end of the cues named with it, and takes their texts too unless the caller asked to keep
+/// its own. The rest go. A selection with a hole in it joins what it named and leaves what it did
+/// not, which is what the reference does and what a translator means by choosing four lines out of
+/// six.
+fn plan_join(
+    document: &SubtitleDocument,
+    cues: &[usize],
+    keep_first_text: bool,
+) -> Result<Planned, EditError> {
+    let (Some(first), Some(last)) = (cues.first(), cues.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a join naming no cues",
+        ));
+    };
+    if cues.len() < 2 {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a join needs two cues or more",
+        ));
+    }
+    if cues.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues must be given in file order, each one named once",
+        ));
+    }
+
+    let run = locate_run(document, *first, *last)?;
+    let segments = document.segments();
+    // The named cues, in file order, and what the first of them becomes.
+    let mut named = Vec::with_capacity(cues.len());
+    let mut naming = cues.iter().peekable();
+    for (offset, located) in run.iter().enumerate() {
+        if naming
+            .next_if(|want| **want == first.saturating_add(offset))
+            .is_some()
+        {
+            named.push(located);
+        }
+    }
+    let (Some(head), Some(tail)) = (named.first(), named.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a join naming no cues",
+        ));
+    };
+    let start_ms = head.cue.start.millis();
+    let end_ms = named
+        .iter()
+        .map(|located| located.cue.end.millis())
+        .max()
+        .unwrap_or_else(|| head.cue.end.millis());
+    if end_ms < start_ms {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the joined cue would end before it starts",
+        ));
+    }
+    // A space between one text and the next, which is what joins two half sentences into one.
+    let text = if keep_first_text {
+        diff::normalize(document.slice(head.cue.text))
+    } else {
+        named
+            .iter()
+            .map(|located| diff::normalize(document.slice(located.cue.text)))
+            .filter(|piece| !piece.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+
+    let times = time_write(document, head, start_ms, end_ms)?;
+    let words = plan_text_write(document, head, &text)?;
+    if times.range.end > words.range.start {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cue's text is written before its timestamps",
+        ));
+    }
+
+    // Every segment the cues that go take with them, by the rule a single delete follows.
+    let dropped: Vec<(usize, usize)> = named
+        .iter()
+        .skip(1)
+        .map(|located| delete_region(document, located.segment_index))
+        .collect();
+    let region_from = head.segment_index;
+    let region_to = dropped
+        .iter()
+        .map(|(_, to)| *to)
+        .max()
+        .unwrap_or(tail.segment_index)
+        .max(head.segment_index);
+
+    let body = document.source().body();
+    let mut inserted = String::new();
+    let mut cues_after = Vec::new();
+    let mut segments_inserted = 0usize;
+    for at in region_from..=region_to {
+        if dropped.iter().any(|(from, to)| at >= *from && at <= *to) {
+            continue;
+        }
+        let Some(segment) = segments.get(at) else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                "the cues' segments moved while the edit was planned",
+            ));
+        };
+        segments_inserted = segments_inserted.saturating_add(1);
+        if at != head.segment_index {
+            inserted.push_str(document.slice(segment.span));
+            if let SegmentKind::Cue(cue) = &segment.kind {
+                cues_after.push(ExpectedCue {
+                    text_raw: document.slice(cue.text).to_owned(),
+                    start_ms: cue.start.millis(),
+                    end_ms: cue.end.millis(),
+                });
+            }
+            continue;
+        }
+        // The line that stays, with its new end and its new text written into the bytes it already
+        // has: everything else on it, the style and the speaker and the margins, is untouched.
+        let Some(before_times) = body.get(segment.span.start..times.range.start) else {
+            return Err(EditError::new(
+                EditErrorKind::BadRange,
+                "the cue's timestamps are not inside its own line",
+            ));
+        };
+        let Some(between) = body.get(times.range.end..words.range.start) else {
+            return Err(EditError::new(
+                EditErrorKind::BadRange,
+                "the cue's text does not follow its timestamps",
+            ));
+        };
+        let Some(after_text) = body.get(words.range.end..segment.span.end) else {
+            return Err(EditError::new(
+                EditErrorKind::BadRange,
+                "the cue's text is not inside its own line",
+            ));
+        };
+        inserted.push_str(before_times);
+        inserted.push_str(&times.inserted);
+        inserted.push_str(between);
+        inserted.push_str(&words.inserted);
+        inserted.push_str(after_text);
+        cues_after.push(ExpectedCue {
+            text_raw: words.written.clone(),
+            start_ms,
+            end_ms,
+        });
+    }
+
+    let (Some(opening), Some(closing)) = (segments.get(region_from), segments.get(region_to))
+    else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues' segments moved while the edit was planned",
+        ));
+    };
+    let region = Span::new(opening.span.start, closing.span.end);
+
+    Ok(Planned {
+        splice: Splice::new(region.start, document.slice(region).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::Join,
+            cue: *first,
+        },
+        expect: Expectation {
+            from: *first,
+            removed: last.saturating_sub(*first).saturating_add(1),
+            cues: cues_after,
+            segments_from: region_from,
+            segments_removed: region_to.saturating_sub(region_from).saturating_add(1),
+            segments_inserted,
+        },
+    })
 }
 
 /// Every named cue written again straight after itself, as one undo step.
