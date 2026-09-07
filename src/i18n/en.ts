@@ -52,6 +52,10 @@ export const en = {
     video: {
       title: "Video",
       close: "Close video",
+      play: "Play",
+      playCue: "Play current cue",
+      stop: "Stop",
+      followSelection: "Follow selection",
       jumpCueStart: "Jump to cue start",
       jumpCueEnd: "Jump to cue end",
     },
@@ -128,6 +132,7 @@ export const en = {
       undo: "Ctrl+Z",
       redo: "Ctrl+Y",
       quit: "Ctrl+Q",
+      videoPlay: "Ctrl+P",
       videoToCueStart: "Ctrl+1",
       videoToCueEnd: "Ctrl+2",
       startToPlayhead: "Ctrl+3",

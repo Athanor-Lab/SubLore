@@ -44,6 +44,9 @@ export type VideoPlayer = {
   /** Unload the media, leaving the player up. See interface-spec 3.4, Close video. */
   close: () => Promise<void>;
   togglePlayback: () => Promise<void>;
+  /** Play from the playhead, and stop where it stands: absolute, unlike the toggle above. */
+  play: () => Promise<void>;
+  pause: () => Promise<void>;
   seek: (position: number) => Promise<void>;
   /** Play a stretch and stop at its end, both in seconds. See docs/play-range-tasks.md. */
   playRange: (from: number, to: number) => Promise<void>;
@@ -137,10 +140,15 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     }
   }, []);
 
-  const togglePlayback = useCallback(async () => {
-    // Store the value we asked for, never a flip: a video://state event may land first and a
-    // relative toggle would then undo it.
-    const paused = !state.paused;
+  /**
+   * Ask for one of the two states outright, rather than for the other one than now.
+   *
+   * The menu's Play and Stop are absolute in the reference and have to be here too: what the page
+   * believes about the last press can be a render behind what mpv is doing, and a Stop that read a
+   * stale belief would leave the picture running. Only the transport button, which draws that
+   * belief, is a toggle.
+   */
+  const setPaused = useCallback(async (paused: boolean) => {
     const mine = opening.current;
     setErrorCode(null);
     try {
@@ -153,7 +161,11 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
         setErrorCode(toErrorCode(error));
       }
     }
-  }, [state.paused]);
+  }, []);
+
+  const play = useCallback(() => setPaused(false), [setPaused]);
+  const pause = useCallback(() => setPaused(true), [setPaused]);
+  const togglePlayback = useCallback(() => setPaused(!state.paused), [setPaused, state.paused]);
 
   const seek = useCallback(async (target: number) => {
     const mine = opening.current;
@@ -222,6 +234,8 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     open,
     close,
     togglePlayback,
+    play,
+    pause,
     seek,
     playRange,
     setRegion,
