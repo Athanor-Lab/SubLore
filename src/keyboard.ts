@@ -19,6 +19,22 @@ const TEXT_INPUT_TYPES = ["text", "search", "url", "email", "tel", "password", "
 const FIELD_CHORDS: ReadonlySet<string> = new Set(["a", "c", "v", "x", "y", "z"]);
 
 /**
+ * The keys a text field keeps even under a modifier: moving the caret and selecting with it.
+ *
+ * Ctrl+Left is a word backwards in every text box there has ever been, and the grid's own context
+ * puts the video's boundary and frame commands on the same chords. Which one gets it turns on where
+ * the caret is, exactly as it does for Ctrl+A. See interface-spec 10.5.
+ */
+const FIELD_NAVIGATION: ReadonlySet<string> = new Set([
+  "arrowleft",
+  "arrowright",
+  "arrowup",
+  "arrowdown",
+  "home",
+  "end",
+]);
+
+/**
  * The two of those the document takes back inside its own editors: undo and redo there are the
  * document's history and not the field's, which is what a translator means by pressing them over a
  * line they are writing.
@@ -76,6 +92,9 @@ export function ownsTheKeyboard(
   if (!chorded) {
     return !FUNCTION_KEY.test(key);
   }
+  if (FIELD_NAVIGATION.has(key)) {
+    return true;
+  }
   return FIELD_CHORDS.has(key) && !(isDocumentEditor(target) && HISTORY_CHORDS.has(key));
 }
 
@@ -90,6 +109,14 @@ export function ownsTheKeyboard(
  */
 type Chord = { ctrl: boolean; shift: boolean; on: "key" | "code"; value: string };
 
+/** The arrow tokens an accelerator spells, and the `key` each one arrives as. */
+const ARROWS: Record<string, string> = {
+  left: "arrowleft",
+  right: "arrowright",
+  up: "arrowup",
+  down: "arrowdown",
+};
+
 /** Anything this cannot express returns null: the menu draws the string and no key fires it. */
 function parseAccelerator(text: string | undefined): Chord | null {
   if (text === undefined) {
@@ -98,13 +125,18 @@ function parseAccelerator(text: string | undefined): Chord | null {
   const parts = text.split("+").map((part) => part.trim());
   const token = parts.pop();
   const modifiers = parts.map((part) => part.toLowerCase());
-  // Alt is not a modifier any of these use: AltGr arrives as ctrl+alt and is typing. Anything else
-  // in the string is one this cannot honour. Ctrl is no longer required: F3 has no modifier at all.
+  // Alt is not a modifier any of these use: AltGr arrives as ctrl+alt and is typing, and the menu
+  // bar opens on Alt alone. Anything else in the string is one this cannot honour. Ctrl is not
+  // required: F3 has no modifier at all.
   if (token === undefined || modifiers.some((part) => part !== "ctrl" && part !== "shift")) {
     return null;
   }
   const ctrl = modifiers.includes("ctrl");
   const shift = modifiers.includes("shift");
+  const arrow = ARROWS[token.toLowerCase()];
+  if (arrow !== undefined) {
+    return { ctrl, shift, on: "key", value: arrow };
+  }
   if (/^[0-9]$/.test(token)) {
     return { ctrl, shift, on: "code", value: `Digit${token}` };
   }
