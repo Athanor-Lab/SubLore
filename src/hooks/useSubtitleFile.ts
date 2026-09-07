@@ -8,6 +8,7 @@ import { type RowRef } from "../types/chrome";
 import {
   isSubtitleError,
   type AssFieldName,
+  type AssStyleField,
   type StyleFlagName,
   type CuePatch,
   type CueRow,
@@ -107,6 +108,8 @@ export type SubtitleFile = {
   toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
   /** Several override tags at one caret, as one undo step: a font is a family and a size. B12. */
   setOverrideTags: (cue: number, tags: [string, string][], at: number) => Promise<void>;
+  /** One field of one declared style. Each field is its own undo step. See edit-bar-tasks B10. */
+  setStyleField: (style: number, field: AssStyleField, value: string) => Promise<void>;
   /** Empty one line. `keepTags` leaves the braced runs and drops only the words. See B13. */
   clearText: (cue: number, keepTags: boolean) => Promise<void>;
   /** Begin a translation from the source: same cues, same timings, nothing written yet. See S2. */
@@ -202,7 +205,11 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
         ...patch.cues,
         ...current.slice(patch.from + patch.removed),
       ]);
-      setSummary((current) => (current === null ? null : { ...current, cueCount: patch.cueCount }));
+      // The styles ride on every patch because a style write changes no cue: nothing else in the
+      // patch would tell the panel and the dropdown that one moved. See edit-bar-tasks.md B10.
+      setSummary((current) =>
+        current === null ? null : { ...current, cueCount: patch.cueCount, styles: patch.styles },
+      );
       setCanUndo(patch.canUndo);
       setCanRedo(patch.canRedo);
       setDirty(patch.dirty);
@@ -418,6 +425,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const setStyleField = useCallback(
+    (style: number, field: AssStyleField, value: string) =>
+      command("subtitle_set_style_field", { style, field, value }),
+    [command],
+  );
+
   const clearText = useCallback(
     (cue: number, keepTags: boolean) => command("subtitle_clear_text", { cue, keepTags }),
     [command],
@@ -521,6 +534,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setOverrideTags,
     newTranslation,
     clearText,
+    setStyleField,
     insertCue,
     deleteCue,
     splitCue,

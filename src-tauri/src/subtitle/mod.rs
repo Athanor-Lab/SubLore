@@ -14,7 +14,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use sublore_edit::diff::{CuePatch, CueView};
 use sublore_edit::history::Run;
-use sublore_edit::plan::{self, Edit};
+use sublore_edit::plan::{self, AssStyleField, Edit};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{parse, AssField, Newline, SubtitleDocument, SubtitleFormat};
@@ -179,6 +179,9 @@ pub struct CuePatchDto {
     pub can_redo: bool,
     pub dirty: bool,
     pub truncated: bool,
+    /// The styles as they stand. On every patch because a style write changes no cue, so nothing
+    /// else in this shape would tell the interface that one moved.
+    pub styles: Vec<AssStyleDto>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -441,6 +444,64 @@ pub async fn subtitle_toggle_style(
             flag: flag.into(),
             from,
             to,
+        },
+    )
+    .await
+}
+
+/// Which column of a `Style:` line a write names, on the wire. The name is not on it: renaming a
+/// style means rewriting every event that names it, which is a different operation. See B10.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AssStyleFieldDto {
+    Fontname,
+    Fontsize,
+    Primary,
+    Secondary,
+    Outline,
+    Back,
+    Bold,
+    Italic,
+    Underline,
+    Strikeout,
+}
+
+impl From<AssStyleFieldDto> for AssStyleField {
+    fn from(field: AssStyleFieldDto) -> Self {
+        match field {
+            AssStyleFieldDto::Fontname => AssStyleField::Fontname,
+            AssStyleFieldDto::Fontsize => AssStyleField::Fontsize,
+            AssStyleFieldDto::Primary => AssStyleField::Primary,
+            AssStyleFieldDto::Secondary => AssStyleField::Secondary,
+            AssStyleFieldDto::Outline => AssStyleField::Outline,
+            AssStyleFieldDto::Back => AssStyleField::Back,
+            AssStyleFieldDto::Bold => AssStyleField::Bold,
+            AssStyleFieldDto::Italic => AssStyleField::Italic,
+            AssStyleFieldDto::Underline => AssStyleField::Underline,
+            AssStyleFieldDto::Strikeout => AssStyleField::Strikeout,
+        }
+    }
+}
+
+/// One field of one declared style. Answers with a patch like every other edit, and the patch
+/// carries the styles, which is how the interface learns that one moved. See B10.
+#[tauri::command]
+pub async fn subtitle_set_style_field(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    style: usize,
+    field: AssStyleFieldDto,
+    value: String,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::SetStyleField {
+            style,
+            field: field.into(),
+            value,
         },
     )
     .await
@@ -1170,27 +1231,7 @@ pub fn summarize(path: Option<&str>, document: &SubtitleDocument) -> SubtitleSum
         has_bom: source.has_bom(),
         newline: newline_str(source.newline()).to_owned(),
         byte_length: source.byte_len() as u64,
-        styles: document
-            .ass_styles()
-            .iter()
-            .map(|style| {
-                let [name, fontname, fontsize, primary, secondary, outline, back] =
-                    document.ass_style_text(style);
-                AssStyleDto {
-                    name: name.to_owned(),
-                    fontname: fontname.to_owned(),
-                    fontsize: fontsize.to_owned(),
-                    primary: primary.to_owned(),
-                    secondary: secondary.to_owned(),
-                    outline: outline.to_owned(),
-                    back: back.to_owned(),
-                    bold: style.bold,
-                    italic: style.italic,
-                    underline: style.underline,
-                    strikeout: style.strikeout,
-                }
-            })
-            .collect(),
+        styles: ass_styles(document),
     }
 }
 
@@ -1322,6 +1363,33 @@ fn opened_payload(session: &EditSession, summary: SubtitleSummary) -> SubtitleOp
     }
 }
 
+/// The declared styles as an editor reads them. Carried on every patch as well as on the
+/// summary, because a style write changes no cue and the interface has to be told some other
+/// way that one moved.
+fn ass_styles(document: &SubtitleDocument) -> Vec<AssStyleDto> {
+    document
+        .ass_styles()
+        .iter()
+        .map(|style| {
+            let [name, fontname, fontsize, primary, secondary, outline, back] =
+                document.ass_style_text(style);
+            AssStyleDto {
+                name: name.to_owned(),
+                fontname: fontname.to_owned(),
+                fontsize: fontsize.to_owned(),
+                primary: primary.to_owned(),
+                secondary: secondary.to_owned(),
+                outline: outline.to_owned(),
+                back: back.to_owned(),
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
+                strikeout: style.strikeout,
+            }
+        })
+        .collect()
+}
+
 pub(crate) fn describe(session: &EditSession, patch: CuePatch) -> CuePatchDto {
     CuePatchDto {
         revision: session.revision(),
@@ -1333,6 +1401,7 @@ pub(crate) fn describe(session: &EditSession, patch: CuePatch) -> CuePatchDto {
         can_redo: session.can_redo(),
         dirty: session.dirty(),
         truncated: session.truncated(),
+        styles: ass_styles(session.document()),
     }
 }
 
