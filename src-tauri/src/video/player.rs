@@ -784,20 +784,18 @@ impl Player {
         if !self.state()?.paused || frames == 0 {
             return Ok(());
         }
-        match frames {
-            1 => mpv
+        // Forward is mpv's own step, which lands on the next decoded frame. Backwards is a seek of
+        // one frame at the media's rate: mpv's `frame-back-step` needs to decode backwards and,
+        // measured here, sometimes leaves the picture where it was. See N45.
+        if frames == 1 {
+            return mpv
                 .command("frame-step", &[])
-                .map_err(|error| from_mpv(error, "frame-step")),
-            -1 => mpv
-                .command("frame-back-step", &[])
-                .map_err(|error| from_mpv(error, "frame-back-step")),
-            _ => {
-                let rate = self.frame_rate()?;
-                let seconds = frames as f64 / rate;
-                mpv.command("seek", &[&format!("{seconds}"), "relative+exact"])
-                    .map_err(|error| from_mpv(error, "seek"))
-            }
+                .map_err(|error| from_mpv(error, "frame-step"));
         }
+        let rate = self.frame_rate()?;
+        let seconds = frames as f64 / rate;
+        mpv.command("seek", &[&format!("{seconds}"), "relative+exact"])
+            .map_err(|error| from_mpv(error, "seek"))
     }
 
     /// How many frames a second the open media runs at, as the container says or as the output
@@ -1029,6 +1027,8 @@ fn mpv_path(path: &Path) -> String {
 /// and libmpv2's unchecked `create_client` is never reached. See the M0.2 design, section 2.1.
 fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
     let mut last_position = Instant::now() - POSITION_EVENT_INTERVAL;
+    // A position the throttle held back, waiting for the interval to pass.
+    let mut held: Option<f64> = None;
 
     while !stop.load(Ordering::Relaxed) {
         match mpv.wait_event(EVENT_POLL_SECONDS) {
@@ -1053,9 +1053,15 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                     }
                 }
                 // mpv reports time-pos at frame rate; the UI gets at most 10 updates per second.
+                // What the throttle holds back is kept rather than dropped: two moves inside one
+                // interval, a frame step and the seek back off it, report twice and never again,
+                // and dropping the second would leave the interface a frame ahead of the picture.
                 if last_position.elapsed() >= POSITION_EVENT_INTERVAL {
                     last_position = Instant::now();
+                    held = None;
                     shared.emit_position(position);
+                } else {
+                    held = Some(position);
                 }
             }
             Some(Ok(Event::PropertyChange {
@@ -1141,6 +1147,13 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                 }
             }
             _ => {}
+        }
+        // The held report, once the interval it was waiting for has passed. Every path through the
+        // loop reaches here, and the wait above returns at least ten times a second.
+        if let Some(position) = held.take_if(|_| last_position.elapsed() >= POSITION_EVENT_INTERVAL)
+        {
+            last_position = Instant::now();
+            shared.emit_position(position);
         }
     }
 }
