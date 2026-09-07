@@ -385,6 +385,33 @@ describe("the cue structure edits", () => {
     await waitForTexts([FIRST, "", SECOND], "the line the box was typed into, back as it was");
   });
 
+  it("writes every selected line again after itself, and leaves the copies selected", async () => {
+    await cursorTo(toplevel, 1);
+    key("shift+Down");
+    await waitFor(
+      async () => {
+        const rows = await gridRows();
+        return rows[1]?.cursor === true ? rows : null;
+      },
+      { timeout: 15000, message: "the first two rows to be selected" },
+    );
+
+    await watchCommands();
+    await runFromMenu(toplevel, "subtitle-duplicate");
+
+    // The copies go after the run, not one after each line: two lines duplicated are two lines and
+    // then two copies, which is what keeps a block of dialogue in the order it was written in.
+    const grown = await waitForTexts([FIRST, "", FIRST, "", SECOND], "each line copied after them");
+    expect(await takeCommands()).toEqual(["subtitle_duplicate"]);
+    // And the copies are what is selected, with the cursor on the first of them: what a translator
+    // does next is retime the copies, not the lines they came from.
+    expect(grown.map((row) => row.selected)).toEqual([false, false, true, true, false]);
+    expect(grown.map((row) => row.cursor)).toEqual([false, false, true, false, false]);
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitForTexts([FIRST, "", SECOND], "one undo to take both copies back");
+  });
+
   it("splits a cue at the caret in the current line, from the menu", async () => {
     await cursorTo(toplevel, 3);
     await placeCaret(toplevel, SPLIT_OFFSET);
