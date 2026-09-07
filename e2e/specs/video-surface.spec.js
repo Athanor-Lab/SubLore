@@ -103,6 +103,26 @@ function transportLabel() {
   return browser.execute(() => document.querySelector(".controls__button")?.textContent ?? null);
 }
 
+/**
+ * Where the picture is once it has stopped moving there.
+ *
+ * A pause and a seek both report twice: the number the app asked for, and the frame mpv settled on
+ * a moment later. A reading taken between the two is a number about to change, which is what this
+ * waits out. Two equal readings a third of a second apart, or the run says so.
+ */
+async function settledPosition() {
+  let last = await position();
+  for (let tries = 0; tries < 30; tries += 1) {
+    await sleep(300);
+    const now = await position();
+    if (now === last) {
+      return now;
+    }
+    last = now;
+  }
+  throw new Error(`the position never stopped moving; it last read ${last}`);
+}
+
 async function position() {
   const raw = await browser.execute(
     () => document.querySelector(".controls__slider")?.value ?? null,
@@ -255,7 +275,10 @@ describe("video surface hide and show", () => {
     // mpv's own position, held still across a real interval. A `waitFor` here would return on its
     // first evaluation and compare a reading with itself: that is the defect the previous pass
     // blocked, and it came back inside its own correction.
-    const frozen = await position();
+    //
+    // Read once it has stopped moving, because a pause reports the frame it settled on a moment
+    // after the button says Play, and a reading taken before that is a number about to change.
+    const frozen = await settledPosition();
     await sleep(1500);
     expect(await position()).toBe(frozen);
 

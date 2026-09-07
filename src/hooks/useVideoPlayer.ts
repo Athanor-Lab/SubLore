@@ -53,6 +53,8 @@ export type VideoPlayer = {
   playRange: (from: number, to: number) => Promise<void>;
   /** What the open media is, or null when the read failed and the error was reported. */
   details: () => Promise<VideoDetails | null>;
+  /** Move by whole frames, back when negative. A picture that is playing is left alone. */
+  step: (frames: number) => Promise<void>;
   setRegion: (region: VideoRegion) => void;
 };
 
@@ -110,12 +112,15 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     opening.current += 1;
     const mine = opening.current;
     setErrorCode(null);
+    // Where a new file starts, said before it is asked for rather than after: mpv reports the file
+    // ready through an event that arrives before this call returns, so anything that moved the
+    // picture in that window would be undone by a reset made afterwards. See N44.
+    setPosition(0);
     try {
       const opened = await invoke<VideoOpened>("video_open", { path });
       if (mine !== opening.current) {
         return;
       }
-      setPosition(0);
       setState({
         status: "ready",
         path: opened.path,
@@ -197,6 +202,18 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     }
   }, []);
 
+  const step = useCallback(async (frames: number) => {
+    const mine = opening.current;
+    setErrorCode(null);
+    try {
+      await invoke("video_step", { frames });
+    } catch (error) {
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
+    }
+  }, []);
+
   const details = useCallback(async (): Promise<VideoDetails | null> => {
     const mine = opening.current;
     setErrorCode(null);
@@ -255,6 +272,7 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     seek,
     playRange,
     details,
+    step,
     setRegion,
   };
 }

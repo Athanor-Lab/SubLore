@@ -771,6 +771,50 @@ impl Player {
         Ok(())
     }
 
+    /// Move the picture by whole frames, forward or back.
+    ///
+    /// One frame either way is mpv's own step, which lands exactly on the next decoded frame. More
+    /// than one is a relative seek of that many frames at the media's own rate, because mpv has no
+    /// command for stepping several and calling the one-frame step in a loop would decode each of
+    /// them. A picture that is playing is left alone, which is what the reference does: the keys
+    /// are for looking at a still. See interface-spec 10.5.
+    pub fn step(&self, frames: i64) -> Result<(), VideoError> {
+        let mpv = self.handle()?;
+        self.loaded_duration()?;
+        if !self.state()?.paused || frames == 0 {
+            return Ok(());
+        }
+        // Forward is mpv's own step, which lands on the next decoded frame. Backwards is a seek of
+        // one frame at the media's rate: mpv's `frame-back-step` needs to decode backwards and,
+        // measured here, sometimes leaves the picture where it was. See N45.
+        if frames == 1 {
+            return mpv
+                .command("frame-step", &[])
+                .map_err(|error| from_mpv(error, "frame-step"));
+        }
+        let rate = self.frame_rate()?;
+        let seconds = frames as f64 / rate;
+        mpv.command("seek", &[&format!("{seconds}"), "relative+exact"])
+            .map_err(|error| from_mpv(error, "seek"))
+    }
+
+    /// How many frames a second the open media runs at, as the container says or as the output
+    /// estimates. A media that will not say is one this cannot count frames on.
+    fn frame_rate(&self) -> Result<f64, VideoError> {
+        let mpv = self.handle()?;
+        let rate = mpv
+            .get_property::<f64>("container-fps")
+            .ok()
+            .or_else(|| mpv.get_property::<f64>("estimated-vf-fps").ok())
+            .filter(|rate| rate.is_finite() && *rate > 0.0);
+        rate.ok_or_else(|| {
+            VideoError::new(
+                VideoErrorCode::CommandFailed,
+                "this media does not say how many frames a second it runs at",
+            )
+        })
+    }
+
     /// What the open media is, for the details dialog. See interface-spec 9.9.
     pub fn details(&self) -> Result<VideoDetails, VideoError> {
         let mpv = self.handle()?;
@@ -983,6 +1027,8 @@ fn mpv_path(path: &Path) -> String {
 /// and libmpv2's unchecked `create_client` is never reached. See the M0.2 design, section 2.1.
 fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
     let mut last_position = Instant::now() - POSITION_EVENT_INTERVAL;
+    // A position the throttle held back, waiting for the interval to pass.
+    let mut held: Option<f64> = None;
 
     while !stop.load(Ordering::Relaxed) {
         match mpv.wait_event(EVENT_POLL_SECONDS) {
@@ -1007,9 +1053,15 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                     }
                 }
                 // mpv reports time-pos at frame rate; the UI gets at most 10 updates per second.
+                // What the throttle holds back is kept rather than dropped: two moves inside one
+                // interval, a frame step and the seek back off it, report twice and never again,
+                // and dropping the second would leave the interface a frame ahead of the picture.
                 if last_position.elapsed() >= POSITION_EVENT_INTERVAL {
                     last_position = Instant::now();
+                    held = None;
                     shared.emit_position(position);
+                } else {
+                    held = Some(position);
                 }
             }
             Some(Ok(Event::PropertyChange {
@@ -1095,6 +1147,13 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                 }
             }
             _ => {}
+        }
+        // The held report, once the interval it was waiting for has passed. Every path through the
+        // loop reaches here, and the wait above returns at least ten times a second.
+        if let Some(position) = held.take_if(|_| last_position.elapsed() >= POSITION_EVENT_INTERVAL)
+        {
+            last_position = Instant::now();
+            shared.emit_position(position);
         }
     }
 }
