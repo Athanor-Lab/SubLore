@@ -107,12 +107,14 @@ async function playheadSettles(seconds) {
   for (let tries = 0; tries < 30; tries += 1) {
     await browser.pause(300);
     const now = await playhead();
-    if (now === last && Math.abs(now - seconds) < FRAME) {
+    // Where it stopped, and where it was asked to stop when the caller says: mpv reports the frame
+    // it is really showing, which is at or just past the time a seek asked for.
+    if (now === last && (seconds === undefined || Math.abs(now - seconds) < FRAME)) {
       return now;
     }
     last = now;
   }
-  throw new Error(`the playhead never settled at ${seconds}; it last read ${last}`);
+  throw new Error(`the playhead never settled at ${seconds ?? "anything"}; it last read ${last}`);
 }
 
 /** Which row carries the cursor, by its 1-based position. */
@@ -294,7 +296,7 @@ describe("stepping the picture and walking a line's edges", () => {
   });
 
   it("leaves the arrows to the box the caret is in", async () => {
-    const before = await playhead();
+    const before = await playheadSettles();
     await clickElement(toplevel, ".currentline__text");
     typeText("Some words to move a caret through");
 
