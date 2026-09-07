@@ -641,11 +641,14 @@ export default function App() {
     await subtitle.save();
   }
 
-  /** A copy elsewhere, which leaves a document with a file of its own unsaved. */
-  async function saveCopy() {
+  /**
+   * Write the document somewhere else and go on editing it there, which is what Save as means: the
+   * file it had keeps the bytes it had. See interface-spec 3.1, item 8.
+   */
+  async function saveAs() {
     await flushEditors();
-    // The chooser opens on the open file's own name, which is what a copy is usually called; a
-    // document that has never had a file has no name to offer.
+    // The chooser opens on the open file's own name; a document that has never had a file has no
+    // name to offer.
     await pick("subtitle-save", subtitle.summary?.path ?? undefined, (path) => {
       void subtitle.saveAs(path);
     });
@@ -1229,11 +1232,11 @@ export default function App() {
       run: () => void saveDocument(),
     },
     {
-      id: "file.save-copy",
-      label: en.menu.file.saveCopy,
-      accelerator: en.menu.keys.saveCopy,
+      id: "file.save-as",
+      label: en.menu.file.saveAs,
+      accelerator: en.menu.keys.saveAs,
       enabled: subtitle.summary !== null && !choosing,
-      run: () => void saveCopy(),
+      run: () => void saveAs(),
     },
     {
       id: "file.discard",
@@ -1854,7 +1857,7 @@ export default function App() {
         "file.close-source",
         "file.new-translation",
         "file.save",
-        "file.save-copy",
+        "file.save-as",
         "file.discard",
         "app.quit",
       ],
@@ -2001,7 +2004,7 @@ export default function App() {
       })),
   ];
   const toolbar: CommandId[][] = [
-    ["file.open-subtitle", "video.open", "file.save", "file.save-copy", "file.discard"],
+    ["file.open-subtitle", "video.open", "file.save", "file.save-as", "file.discard"],
     ["edit.undo", "edit.redo"],
   ];
 

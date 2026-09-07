@@ -403,7 +403,7 @@ describe("transcription", () => {
     expect(await present(".statusbar__dirty")).toBe(true);
     // Both saves are offered: Save asks where a document with no file goes (decision 24, B2).
     expect(await propertyOf(".toolbar__file-save", "disabled")).toBe(false);
-    expect(await propertyOf(".toolbar__file-save-copy", "disabled")).toBe(false);
+    expect(await propertyOf(".toolbar__file-save-as", "disabled")).toBe(false);
     expect(await textOf(".statusbar__error")).toBe(null);
 
     // The transcription wrote nothing at all: not beside the media, and nowhere Sublore saves.
@@ -421,9 +421,9 @@ describe("transcription", () => {
     expect(await propertyOf(".toolbar__edit-undo", "disabled")).toBe(false);
 
     const destination = path.join(saveDir, "from-transcription.srt");
-    await clickElement(toplevel, ".toolbar__file-save-copy");
-    const chooser = await waitForChooser("Save a copy of the subtitle");
-    await answerChooser(chooser, destination, "save a copy");
+    await clickElement(toplevel, ".toolbar__file-save-as");
+    const chooser = await waitForChooser("Save the subtitle as");
+    await answerChooser(chooser, destination, "save as");
     focusWindow(toplevel.id);
     await waitFor(
       async () => (await textOf(".statusbar__message"))?.includes(destination) === true,

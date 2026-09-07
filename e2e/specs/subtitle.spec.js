@@ -122,22 +122,22 @@ async function openSubtitle(toplevel, file) {
   focusWindow(toplevel.id);
 }
 
-/** Name the copy in the save chooser. Its filename field is what the destination box used to be. */
-async function saveCopyTo(toplevel, destination) {
-  await clickElement(toplevel, ".toolbar__file-save-copy");
-  const chooser = await waitForChooser("Save a copy of the subtitle");
-  await answerChooser(chooser, destination, "save a copy");
+/** Name the file in the save chooser. Its filename field is what the destination box used to be. */
+async function saveAsTo(toplevel, destination) {
+  await clickElement(toplevel, ".toolbar__file-save-as");
+  const chooser = await waitForChooser("Save the subtitle as");
+  await answerChooser(chooser, destination, "save as");
   focusWindow(toplevel.id);
 }
 
-/** Save the open document elsewhere and prove the copy holds the bytes that were opened. */
+/** Save the open document elsewhere and prove the written file holds the bytes that were opened. */
 async function savesIdenticalCopy(toplevel, source, saveDir) {
   const destination = path.join(saveDir, path.basename(source));
 
-  await saveCopyTo(toplevel, destination);
+  await saveAsTo(toplevel, destination);
   await waitFor(async () => (await textOf(".statusbar__message"))?.includes(destination) === true, {
     timeout: 20000,
-    message: `the status line to report the copy at ${destination}`,
+    message: `the status line to report the file written at ${destination}`,
   });
 
   expect(await textOf(".statusbar__error")).toBe(null);
@@ -233,6 +233,46 @@ describe("subtitle open and save", () => {
     await openSubtitle(toplevel, fixture("srt", "clean", "basic-lf.srt"));
     expect(await waitForStatus(LF_STATUS)).toBe(LF_STATUS);
     expect(await textOf(".statusbar__error")).toBe(null);
+  });
+
+  it("goes on editing the file it was saved as, leaving the one it came from alone", async () => {
+    // The difference between Save as and a copy, and the only place it shows: what the next save
+    // writes. See interface-spec 3.1, item 8.
+    const from = path.join(saveDir, "before-save-as.srt");
+    copyFileSync(fixture("srt", "clean", "basic-lf.srt"), from);
+    const opened = readFileSync(from);
+    const to = path.join(saveDir, "after-save-as.srt");
+
+    await openSubtitle(toplevel, from);
+    await waitForStatus(LF_STATUS);
+    await saveAsTo(toplevel, to);
+    await waitFor(async () => (await textOf(".statusbar__message"))?.includes(to) === true, {
+      timeout: 20000,
+      message: `the status line to report the file written at ${to}`,
+    });
+
+    await clickRow(toplevel, DISCARD_POSITION);
+    await waitFor(() => present(".cuelist__editor"), {
+      timeout: 15000,
+      message: "the inline editor to open",
+    });
+    pressKey("ctrl+a");
+    typeText(DISCARD_TEXT);
+    pressKey("Return");
+    await waitFor(async () => (await rowText(DISCARD_POSITION)) === DISCARD_TEXT, {
+      timeout: 20000,
+      message: `row ${DISCARD_POSITION} to hold the edit`,
+    });
+
+    // Save, with no chooser: the document has a file, and it is the one it was saved as.
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
+      timeout: 20000,
+      message: "the document to be saved without asking where",
+    });
+    expect(readFileSync(to, "utf8")).toContain(DISCARD_TEXT);
+    // And the file it came from is every byte it was, edit and all.
+    expect(readFileSync(from).equals(opened)).toBe(true);
   });
 
   it("throws an unsaved edit away and writes nothing when the edit is discarded", async () => {

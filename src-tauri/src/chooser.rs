@@ -57,7 +57,7 @@ pub enum Choice {
     Video,
     Subtitle,
     SubtitleSave,
-    /// Where a document that has never had a file goes, asked by Save rather than by Save a copy
+    /// Where a document that has never had a file goes, asked by Save rather than by Save as
     /// (decision 24, B2).
     SubtitleFirstSave,
 }

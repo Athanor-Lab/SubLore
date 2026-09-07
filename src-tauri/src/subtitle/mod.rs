@@ -1438,16 +1438,17 @@ fn save_as_locked(
         &BackupStore::new(backup_root),
     )
     .map_err(SubtitleError::from_io)?;
-    // A document that has never had a file adopts the one it was just written to, and its bytes are
-    // now on disk, so it is not unsaved work any more (decision 24, B2).
-    if session.path().is_none() {
-        session.adopt_path(outcome.destination.clone());
-        session.mark_saved();
-        crate::log::info!(
-            "subtitle: a document with no file adopted {}",
-            outcome.destination.display()
-        );
-    }
+    // The document takes the file it was just written to, whether or not it had one before: this is
+    // Save as, not Save a copy, and what a translator goes on editing is the file they named. Its
+    // bytes are on disk now, so it is not unsaved work any more (interface-spec 3.1, item 8).
+    let had_none = session.path().is_none();
+    session.adopt_path(outcome.destination.clone());
+    session.mark_saved();
+    crate::log::info!(
+        "subtitle: the document is {} now{}",
+        outcome.destination.display(),
+        if had_none { ", having had no file" } else { "" }
+    );
     Ok(saved(outcome, session.dirty()))
 }
 
