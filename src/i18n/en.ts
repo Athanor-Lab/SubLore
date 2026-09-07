@@ -125,7 +125,12 @@ export const en = {
     /** The four cue structure edits, interface-spec section 3 order (M2.7 E2, T3 C2). */
     subtitles: {
       title: "Subtitles",
+      /** The submenu the four below sit in, which is where the interface puts them. */
       insert: "Insert cue",
+      insertBefore: "Before current",
+      insertAfter: "After current",
+      insertBeforeAtPlayhead: "Before current, at the playhead",
+      insertAfterAtPlayhead: "After current, at the playhead",
       /** Goes to the next cue, and makes one when the cursor is on the last. */
       nextLine: "Next line",
       delete: "Delete cues",

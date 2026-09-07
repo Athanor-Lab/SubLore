@@ -25,6 +25,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clippedAtWindowEdge } from "../lib/clipping.js";
 import { askForWindowSize, clickAt, dragAt, focusWindow, waitForWindowSize } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
+import { intoList } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
 import { interfaceScale } from "../lib/scale.js";
 import { findToplevel, minimumWidthHint, rootTree } from "../lib/x11.js";
@@ -341,6 +342,7 @@ async function runFromMenu(toplevel, token) {
     timeout: 15000,
     message: "the Subtitles dropdown to be the open one",
   });
+  await intoList((css) => clickElement(toplevel, css), token);
   expect(await disabledOf(`#menuitem-${token}`)).toBe(false);
   await clickElement(toplevel, `#menuitem-${token}`);
   await waitFor(async () => ((await openMenu()) === null ? true : null), {
@@ -657,7 +659,7 @@ describe("the grid's style and actor columns", () => {
   it("gives an inserted cue the style and the speaker of the line it was copied from", async () => {
     await cursorTo(toplevel, INGRID_POSITION);
 
-    await runFromMenu(toplevel, "subtitle-insert");
+    await runFromMenu(toplevel, "subtitle-insert-after");
 
     const rows = await waitForTexts(
       [BASIC_TEXTS[0], BASIC_TEXTS[1], "", BASIC_TEXTS[2]],

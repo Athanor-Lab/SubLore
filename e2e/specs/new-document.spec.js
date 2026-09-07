@@ -16,6 +16,7 @@ import { browser, expect } from "@wdio/globals";
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { windowHeight, windowWidth } from "../lib/paths.js";
+import { intoList } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -73,6 +74,11 @@ function rowCount() {
 /** Open one of the bar's menus and choose an item by command token. */
 async function fromMenu(toplevel, title, token) {
   await clickElement(toplevel, `.menubar__title--${title}`);
+  await waitFor(() => present(".menubar__menu"), {
+    timeout: 15000,
+    message: `the ${title} menu to open`,
+  });
+  await intoList((css) => clickElement(toplevel, css), token);
   await waitFor(() => present(`.menubar__item--${token}`), {
     timeout: 15000,
     message: `the ${title} menu to open on ${token}`,
@@ -112,7 +118,7 @@ describe("a document with nothing in it", () => {
   });
 
   it("takes its first line, which is what an empty section could not do before", async () => {
-    await fromMenu(toplevel, "subtitle", "subtitle-insert");
+    await fromMenu(toplevel, "subtitle", "subtitle-insert-after");
     await waitFor(async () => ((await rowCount()) === 1 ? 1 : null), {
       timeout: 20000,
       message: "the first row to appear",

@@ -92,7 +92,10 @@ const DECLARED = [
   "time-start-later",
   "time-end-earlier",
   "time-end-later",
-  "subtitle-insert",
+  "subtitle-insert-before",
+  "subtitle-insert-after",
+  "subtitle-insert-before-at-playhead",
+  "subtitle-insert-after-at-playhead",
   "subtitle-next-line",
   "subtitle-delete",
   "subtitle-split",
@@ -189,7 +192,10 @@ const EDIT_ITEMS = [
 
 /** Subtitles with nothing open: every cue edit needs a document, so all of them are greyed. */
 const SUBTITLE_ITEMS = [
-  { id: "subtitle-insert", disabled: true },
+  { id: "subtitle-insert-before", disabled: true },
+  { id: "subtitle-insert-after", disabled: true },
+  { id: "subtitle-insert-before-at-playhead", disabled: true },
+  { id: "subtitle-insert-after-at-playhead", disabled: true },
   { id: "subtitle-next-line", disabled: true },
   { id: "subtitle-delete", disabled: true },
   { id: "subtitle-split", disabled: true },
@@ -628,7 +634,8 @@ describe("the command registry", () => {
       // has typed one, so it stays greyed through the open (F5).
       { route: "menu", id: "edit-find", disabled: false },
       { route: "menu", id: "edit-replace", disabled: false },
-      { route: "menu", id: "subtitle-insert", disabled: false },
+      { route: "menu", id: "subtitle-insert-before", disabled: false },
+      { route: "menu", id: "subtitle-insert-after", disabled: false },
       { route: "menu", id: "subtitle-next-line", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },

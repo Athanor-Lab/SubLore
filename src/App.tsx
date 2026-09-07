@@ -351,7 +351,7 @@ export default function App() {
   // through a box rather than directly: the document is read before the selection exists.
   const rowsMovedRef = useRef<RowsMoved>(() => {});
   const selectRunRef = useRef<(from: number, to: number) => void>(() => {});
-  /** Set by a paste, read by the patch it causes: the rows that land are the rows left selected. */
+  /** Set by a paste or an insert, read by the patch it causes: what lands is what is left selected. */
   const pasteLanding = useRef(false);
   const onRowsMoved = useCallback<RowsMoved>((at, removed, inserted) => {
     rowsMovedRef.current(at, removed, inserted);
@@ -821,19 +821,67 @@ export default function App() {
   }
 
   /**
-   * A cue below the cursor, starting where that one ends and running `NEW_CUE_MS`. An empty
-   * document takes its first cue at zero. See BACKLOG.md M2.7 E2.
+   * A cue beside the cursor's, and the four ways of asking for one (interface-spec 3.3 item 1).
+   *
+   * `after` is which side of the current line it goes on. `atPlayhead` times it from where the
+   * picture is instead of from the line beside it, and takes no room from anything: the translator
+   * has said where it goes by putting the playhead there.
+   *
+   * Where it is not timed from the playhead the new cue takes the room between its neighbour and
+   * whatever is on the other side of it, never overlapping what is already written: after the
+   * current line it runs to the next line that starts, before it it starts at the last line that
+   * ended. An empty document takes its first cue at zero. See BACKLOG.md M2.7 E2.
    */
-  async function insertCue() {
+  async function insertCue(after: boolean, atPlayhead: boolean) {
     await flushEditors();
     if (subtitle.summary === null) {
       return;
     }
     const at = selection.active;
-    const previous = at === null ? null : (subtitle.cues[at] ?? null);
-    const before = at === null || previous === null ? subtitle.cues.length : at + 1;
-    const startMs = previous === null ? 0 : previous.endMs;
-    await subtitle.insertCue(before, startMs, startMs + NEW_CUE_MS, "");
+    const current = at === null ? null : (subtitle.cues[at] ?? null);
+    if (at === null || current === null) {
+      // Nothing to sit beside: the first cue of an empty document, which only "after" offers.
+      if (!after || atPlayhead) {
+        return;
+      }
+      pasteLanding.current = true;
+      try {
+        await subtitle.insertCue(subtitle.cues.length, 0, NEW_CUE_MS, "");
+      } finally {
+        pasteLanding.current = false;
+      }
+      return;
+    }
+
+    const before = after ? at + 1 : at;
+    let startMs: number;
+    let endMs: number;
+    if (atPlayhead) {
+      startMs = Math.round(position * 1000);
+      endMs = startMs + NEW_CUE_MS;
+    } else if (after) {
+      startMs = current.endMs;
+      endMs = subtitle.cues.reduce(
+        (soonest, cue) => (cue.startMs >= startMs ? Math.min(soonest, cue.startMs) : soonest),
+        startMs + NEW_CUE_MS,
+      );
+    } else {
+      endMs = current.startMs;
+      startMs = subtitle.cues.reduce(
+        (latest, cue) => (cue.endMs <= endMs ? Math.max(latest, cue.endMs) : latest),
+        Math.max(0, endMs - NEW_CUE_MS),
+      );
+    }
+    if (endMs <= startMs) {
+      // No room between the two: a cue that started where it ended would be one no player draws.
+      return;
+    }
+    pasteLanding.current = true;
+    try {
+      await subtitle.insertCue(before, startMs, endMs, "");
+    } finally {
+      pasteLanding.current = false;
+    }
   }
 
   /**
@@ -1814,11 +1862,31 @@ export default function App() {
       },
     },
     {
-      id: "subtitle.insert",
-      label: en.menu.subtitles.insert,
+      id: "subtitle.insert-after",
+      label: en.menu.subtitles.insertAfter,
       // A document with no rows can still take its first one, so the cursor is not required here.
+      // The interface asks for a selected line; Sublore keeps the looser rule on this one alone,
+      // because a document that has just been made has no line to select and no other way in.
       enabled: subtitle.summary !== null,
-      run: () => void insertCue(),
+      run: () => void insertCue(true, false),
+    },
+    {
+      id: "subtitle.insert-before",
+      label: en.menu.subtitles.insertBefore,
+      enabled: activeCue !== null,
+      run: () => void insertCue(false, false),
+    },
+    {
+      id: "subtitle.insert-after-at-playhead",
+      label: en.menu.subtitles.insertAfterAtPlayhead,
+      enabled: activeCue !== null && state.status === "ready",
+      run: () => void insertCue(true, true),
+    },
+    {
+      id: "subtitle.insert-before-at-playhead",
+      label: en.menu.subtitles.insertBeforeAtPlayhead,
+      enabled: activeCue !== null && state.status === "ready",
+      run: () => void insertCue(false, true),
     },
     {
       id: "subtitle.next-line",
@@ -2052,7 +2120,18 @@ export default function App() {
       id: "subtitle",
       title: en.menu.subtitles.title,
       items: [
-        "subtitle.insert",
+        // The four ways of asking for a cue sit in a list of their own, which is where the
+        // interface puts them (interface-spec 3.3 item 1).
+        {
+          id: "subtitle-insert",
+          label: en.menu.subtitles.insert,
+          items: [
+            "subtitle.insert-before",
+            "subtitle.insert-after",
+            "subtitle.insert-before-at-playhead",
+            "subtitle.insert-after-at-playhead",
+          ],
+        },
         "subtitle.next-line",
         "subtitle.delete",
         "subtitle.split",
