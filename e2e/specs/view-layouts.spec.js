@@ -16,7 +16,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { findToplevel } from "../lib/x11.js";
+import { childWindows, findToplevel, mapState } from "../lib/x11.js";
 
 const storedLayout = () =>
   path.join(process.env.SUBLORE_E2E_DATA_HOME, "com.sublore.app", "layout.json");
@@ -176,6 +176,33 @@ describe("the four panel layouts", () => {
     await pickLayout(toplevel, "video-grid", { video: true, waveform: false });
     await pickLayout(toplevel, "waveform-grid", { video: false, waveform: true });
     await pickLayout(toplevel, "full", { video: true, waveform: true });
+  });
+
+  it("takes the native picture off the screen with the panel that held it", async () => {
+    // The panel is a DOM box and the picture is an X window over it: a layout that removed the box
+    // and left the window would draw the picture over the grid. Nothing else in the suite asks.
+    const surface = () =>
+      childWindows(toplevel.id).filter((child) => child.width > 50 && child.height > 50)[0] ?? null;
+    expect(surface()).not.toBe(null);
+    expect(mapState(surface().id)).toBe("IsViewable");
+
+    await pickLayout(toplevel, "grid-only", { video: false, waveform: false });
+    await waitFor(
+      () => {
+        const window_ = surface();
+        return window_ === null || mapState(window_.id) === "IsUnMapped" ? 1 : null;
+      },
+      { timeout: 20000, message: "the native picture to go with the panel" },
+    );
+
+    await pickLayout(toplevel, "full", { video: true, waveform: true });
+    await waitFor(
+      () => {
+        const window_ = surface();
+        return window_ !== null && mapState(window_.id) === "IsViewable" ? 1 : null;
+      },
+      { timeout: 20000, message: "the native picture to come back with the panel" },
+    );
   });
 
   it("keeps the old waveform toggle agreeing with the four", async () => {
