@@ -119,6 +119,22 @@ pub struct AssStyle {
     pub italic: bool,
     pub underline: bool,
     pub strikeout: bool,
+    /// The rest of what a `Style:` line declares, as the file spells each of them. Spans for the
+    /// same reason the colours are: a reader may not invent a number the file does not hold.
+    /// `outline_width` and `shadow` are the border's width and the shadow's depth, which the
+    /// format calls Outline and Shadow, and are not the two colour columns above them.
+    pub scale_x: Span,
+    pub scale_y: Span,
+    pub spacing: Span,
+    pub angle: Span,
+    pub border_style: Span,
+    pub outline_width: Span,
+    pub shadow: Span,
+    pub alignment: Span,
+    pub margin_l: Span,
+    pub margin_r: Span,
+    pub margin_v: Span,
+    pub encoding: Span,
     /// Where each of those four sits, so an editor can write one back. Read apart from the
     /// booleans above because a reader wants the meaning and a writer wants the bytes.
     pub bold_field: Span,
@@ -187,7 +203,7 @@ impl SubtitleDocument {
     /// One declared style's spans resolved against the source, in the order the section declares
     /// them. Every value is the file's own spelling, trimmed the way a cue's own style field is so
     /// the two can be compared. Empty for every other format and for an ASS with no styles section.
-    pub fn ass_style_text(&self, style: &AssStyle) -> [&str; 7] {
+    pub fn ass_style_text(&self, style: &AssStyle) -> [&str; 19] {
         let body = self.source.body();
         let read = |span: Span| body.get(span.range()).unwrap_or("");
         [
@@ -198,6 +214,18 @@ impl SubtitleDocument {
             read(style.secondary),
             read(style.outline),
             read(style.back),
+            read(style.scale_x),
+            read(style.scale_y),
+            read(style.spacing),
+            read(style.angle),
+            read(style.border_style),
+            read(style.outline_width),
+            read(style.shadow),
+            read(style.alignment),
+            read(style.margin_l),
+            read(style.margin_r),
+            read(style.margin_v),
+            read(style.encoding),
         ]
     }
 

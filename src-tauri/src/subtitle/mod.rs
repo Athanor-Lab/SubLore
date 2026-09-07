@@ -109,6 +109,20 @@ pub struct AssStyleDto {
     pub secondary: String,
     pub outline: String,
     pub back: String,
+    /// The rest of what a style declares, as the file spells each. `outline_width` and `shadow`
+    /// are the border's width and the shadow's depth, not the two colour columns above them.
+    pub scale_x: String,
+    pub scale_y: String,
+    pub spacing: String,
+    pub angle: String,
+    pub border_style: String,
+    pub outline_width: String,
+    pub shadow: String,
+    pub alignment: String,
+    pub margin_l: String,
+    pub margin_r: String,
+    pub margin_v: String,
+    pub encoding: String,
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
@@ -464,6 +478,18 @@ pub enum AssStyleFieldDto {
     Italic,
     Underline,
     Strikeout,
+    ScaleX,
+    ScaleY,
+    Spacing,
+    Angle,
+    BorderStyle,
+    OutlineWidth,
+    Shadow,
+    Alignment,
+    MarginL,
+    MarginR,
+    MarginV,
+    Encoding,
 }
 
 impl From<AssStyleFieldDto> for AssStyleField {
@@ -479,6 +505,18 @@ impl From<AssStyleFieldDto> for AssStyleField {
             AssStyleFieldDto::Italic => AssStyleField::Italic,
             AssStyleFieldDto::Underline => AssStyleField::Underline,
             AssStyleFieldDto::Strikeout => AssStyleField::Strikeout,
+            AssStyleFieldDto::ScaleX => AssStyleField::ScaleX,
+            AssStyleFieldDto::ScaleY => AssStyleField::ScaleY,
+            AssStyleFieldDto::Spacing => AssStyleField::Spacing,
+            AssStyleFieldDto::Angle => AssStyleField::Angle,
+            AssStyleFieldDto::BorderStyle => AssStyleField::BorderStyle,
+            AssStyleFieldDto::OutlineWidth => AssStyleField::OutlineWidth,
+            AssStyleFieldDto::Shadow => AssStyleField::Shadow,
+            AssStyleFieldDto::Alignment => AssStyleField::Alignment,
+            AssStyleFieldDto::MarginL => AssStyleField::MarginL,
+            AssStyleFieldDto::MarginR => AssStyleField::MarginR,
+            AssStyleFieldDto::MarginV => AssStyleField::MarginV,
+            AssStyleFieldDto::Encoding => AssStyleField::Encoding,
         }
     }
 }
@@ -1371,8 +1409,27 @@ fn ass_styles(document: &SubtitleDocument) -> Vec<AssStyleDto> {
         .ass_styles()
         .iter()
         .map(|style| {
-            let [name, fontname, fontsize, primary, secondary, outline, back] =
-                document.ass_style_text(style);
+            let [
+                name,
+                fontname,
+                fontsize,
+                primary,
+                secondary,
+                outline,
+                back,
+                scale_x,
+                scale_y,
+                spacing,
+                angle,
+                border_style,
+                outline_width,
+                shadow,
+                alignment,
+                margin_l,
+                margin_r,
+                margin_v,
+                encoding,
+            ] = document.ass_style_text(style);
             AssStyleDto {
                 name: name.to_owned(),
                 fontname: fontname.to_owned(),
@@ -1381,6 +1438,18 @@ fn ass_styles(document: &SubtitleDocument) -> Vec<AssStyleDto> {
                 secondary: secondary.to_owned(),
                 outline: outline.to_owned(),
                 back: back.to_owned(),
+                scale_x: scale_x.to_owned(),
+                scale_y: scale_y.to_owned(),
+                spacing: spacing.to_owned(),
+                angle: angle.to_owned(),
+                border_style: border_style.to_owned(),
+                outline_width: outline_width.to_owned(),
+                shadow: shadow.to_owned(),
+                alignment: alignment.to_owned(),
+                margin_l: margin_l.to_owned(),
+                margin_r: margin_r.to_owned(),
+                margin_v: margin_v.to_owned(),
+                encoding: encoding.to_owned(),
                 bold: style.bold,
                 italic: style.italic,
                 underline: style.underline,

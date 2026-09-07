@@ -226,6 +226,18 @@ fn style_record(
         italic: style_flag(body, style_field(body, remainder, format.italic)),
         underline: style_flag(body, style_field(body, remainder, format.underline)),
         strikeout: style_flag(body, style_field(body, remainder, format.strikeout)),
+        scale_x: style_field(body, remainder, format.scale_x),
+        scale_y: style_field(body, remainder, format.scale_y),
+        spacing: style_field(body, remainder, format.spacing),
+        angle: style_field(body, remainder, format.angle),
+        border_style: style_field(body, remainder, format.border_style),
+        outline_width: style_field(body, remainder, format.outline_width),
+        shadow: style_field(body, remainder, format.shadow),
+        alignment: style_field(body, remainder, format.alignment),
+        margin_l: style_field(body, remainder, format.margin_l),
+        margin_r: style_field(body, remainder, format.margin_r),
+        margin_v: style_field(body, remainder, format.margin_v),
+        encoding: style_field(body, remainder, format.encoding),
         bold_field: style_field(body, remainder, format.bold),
         italic_field: style_field(body, remainder, format.italic),
         underline_field: style_field(body, remainder, format.underline),
@@ -248,6 +260,18 @@ struct StyleFormat {
     italic: Option<usize>,
     underline: Option<usize>,
     strikeout: Option<usize>,
+    scale_x: Option<usize>,
+    scale_y: Option<usize>,
+    spacing: Option<usize>,
+    angle: Option<usize>,
+    border_style: Option<usize>,
+    outline_width: Option<usize>,
+    shadow: Option<usize>,
+    alignment: Option<usize>,
+    margin_l: Option<usize>,
+    margin_r: Option<usize>,
+    margin_v: Option<usize>,
+    encoding: Option<usize>,
 }
 
 /// Read a styles section's `Format:` field list. The first match of each name wins, as it does for
@@ -265,6 +289,18 @@ fn style_format(names: &str) -> StyleFormat {
         italic: None,
         underline: None,
         strikeout: None,
+        scale_x: None,
+        scale_y: None,
+        spacing: None,
+        angle: None,
+        border_style: None,
+        outline_width: None,
+        shadow: None,
+        alignment: None,
+        margin_l: None,
+        margin_r: None,
+        margin_v: None,
+        encoding: None,
     };
     for (index, name) in names.split(',').enumerate() {
         let name = name.trim_matches([' ', '\t', '\r']);
@@ -290,6 +326,30 @@ fn style_format(names: &str) -> StyleFormat {
             &mut format.underline
         } else if name.eq_ignore_ascii_case("strikeout") {
             &mut format.strikeout
+        } else if name.eq_ignore_ascii_case("scalex") {
+            &mut format.scale_x
+        } else if name.eq_ignore_ascii_case("scaley") {
+            &mut format.scale_y
+        } else if name.eq_ignore_ascii_case("spacing") {
+            &mut format.spacing
+        } else if name.eq_ignore_ascii_case("angle") {
+            &mut format.angle
+        } else if name.eq_ignore_ascii_case("borderstyle") {
+            &mut format.border_style
+        } else if name.eq_ignore_ascii_case("outline") {
+            &mut format.outline_width
+        } else if name.eq_ignore_ascii_case("shadow") {
+            &mut format.shadow
+        } else if name.eq_ignore_ascii_case("alignment") {
+            &mut format.alignment
+        } else if name.eq_ignore_ascii_case("marginl") {
+            &mut format.margin_l
+        } else if name.eq_ignore_ascii_case("marginr") {
+            &mut format.margin_r
+        } else if name.eq_ignore_ascii_case("marginv") {
+            &mut format.margin_v
+        } else if name.eq_ignore_ascii_case("encoding") {
+            &mut format.encoding
         } else {
             continue;
         };

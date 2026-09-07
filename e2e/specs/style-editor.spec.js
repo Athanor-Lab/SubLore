@@ -53,6 +53,9 @@ function centreOf(selector) {
     if (element === null) {
       return null;
     }
+    // The style editor is taller than the window and scrolls inside itself, so a control further
+    // down has a rectangle outside the viewport and a click at its centre would land on nothing.
+    element.scrollIntoView({ block: "center" });
     const rect = element.getBoundingClientRect();
     const dpr = window.devicePixelRatio;
     return { x: (rect.x + rect.width / 2) * dpr, y: (rect.y + rect.height / 2) * dpr };
@@ -172,6 +175,47 @@ describe("the style editor", () => {
     // The whole of what this check is for: a style line that swallowed a comma would move every
     // column of every event under it, and this is the only place that would be seen.
     expect(events(copy)).toEqual(eventsBefore);
+  });
+
+  it("moves the line's place on the grid, and writes the number ASS uses for it", async () => {
+    await clickElement(toplevel, ".currentline__style-edit");
+    await waitFor(() => present(".styleeditor__alignment"), {
+      timeout: 15000,
+      message: "the alignment grid to be drawn",
+    });
+    const marked = () =>
+      browser.execute(() =>
+        Array.from(document.querySelectorAll(".styleeditor__place"))
+          .filter((place) => place.getAttribute("aria-checked") === "true")
+          .map((place) => place.getAttribute("aria-label")),
+      );
+    // The fixture's own place, which the file spells and the grid reads back rather than guessing.
+    expect(await marked()).toEqual(["2"]);
+
+    // Top left, which ASS numbers 7: the grid draws it first and the number is not its position.
+    await clickElement(toplevel, ".styleeditor__place-7");
+    await waitFor(async () => (JSON.stringify(await marked()) === '["7"]' ? 1 : null), {
+      timeout: 15000,
+      message: "the top left place to be marked",
+    });
+    await clickElement(toplevel, ".styleeditor__close");
+    await waitFor(async () => ((await present(".styleeditor__panel")) ? null : 1), {
+      timeout: 15000,
+      message: "the editor to close",
+    });
+
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(async () => (styleLine(copy)?.includes(",7,") === true ? 1 : null), {
+      timeout: 20000,
+      message: "the place to reach the file",
+    });
+    expect(events(copy)).toEqual(eventsBefore);
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await present(".statusbar__dirty")) ? 1 : null), {
+      timeout: 15000,
+      message: "the undo to leave the document unsaved again",
+    });
   });
 
   it("turns a flag on in the style line, and one undo takes it back", async () => {

@@ -403,6 +403,26 @@ export const en = {
       italic: "Italic",
       underline: "Underline",
       strikeout: "Strikeout",
+      /** The headings of the dialog's groups, in the order the reference's own dialog has them. */
+      font: "Font",
+      colours: "Colours",
+      margins: "Margins",
+      border: "Outline",
+      alignment: "Alignment",
+      miscellaneous: "Miscellaneous",
+      /** The border's width and the shadow's depth, which are not the two colours above them. */
+      outlineWidth: "Outline",
+      shadow: "Shadow",
+      /** A border style rather than a flag: it writes 3 for the box and 1 for outline and shadow. */
+      opaqueBox: "Opaque box",
+      marginL: "Left",
+      marginR: "Right",
+      marginV: "Vertical",
+      scaleX: "Scale X",
+      scaleY: "Scale Y",
+      angle: "Rotation",
+      spacing: "Spacing",
+      encoding: "Encoding",
       close: "Close",
     },
     /** Said while a list the interface asked for has not come back yet. */

@@ -22,7 +22,19 @@ export type AssStyleField =
   | "bold"
   | "italic"
   | "underline"
-  | "strikeout";
+  | "strikeout"
+  | "scaleX"
+  | "scaleY"
+  | "spacing"
+  | "angle"
+  | "borderStyle"
+  | "outlineWidth"
+  | "shadow"
+  | "alignment"
+  | "marginL"
+  | "marginR"
+  | "marginV"
+  | "encoding";
 
 export type AssStyle = {
   name: string;
@@ -32,6 +44,19 @@ export type AssStyle = {
   secondary: string;
   outline: string;
   back: string;
+  /** The rest of what a style declares. `outlineWidth` and `shadow` are widths, not colours. */
+  scaleX: string;
+  scaleY: string;
+  spacing: string;
+  angle: string;
+  borderStyle: string;
+  outlineWidth: string;
+  shadow: string;
+  alignment: string;
+  marginL: string;
+  marginR: string;
+  marginV: string;
+  encoding: string;
   bold: boolean;
   italic: boolean;
   underline: boolean;
