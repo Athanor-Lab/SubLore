@@ -19,7 +19,9 @@ import WaveBar, { type WaveBarButton } from "./components/WaveBar";
 import Waveform, { type LiveTimes } from "./components/Waveform";
 import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
+import VideoDetailsPanel from "./components/VideoDetails";
 import VideoStage from "./components/VideoStage";
+import { type VideoDetails } from "./types/video";
 import { useAudioPeaks } from "./hooks/useAudioPeaks";
 import { useCueSelection } from "./hooks/useCueSelection";
 import { LayerContext, useLayerRegistry } from "./hooks/useLayers";
@@ -284,6 +286,7 @@ export default function App() {
     pause: pauseVideo,
     seek,
     playRange,
+    details: readVideoDetails,
     setRegion,
   } = useVideoPlayer(layers.covered);
   const audio = useAudioTracks(state.path, state.status === "ready");
@@ -512,6 +515,8 @@ export default function App() {
   const [tagMode, setTagMode] = useState<TagMode>("show");
   /** Which declared style the editor is open over, or null while it is closed. See B10. */
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
+  /** What Video details is showing, and nothing on screen while it is null. */
+  const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   // The find band, and what it is looking for. The query outlives a close so reopening the band
@@ -1244,6 +1249,19 @@ export default function App() {
       run: () => void closeVideo(),
     },
     {
+      id: "video.details",
+      label: en.menu.video.details,
+      enabled: state.status === "ready",
+      // A media that will not answer leaves the dialog shut, and the refusal reaches the status
+      // bar the way every other video refusal does.
+      run: () =>
+        void readVideoDetails().then((found) => {
+          if (found !== null) {
+            setVideoDetails(found);
+          }
+        }),
+    },
+    {
       id: "video.play",
       label: en.menu.video.play,
       accelerator: en.menu.keys.videoPlay,
@@ -1617,6 +1635,7 @@ export default function App() {
       items: [
         "video.open",
         "video.close",
+        "video.details",
         "video.play",
         "video.play-cue",
         "video.stop",
@@ -2002,6 +2021,9 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {videoDetails !== null && (
+          <VideoDetailsPanel details={videoDetails} onClose={() => setVideoDetails(null)} />
+        )}
         {/* The style the editor was opened over may go with an undo or a reopen, so the panel is
           drawn only while the document still declares one at that place. */}
         {editingStyle !== null && subtitle.summary?.styles[editingStyle] !== undefined && (

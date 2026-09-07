@@ -52,6 +52,7 @@ export const en = {
     video: {
       title: "Video",
       close: "Close video",
+      details: "Video details",
       play: "Play",
       playCue: "Play current cue",
       stop: "Stop",
@@ -224,6 +225,19 @@ export const en = {
   },
 
   video: {
+    details: {
+      title: "Video details",
+      file: "File",
+      resolution: "Resolution",
+      aspect: "Aspect ratio",
+      fps: "Frame rate",
+      frames: "Frames",
+      duration: "Duration",
+      codec: "Decoder",
+      /** What a field says when the container carries no answer for it. */
+      unknown: "not reported",
+      close: "Close",
+    },
     play: "Play",
     pause: "Pause",
     position: "Position",

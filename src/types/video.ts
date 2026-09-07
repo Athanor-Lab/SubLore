@@ -18,6 +18,20 @@ export type VideoOpened = {
   duration: number;
 };
 
+/**
+ * What the open media is, as mpv answers for it. Every field but the path may be missing: a
+ * container that does not carry a number is drawn as unknown rather than as a guess.
+ */
+export type VideoDetails = {
+  path: string;
+  fps: number | null;
+  width: number | null;
+  height: number | null;
+  frames: number | null;
+  duration: number | null;
+  codec: string | null;
+};
+
 export type VideoErrorCode =
   | "playerUnavailable"
   | "invalidPath"

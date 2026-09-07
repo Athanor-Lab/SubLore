@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { en } from "../i18n/en";
 import {
   isVideoError,
+  type VideoDetails,
   type VideoError,
   type VideoErrorCode,
   type VideoOpened,
@@ -50,6 +51,8 @@ export type VideoPlayer = {
   seek: (position: number) => Promise<void>;
   /** Play a stretch and stop at its end, both in seconds. See docs/play-range-tasks.md. */
   playRange: (from: number, to: number) => Promise<void>;
+  /** What the open media is, or null when the read failed and the error was reported. */
+  details: () => Promise<VideoDetails | null>;
   setRegion: (region: VideoRegion) => void;
 };
 
@@ -194,6 +197,19 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     }
   }, []);
 
+  const details = useCallback(async (): Promise<VideoDetails | null> => {
+    const mine = opening.current;
+    setErrorCode(null);
+    try {
+      return await invoke<VideoDetails>("video_details");
+    } catch (error) {
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
+      return null;
+    }
+  }, []);
+
   const setRegion = useCallback((region: VideoRegion) => {
     held.current = region;
     // Held while a layer is open, and sent again when the last one closes (T8).
@@ -238,6 +254,7 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     pause,
     seek,
     playRange,
+    details,
     setRegion,
   };
 }

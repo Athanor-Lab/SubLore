@@ -333,3 +333,68 @@
 .about__module--refused {
   color: var(--ink-warn);
 }
+
+/* Video details: read-only, over the shell and closed the three ways every layer is (9.9). */
+.videodetails {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.videodetails__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: min(30rem, 90vw);
+  max-height: 90vh;
+  padding: 1rem;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.videodetails__title {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.videodetails__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.videodetails__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.videodetails__label {
+  flex: none;
+  width: 8rem;
+  color: var(--ink-muted);
+}
+
+/* The path can be longer than the panel, and a dialog that grows sideways would push the shell. */
+.videodetails__value {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.videodetails__close {
+  align-self: flex-end;
+  margin-top: 0.5rem;
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}

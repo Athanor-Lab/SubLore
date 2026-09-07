@@ -94,6 +94,7 @@ const DECLARED = [
   "video-toggle-subtitle-overlay",
   "video-show-source-on-video",
   "video-close",
+  "video-details",
   "video-play",
   "video-play-cue",
   "video-stop",
