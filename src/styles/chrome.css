@@ -150,9 +150,11 @@
 .styleeditor__panel {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.2rem;
   width: min(26rem, 90vw);
+  max-height: 90vh;
   padding: 1rem;
+  overflow-y: auto;
   border: 1px solid var(--line-strong);
   background: var(--bg-panel);
 }
@@ -186,6 +188,49 @@
 
 .styleeditor__value:disabled {
   color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
+.styleeditor__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.styleeditor__heading {
+  margin: 0.4rem 0 0.1rem;
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* The nine places a line can sit, as the grid the reference draws: ASS numbers them from the
+   bottom left, so the top row is 7, 8, 9. */
+.styleeditor__alignment {
+  display: grid;
+  grid-template-columns: repeat(3, 1.6rem);
+  gap: 0.15rem;
+}
+
+.styleeditor__place {
+  width: 1.6rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: var(--accent);
+  font: inherit;
+  line-height: 1;
+}
+
+.styleeditor__place[aria-checked="true"] {
+  border-color: var(--accent);
+}
+
+.styleeditor__place:disabled {
   background: var(--bg-panel);
 }
 

@@ -1178,6 +1178,18 @@ pub enum AssStyleField {
     Italic,
     Underline,
     Strikeout,
+    ScaleX,
+    ScaleY,
+    Spacing,
+    Angle,
+    BorderStyle,
+    OutlineWidth,
+    Shadow,
+    Alignment,
+    MarginL,
+    MarginR,
+    MarginV,
+    Encoding,
 }
 
 impl AssStyleField {
@@ -1193,6 +1205,18 @@ impl AssStyleField {
             AssStyleField::Italic => "italic",
             AssStyleField::Underline => "underline",
             AssStyleField::Strikeout => "strikeout",
+            AssStyleField::ScaleX => "horizontal scale",
+            AssStyleField::ScaleY => "vertical scale",
+            AssStyleField::Spacing => "spacing",
+            AssStyleField::Angle => "rotation",
+            AssStyleField::BorderStyle => "border style",
+            AssStyleField::OutlineWidth => "outline width",
+            AssStyleField::Shadow => "shadow depth",
+            AssStyleField::Alignment => "alignment",
+            AssStyleField::MarginL => "left margin",
+            AssStyleField::MarginR => "right margin",
+            AssStyleField::MarginV => "vertical margin",
+            AssStyleField::Encoding => "encoding",
         }
     }
 
@@ -1210,6 +1234,18 @@ impl AssStyleField {
             AssStyleField::Italic => style.italic_field,
             AssStyleField::Underline => style.underline_field,
             AssStyleField::Strikeout => style.strikeout_field,
+            AssStyleField::ScaleX => style.scale_x,
+            AssStyleField::ScaleY => style.scale_y,
+            AssStyleField::Spacing => style.spacing,
+            AssStyleField::Angle => style.angle,
+            AssStyleField::BorderStyle => style.border_style,
+            AssStyleField::OutlineWidth => style.outline_width,
+            AssStyleField::Shadow => style.shadow,
+            AssStyleField::Alignment => style.alignment,
+            AssStyleField::MarginL => style.margin_l,
+            AssStyleField::MarginR => style.margin_r,
+            AssStyleField::MarginV => style.margin_v,
+            AssStyleField::Encoding => style.encoding,
         }
     }
 }
