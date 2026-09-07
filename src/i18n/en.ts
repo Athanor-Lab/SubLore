@@ -125,7 +125,7 @@ export const en = {
       insert: "Insert cue",
       /** Goes to the next cue, and makes one when the cursor is on the last. */
       nextLine: "Next line",
-      delete: "Delete cue",
+      delete: "Delete cues",
       split: "Split cue",
       merge: "Merge with next",
     },
@@ -143,6 +143,7 @@ export const en = {
       new: "Ctrl+N",
       cut: "Ctrl+X",
       copy: "Ctrl+C",
+      deleteCues: "Ctrl+Delete",
       pasteOver: "Ctrl+Shift+V",
       selectAll: "Ctrl+A",
       openSubtitle: "Ctrl+O",

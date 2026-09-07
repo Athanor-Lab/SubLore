@@ -831,13 +831,16 @@ export default function App() {
     selection.move(before, "plain");
   }
 
-  async function deleteCue() {
+  /** Every selected line, as one undo step. The cursor lands on the row that takes their place. */
+  async function deleteCues() {
     await flushEditors();
-    const at = selection.active;
-    if (at === null || at >= subtitle.cues.length) {
+    const rows = [...selection.selected]
+      .filter((row) => row < subtitle.cues.length)
+      .sort((one, two) => one - two);
+    if (rows.length === 0) {
       return;
     }
-    await subtitle.deleteCue(at);
+    await subtitle.deleteCues(rows);
   }
 
   /**
@@ -1789,8 +1792,9 @@ export default function App() {
     {
       id: "subtitle.delete",
       label: en.menu.subtitles.delete,
-      enabled: activeCue !== null,
-      run: () => void deleteCue(),
+      accelerator: en.menu.keys.deleteCues,
+      enabled: selection.selected.size > 0,
+      run: () => void deleteCues(),
     },
     {
       id: "subtitle.split",
