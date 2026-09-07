@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { choosePath, type ChooseKind } from "./chooser";
@@ -537,6 +538,38 @@ export default function App() {
    * Save the document where it belongs. One that has never had a file is asked where that is, and
    * points at the path it is given from then on, so the next save writes there (decision 24, B2).
    */
+  /**
+   * The selected cues, as the file writes them, onto the system clipboard.
+   *
+   * The page cannot reach the clipboard itself: WebKitGTK answers both `writeText` and `readText`
+   * with `NotAllowedError` inside the app's own page, measured on 2026-09-07, so it goes through
+   * the backend and GTK's own clipboard.
+   */
+  async function copyCues() {
+    const rows = [...selection.selected].sort((one, two) => one - two);
+    if (rows.length === 0) {
+      return;
+    }
+    const lines = await subtitle.copyCues(rows);
+    if (lines === "") {
+      return;
+    }
+    await invoke("clipboard_write", { text: lines }).catch(() => undefined);
+  }
+
+  /** The clipboard's lines over the selected rows, in order, as one undo step. */
+  async function pasteOverCues() {
+    const rows = [...selection.selected].sort((one, two) => one - two);
+    if (rows.length === 0) {
+      return;
+    }
+    const text = await invoke<string>("clipboard_read").catch(() => "");
+    if (text === "") {
+      return;
+    }
+    await subtitle.pasteOver(rows, text);
+  }
+
   async function saveDocument() {
     await flushEditors();
     if (subtitle.summary === null) {
@@ -1161,6 +1194,27 @@ export default function App() {
       },
     })),
     {
+      id: "edit.copy",
+      label: en.menu.edit.copy,
+      accelerator: en.menu.keys.copy,
+      enabled: selection.selected.size > 0,
+      run: () => void copyCues(),
+    },
+    {
+      id: "edit.paste-over",
+      label: en.menu.edit.pasteOver,
+      accelerator: en.menu.keys.pasteOver,
+      enabled: selection.selected.size > 0,
+      run: () => void pasteOverCues(),
+    },
+    {
+      id: "edit.select-all",
+      label: en.menu.edit.selectAll,
+      accelerator: en.menu.keys.selectAll,
+      enabled: subtitle.cues.length > 0,
+      run: () => selection.selectAll(),
+    },
+    {
       id: "edit.revert",
       label: en.menu.edit.revert,
       // Nothing to put back until the line has moved from what it was when the cursor reached it.
@@ -1387,6 +1441,9 @@ export default function App() {
       items: [
         "edit.undo",
         "edit.redo",
+        "edit.copy",
+        "edit.paste-over",
+        "edit.select-all",
         "edit.revert",
         "edit.clear",
         "edit.clear-text",

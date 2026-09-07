@@ -50,6 +50,9 @@ const DECLARED = [
   "asr-transcribe",
   "edit-undo",
   "edit-redo",
+  "edit-copy",
+  "edit-paste-over",
+  "edit-select-all",
   "edit-revert",
   "edit-clear",
   "edit-clear-text",
@@ -132,6 +135,9 @@ const FILE_ITEMS = [
 const EDIT_ITEMS = [
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
+  { id: "edit-copy", disabled: true },
+  { id: "edit-paste-over", disabled: true },
+  { id: "edit-select-all", disabled: true },
   { id: "edit-revert", disabled: true },
   { id: "edit-clear", disabled: true },
   { id: "edit-clear-text", disabled: true },
@@ -523,6 +529,11 @@ describe("the command registry", () => {
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-copy", disabled: false },
+      // A document opens on its first row, so a row is selected and the three that act on a
+      // selection wake with it. Paste over asks the clipboard nothing until it is chosen.
+      { route: "menu", id: "edit-copy", disabled: false },
+      { route: "menu", id: "edit-paste-over", disabled: false },
+      { route: "menu", id: "edit-select-all", disabled: false },
       // The two clears need a line with something in it, which the fixture's first row is. Revert
       // beside them stays greyed, because nothing has moved it since the cursor arrived, and so
       // does Insert original, which wants a caret and a source and has neither (B13).

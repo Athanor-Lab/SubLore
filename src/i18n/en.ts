@@ -29,6 +29,10 @@ export const en = {
       bold: "Bold",
       italic: "Italic",
       underline: "Underline",
+      /** The clipboard group, in the order the reference's own Edit menu puts it. */
+      copy: "Copy cues",
+      pasteOver: "Paste over cues",
+      selectAll: "Select all cues",
       /** The four under the text box, in the order the reference's own row puts them. See B13. */
       revert: "Revert",
       clear: "Clear",
@@ -100,6 +104,9 @@ export const en = {
     },
     /** Drawn beside a menu item. Each key is handled by whichever component owns that command. */
     keys: {
+      copy: "Ctrl+C",
+      pasteOver: "Ctrl+Shift+V",
+      selectAll: "Ctrl+A",
       openSubtitle: "Ctrl+O",
       openVideo: "Ctrl+Shift+O",
       save: "Ctrl+S",

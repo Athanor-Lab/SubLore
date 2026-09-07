@@ -17,7 +17,9 @@ use sublore_edit::history::Run;
 use sublore_edit::plan::{self, AssStyleField, Edit};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
-use sublore_formats::{parse, AssField, Newline, SubtitleDocument, SubtitleFormat};
+use sublore_formats::{
+    parse, AssField, Newline, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
+};
 use sublore_io::atomic::save_with_backup;
 use sublore_io::backup::BackupStore;
 use tauri::{AppHandle, Manager, State};
@@ -461,6 +463,116 @@ pub async fn subtitle_toggle_style(
         },
     )
     .await
+}
+
+/// The lines the named cues are written as, exactly as the file spells them, one after another.
+///
+/// The raw line and not the text: what a copy carries is the cue, times and fields and all, which
+/// is what makes it paste back as a cue rather than as a sentence. See the clipboard's own slice.
+#[tauri::command]
+pub async fn subtitle_copy_cues(
+    state: State<'_, SubtitleState>,
+    cues: Vec<usize>,
+) -> Result<String, SubtitleError> {
+    let slot = state.slot();
+    blocking(move || {
+        let guard = lock(&slot)?;
+        let session = current_ref(&guard)?;
+        let document = session.document();
+        let lines: Vec<&Segment> = document
+            .segments()
+            .iter()
+            .filter(|segment| matches!(segment.kind, SegmentKind::Cue(_)))
+            .collect();
+        // What separates two cues, between them and not after the last: an SRT or VTT block is
+        // followed by a blank line and an ASS event by nothing, and a copy of two cues that left
+        // the blank out would read back as one cue with the other's words stuck to it.
+        let between = match document.format() {
+            SubtitleFormat::Ass => "",
+            SubtitleFormat::Srt | SubtitleFormat::Vtt => match document.source().newline() {
+                Newline::Crlf => "\r\n",
+                Newline::Lf | Newline::Mixed | Newline::None => "\n",
+            },
+        };
+        let mut out = String::new();
+        for (written, index) in cues.into_iter().enumerate() {
+            let Some(segment) = lines.get(index) else {
+                return Err(SubtitleError::new(
+                    SubtitleErrorCode::InvalidCue,
+                    format!("no cue {index} in this document"),
+                ));
+            };
+            if written > 0 {
+                out.push_str(between);
+            }
+            out.push_str(document.slice(segment.span));
+        }
+        Ok(out)
+    })
+    .await
+}
+
+/// The texts of the cues in `text`, read with this document's own header in front of them.
+///
+/// Borrowing the header is what makes the fragment parseable at all: an ASS event means nothing
+/// without the `Format:` line that names its columns, and a VTT cue means nothing without the
+/// file's first word. It also means a copy from one document pastes into another of the same
+/// format the way that document spells things, not the way its own did.
+#[tauri::command]
+pub async fn subtitle_paste_over(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cues: Vec<usize>,
+    text: String,
+) -> Result<CuePatchDto, SubtitleError> {
+    let slot = state.slot();
+    let read = {
+        let slot = Arc::clone(&slot);
+        let text = text.clone();
+        blocking(move || {
+            let guard = lock(&slot)?;
+            let session = current_ref(&guard)?;
+            texts_in_fragment(session.document(), &text)
+        })
+        .await?
+    };
+    if read.is_empty() {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::EditRefused,
+            "the clipboard holds no cue this document could read",
+        ));
+    }
+    // As many as there are to give, and no further: a paste over three rows from a clipboard of
+    // two leaves the third alone rather than emptying it.
+    let edits: Vec<(usize, String)> = cues
+        .into_iter()
+        .zip(read)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect();
+    edited(&app, slot, revision, Edit::SetTexts { edits }).await
+}
+
+/// Parse `fragment` behind `document`'s own header and hand back the text of every cue in it.
+fn texts_in_fragment(
+    document: &SubtitleDocument,
+    fragment: &str,
+) -> Result<Vec<String>, SubtitleError> {
+    let body = document.source().body();
+    let first_cue = document
+        .segments()
+        .iter()
+        .find(|segment| matches!(segment.kind, SegmentKind::Cue(_)))
+        .map(|segment| segment.span.start)
+        .unwrap_or(body.len());
+    let header = body.get(..first_cue).unwrap_or("");
+    let whole = format!("{header}{fragment}");
+    let parsed = parse(document.format(), whole.as_bytes()).map_err(SubtitleError::from_parse)?;
+    Ok(parsed
+        .cues()
+        .map(|cue| parsed.slice(cue.text).to_owned())
+        .collect())
 }
 
 /// Which column of a `Style:` line a write names, on the wire. The name is not on it: renaming a
@@ -1335,6 +1447,15 @@ fn lock(slot: &SessionSlot) -> Result<MutexGuard<'_, Option<EditSession>>, Subti
             SubtitleErrorCode::CommandFailed,
             "the subtitle session lock is poisoned",
         )
+    })
+}
+
+/// The open session, read only. The mutable one below is what an edit takes.
+fn current_ref<'a>(
+    guard: &'a MutexGuard<'_, Option<EditSession>>,
+) -> Result<&'a EditSession, SubtitleError> {
+    guard.as_ref().ok_or_else(|| {
+        SubtitleError::new(SubtitleErrorCode::NoDocument, "no subtitle file is open")
     })
 }
 

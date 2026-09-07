@@ -108,6 +108,10 @@ export type SubtitleFile = {
   toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
   /** Several override tags at one caret, as one undo step: a font is a family and a size. B12. */
   setOverrideTags: (cue: number, tags: [string, string][], at: number) => Promise<void>;
+  /** The named cues as the file writes them, lines and all, for the clipboard. */
+  copyCues: (cues: number[]) => Promise<string>;
+  /** Put the lines in `text` over the named cues, as one undo step. */
+  pasteOver: (cues: number[], text: string) => Promise<void>;
   /** One field of one declared style. Each field is its own undo step. See edit-bar-tasks B10. */
   setStyleField: (style: number, field: AssStyleField, value: string) => Promise<void>;
   /** Empty one line. `keepTags` leaves the braced runs and drops only the words. See B13. */
@@ -425,6 +429,23 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  // Not through `serialize`: a copy changes nothing, so it need not queue behind an edit, and it
+  // answers with what it read rather than with a patch.
+  const copyCues = useCallback(async (cues: number[]) => {
+    setError(null);
+    try {
+      return await invoke<string>("subtitle_copy_cues", { cues });
+    } catch (failure) {
+      setError(toSubtitleError(failure));
+      return "";
+    }
+  }, []);
+
+  const pasteOver = useCallback(
+    (cues: number[], text: string) => command("subtitle_paste_over", { cues, text }),
+    [command],
+  );
+
   const setStyleField = useCallback(
     (style: number, field: AssStyleField, value: string) =>
       command("subtitle_set_style_field", { style, field, value }),
@@ -535,6 +556,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     newTranslation,
     clearText,
     setStyleField,
+    copyCues,
+    pasteOver,
     insertCue,
     deleteCue,
     splitCue,
