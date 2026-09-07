@@ -352,16 +352,27 @@ export default function App() {
   const rowsMovedRef = useRef<RowsMoved>(() => {});
   const selectRunRef = useRef<(from: number, to: number) => void>(() => {});
   const selectRowsRef = useRef<(rows: number[]) => void>(() => {});
-  /** Set by a paste, read by the patch it causes: the rows that land are the rows left selected. */
-  const pasteLanding = useRef(false);
+  /**
+   * What the next patch is to leave selected, set by the command that asks for it and read by the
+   * patch it causes: the rows a paste or a duplicate lands are the rows the translator carries on
+   * from. Read from the patch rather than after the call, so an edit that was refused, and made no
+   * patch, moves no cursor onto a row that was never written.
+   */
+  const landing = useRef<{ rows: number[] } | "inserted" | null>(null);
   const onRowsMoved = useCallback<RowsMoved>((at, removed, inserted) => {
     rowsMovedRef.current(at, removed, inserted);
-    if (pasteLanding.current) {
-      pasteLanding.current = false;
+    const wanted = landing.current;
+    landing.current = null;
+    if (wanted === null) {
+      return;
+    }
+    if (wanted === "inserted") {
       if (removed === 0 && inserted > 0) {
         selectRunRef.current(at, at + inserted - 1);
       }
+      return;
     }
+    selectRowsRef.current(wanted.rows);
   }, []);
   // What a module's activation puts on screen, and how far it has got while it runs. Two states,
   // because a module may publish a table without doing anything long, and the reverse.
@@ -782,8 +793,12 @@ export default function App() {
       shift += length;
       at = end + 1;
     }
-    await subtitle.duplicateCues(rows);
-    selectRowsRef.current(copies);
+    landing.current = { rows: copies };
+    try {
+      await subtitle.duplicateCues(rows);
+    } finally {
+      landing.current = null;
+    }
   }
 
   /**
@@ -796,9 +811,12 @@ export default function App() {
     if (text === "") {
       return;
     }
-    pasteLanding.current = true;
-    await subtitle.pasteCues(selection.active ?? subtitle.cues.length, text);
-    pasteLanding.current = false;
+    landing.current = "inserted";
+    try {
+      await subtitle.pasteCues(selection.active ?? subtitle.cues.length, text);
+    } finally {
+      landing.current = null;
+    }
   }
 
   /** The clipboard's lines over the selected rows, in order, as one undo step. */
