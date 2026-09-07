@@ -54,6 +54,7 @@ export const en = {
       title: "Video",
       close: "Close video",
       details: "Video details",
+      jumpTo: "Jump to time",
       play: "Play",
       playCue: "Play current cue",
       stop: "Stop",
@@ -135,6 +136,7 @@ export const en = {
       undo: "Ctrl+Z",
       redo: "Ctrl+Y",
       quit: "Ctrl+Q",
+      videoJumpTo: "Ctrl+G",
       videoPlay: "Ctrl+P",
       videoToCueStart: "Ctrl+1",
       videoToCueEnd: "Ctrl+2",
@@ -227,6 +229,13 @@ export const en = {
   },
 
   video: {
+    jumpTo: {
+      title: "Jump to time",
+      label: "Time",
+      go: "Jump",
+      cancel: "Cancel",
+      refused: "That is not a time inside this media.",
+    },
     details: {
       title: "Video details",
       file: "File",

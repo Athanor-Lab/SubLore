@@ -366,6 +366,23 @@ index is what the check exists to find: a package whose dependencies do not reso
 will not start, a library the bundler never declared. A retry there would turn a real failure into a
 slow one.
 
+## How long a wait waits, and why CI waits twice as long
+
+Every `waitFor` in this suite takes a timeout, and every one of them is multiplied by `PATIENCE` in
+`e2e/lib/proc.js`: one here, two when `CI=true`, or whatever `E2E_PATIENCE` says.
+
+This is not a way of making a red run green. What a check asserts does not change, and a check whose
+condition never becomes true still fails; it only takes longer to give up. What it buys is the
+difference between the two machines. The whole battery runs one spec at a time and takes about
+thirteen minutes on a workstation and fifteen to twenty-one on the two-core runner, and on
+2026-09-07 three pull requests in a row went red there on waits that no rerun and no local run
+reproduced: eight spec files on one, a single spec on the next, a different single spec on the third.
+A timeout that is generous here is tight there.
+
+Two things follow from that. A wait that fails even at twice the timeout is worth reading as a real
+failure rather than as slowness, and a check that needs a longer wait than the suite gives it should
+say so at its own call site rather than by raising this number.
+
 ## Running a Windows binary here
 
 Wine is not Windows and nothing run under it is a Windows behavioural verdict. What it is good for
