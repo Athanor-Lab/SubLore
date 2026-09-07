@@ -254,7 +254,8 @@ describe("the menu bar and the toolbar", () => {
   it("opens the first dropdown on Alt, with the cursor on its first enabled item", async () => {
     pressKey("alt");
     await waitForOpenMenu("File");
-    await waitForCursor("file-open-subtitle");
+    // New is first in the menu and never greyed, so it is where the cursor lands.
+    await waitForCursor("file-new");
 
     expect(await focusedClass()).toContain("menubar__menu");
 
@@ -266,11 +267,13 @@ describe("the menu bar and the toolbar", () => {
     // Nothing is open, so everything under the two source items is greyed: the translation it
     // cannot make yet, then Save, Save a copy and Discard, which is one run down to Quit.
     pressKey("alt");
-    await waitForCursor("file-open-subtitle");
+    await waitForCursor("file-new");
     expect(
       await browser.execute(() => document.querySelector("#menuitem-file-save")?.disabled ?? null),
     ).toBe(true);
 
+    pressKey("Down");
+    await waitForCursor("file-open-subtitle");
     pressKey("Down");
     await waitForCursor("file-open-source");
     pressKey("Down");
@@ -374,6 +377,9 @@ describe("the menu bar and the toolbar", () => {
 
   it("opens a subtitle through the File menu", async () => {
     pressKey("alt");
+    await waitForCursor("file-new");
+    // Past New, which would replace the document rather than open one.
+    pressKey("Down");
     await waitForCursor("file-open-subtitle");
 
     pressKey("Return");

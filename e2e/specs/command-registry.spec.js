@@ -130,6 +130,7 @@ const TITLES = [
  * from a source, so opening one is the first gesture of all (M2.6 S1 and S2).
  */
 const FILE_ITEMS = [
+  { id: "file-new", disabled: false },
   { id: "file-open-subtitle", disabled: false },
   { id: "file-open-source", disabled: false },
   { id: "file-close-source", disabled: true },
