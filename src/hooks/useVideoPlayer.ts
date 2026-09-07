@@ -112,12 +112,15 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     opening.current += 1;
     const mine = opening.current;
     setErrorCode(null);
+    // Where a new file starts, said before it is asked for rather than after: mpv reports the file
+    // ready through an event that arrives before this call returns, so anything that moved the
+    // picture in that window would be undone by a reset made afterwards. See N44.
+    setPosition(0);
     try {
       const opened = await invoke<VideoOpened>("video_open", { path });
       if (mine !== opening.current) {
         return;
       }
-      setPosition(0);
       setState({
         status: "ready",
         path: opened.path,

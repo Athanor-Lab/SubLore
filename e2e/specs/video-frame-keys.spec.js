@@ -95,6 +95,26 @@ function playheadReaches(seconds, what) {
   });
 }
 
+/**
+ * Wait until the playhead stops moving, and answer where it stopped.
+ *
+ * A seek reaches the slider before mpv has finished making it, and the position mpv settles on
+ * arrives afterwards. Stepping a frame off a reading taken in between would be undone by that late
+ * report, which is what this waits out.
+ */
+async function playheadSettles(seconds) {
+  let last = await playhead();
+  for (let tries = 0; tries < 30; tries += 1) {
+    await browser.pause(300);
+    const now = await playhead();
+    if (now === last && Math.abs(now - seconds) < FRAME) {
+      return now;
+    }
+    last = now;
+  }
+  throw new Error(`the playhead never settled at ${seconds}; it last read ${last}`);
+}
+
 /** Which row carries the cursor, by its 1-based position. */
 function activeRow() {
   return browser.execute(
@@ -211,23 +231,24 @@ describe("stepping the picture and walking a line's edges", () => {
     expect(await playhead()).toBe(0);
 
     // The keys belong to the grid's context in the reference, so the grid is where they are pressed
-    // from. The cursor is already on this row, so the click moves nothing.
+    // from. The second row is chosen and not the first: stepping backwards asks mpv to decode the
+    // frame before this one, and at the very start of a file there is not always one to decode.
     focusWindow(toplevel.id);
-    await clickRow(toplevel, 1);
+    await clickRow(toplevel, 2);
+    const from = await playheadSettles(SECOND_START);
+
     pressKey("Right");
-    await waitFor(async () => ((await playhead()) > FRAME / 2 ? 1 : null), {
+    await waitFor(async () => ((await playhead()) > from + FRAME / 2 ? 1 : null), {
       timeout: 20000,
       message: "the picture to step forward one frame",
     });
-    const stepped = await playhead();
-    expect(stepped).toBeLessThan(FRAME * 2);
+    expect(await playhead()).toBeLessThan(from + FRAME * 2);
 
     pressKey("Left");
-    await waitFor(async () => ((await playhead()) < stepped ? 1 : null), {
+    await waitFor(async () => ((await playhead()) < from + FRAME / 2 ? 1 : null), {
       timeout: 20000,
       message: "the picture to step back again",
     });
-    expect(await playhead()).toBeLessThan(FRAME);
   });
 
   it("leaves a picture that is playing where it is going", async () => {
@@ -251,10 +272,7 @@ describe("stepping the picture and walking a line's edges", () => {
   });
 
   it("walks the current line's own edges, then moves the cursor to the next line", async () => {
-    // Away and back, because the follow moves the picture when the cursor reaches a different line
-    // and the cursor is already on the first one.
-    await clickRow(toplevel, 2);
-    await playheadReaches(SECOND_START, "the second line's start");
+    // The cursor is on the second row from the step check, so this reaches the first one by moving.
     await clickRow(toplevel, 1);
     await playheadReaches(FIRST_START, "the first line's start, which the follow takes it to");
 
