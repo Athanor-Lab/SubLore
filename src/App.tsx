@@ -2071,8 +2071,13 @@ export default function App() {
         "time.end-to-playhead",
         "time.shift",
         "time.shift-to-playhead",
-        "time.continuous-start",
-        "time.continuous-end",
+        // The two ways of making times continuous sit in a list of their own, which is where the
+        // interface puts them and the first submenu the bar draws (interface-spec 3.4 item 9).
+        {
+          id: "time-continuous",
+          label: en.menu.timing.continuous,
+          items: ["time.continuous-start", "time.continuous-end"],
+        },
         "video.to-cue-start",
         "video.to-cue-end",
         "edit.select-at-playhead",

@@ -100,6 +100,47 @@
   color: var(--ink-faint);
 }
 
+/* A row that opens a list of its own. Its own name and not `menubar__item`, because it is not a
+   command: nothing runs it, it has no accelerator, and no registry entry stands behind it. */
+.menubar__nest {
+  position: relative;
+  display: flex;
+}
+
+.menubar__submenu {
+  display: flex;
+  flex: 1;
+  gap: 2rem;
+  justify-content: space-between;
+  padding: 0.25rem 0.75rem;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.menubar__submenu:disabled {
+  color: var(--ink-faint);
+}
+
+.menubar__submenu--cursor,
+.menubar__submenu:hover:enabled {
+  background: var(--accent-bg);
+}
+
+.menubar__arrow {
+  color: var(--ink-faint);
+}
+
+/* Beside the row that opened it rather than under the title, which is where a second level goes. */
+.menubar__menu--sub {
+  top: 0;
+  left: 100%;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

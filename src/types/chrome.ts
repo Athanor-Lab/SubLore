@@ -70,12 +70,34 @@ export type Command = {
  */
 export type CommandRegistry = Record<CommandId, Command>;
 
+/**
+ * A menu entry that opens a list of its own rather than running.
+ *
+ * Not a command and never in the registry: nothing runs it, it has no accelerator and no enabled
+ * state of its own. The interface asks for eight of them, from the recent-file lists to the two
+ * ways of making times continuous (interface-spec 3). Its `id` is drawn as a class suffix the way
+ * a command's token is, and is spelled the same way to read beside them.
+ */
+export type Submenu = {
+  id: string;
+  label: string;
+  items: CommandId[];
+};
+
+/** One entry of a menu: a command by id, or a submenu holding more of them. */
+export type MenuEntry = CommandId | Submenu;
+
 /** A menu bar title and what it opens, as ids into a `CommandRegistry` (interface-spec 2.1, T3 C1). */
 export type Menu = {
   id: string;
   title: string;
-  items: CommandId[];
+  items: MenuEntry[];
 };
+
+/** Every command a menu can reach, its submenus walked into (T3 C1). */
+export function commandsIn(menu: Menu): CommandId[] {
+  return menu.items.flatMap((entry) => (typeof entry === "string" ? [entry] : entry.items));
+}
 
 /**
  * A command id turned into a CSS-safe class/id suffix: dots become hyphens, so `file.save` draws
