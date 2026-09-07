@@ -102,22 +102,21 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
     runCommand(registry, id);
   }
 
+  /**
+   * Whether Alt has been held with nothing else pressed since. The bar opens when it is let go,
+   * not when it goes down: a chord that holds Alt, and the picture's own jump keys are two of
+   * them, would otherwise open a menu before its second key arrived. See interface-spec 10.5.
+   */
+  const altAlone = useRef(false);
+
   function onKeyDown(event: KeyboardEvent) {
     const state = latest.current;
     if (state.open === null) {
       const alone = !event.ctrlKey && !event.shiftKey && !event.metaKey;
-      if (event.key !== "Alt" || !alone) {
-        return;
-      }
-      // Alt lands on the first title that opens; with none, the key is left to the window.
-      const first = stepTitle(state.menus, -1, 1);
-      if (first < 0) {
-        return;
-      }
-      event.preventDefault();
-      openMenu(first, firstEnabled(resolve(state.menus[first], state.commands)));
+      altAlone.current = event.key === "Alt" && alone;
       return;
     }
+    altAlone.current = false;
     const items = resolve(state.menus[state.open], state.commands);
     switch (event.key) {
       case "ArrowDown":
@@ -155,9 +154,29 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
     latest.current = { menus, commands, open, cursor };
   });
 
+  /** Alt let go with nothing pressed since opens the bar on its first title that has items. */
+  function onKeyUp(event: KeyboardEvent) {
+    if (event.key !== "Alt" || !altAlone.current) {
+      return;
+    }
+    altAlone.current = false;
+    const state = latest.current;
+    if (state.open !== null) {
+      return;
+    }
+    // With no title that opens, the key is left to the window.
+    const first = stepTitle(state.menus, -1, 1);
+    if (first < 0) {
+      return;
+    }
+    event.preventDefault();
+    openMenu(first, firstEnabled(resolve(state.menus[first], state.commands)));
+  }
+
   // Registered once: both handlers read `latest`, so a re-render never drops an event.
   useEffect(() => {
     const key = (event: KeyboardEvent) => onKeyDown(event);
+    const release = (event: KeyboardEvent) => onKeyUp(event);
     const pointer = (event: MouseEvent) => {
       const inside =
         event.target instanceof Node && barRef.current?.contains(event.target) === true;
@@ -166,9 +185,11 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
       }
     };
     window.addEventListener("keydown", key, true);
+    window.addEventListener("keyup", release, true);
     window.addEventListener("mousedown", pointer, true);
     return () => {
       window.removeEventListener("keydown", key, true);
+      window.removeEventListener("keyup", release, true);
       window.removeEventListener("mousedown", pointer, true);
     };
   }, []);

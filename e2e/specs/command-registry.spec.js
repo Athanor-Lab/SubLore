@@ -69,6 +69,9 @@ const DECLARED = [
   "time-next-cue",
   "time-start-to-playhead",
   "time-end-to-playhead",
+  "time-shift-to-playhead",
+  "time-continuous-start",
+  "time-continuous-end",
   "video-to-cue-start",
   "video-to-cue-end",
   "edit-select-at-playhead",
@@ -103,6 +106,8 @@ const DECLARED = [
   "video-jump-to",
   "video-step-prev-frame",
   "video-step-next-frame",
+  "video-jump-back",
+  "video-jump-forward",
   "video-prev-boundary",
   "video-next-boundary",
   "video-jump-cue-start",
@@ -572,6 +577,10 @@ describe("the command registry", () => {
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous
       // line stays greyed because the cursor opens on row 0 and there is nothing above it.
       { route: "menu", id: "time-next-cue", disabled: false },
+      // Making the times continuous needs a document and a selection with no hole in it, which a
+      // document that opens on its first row already is. The shift beside them wants a video too.
+      { route: "menu", id: "time-continuous-start", disabled: false },
+      { route: "menu", id: "time-continuous-end", disabled: false },
       // The two leads move a boundary, so a cursor is all they want, exactly like the nudges below.
       { route: "menu", id: "time-lead-in", disabled: false },
       { route: "menu", id: "time-lead-out", disabled: false },

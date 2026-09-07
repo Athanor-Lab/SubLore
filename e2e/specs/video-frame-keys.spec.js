@@ -295,6 +295,40 @@ describe("stepping the picture and walking a line's edges", () => {
     expect(await activeRow()).toBe("1");
   });
 
+  it("jumps ten frames either way, and Alt held with an arrow opens no menu", async () => {
+    // Back on a still picture, and settled, so the ten frames can be counted off a fixed reading.
+    const from = await playheadSettles();
+
+    pressKey("alt+Right");
+    await waitFor(async () => ((await playhead()) > from + FRAME * 5 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to jump forward ten frames",
+    });
+    // Ten and not eleven: a jump that overshot would be a different command.
+    expect(await playhead()).toBeLessThan(from + FRAME * 15);
+    // The chord holds Alt, and the bar must not have opened under it.
+    expect(await present(".menubar__menu")).toBe(false);
+
+    pressKey("alt+Left");
+    await waitFor(async () => ((await playhead()) < from + FRAME * 5 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to jump back again",
+    });
+    expect(await present(".menubar__menu")).toBe(false);
+
+    // And Alt on its own still opens the bar, which is the other half of the same rule.
+    pressKey("alt");
+    await waitFor(() => present(".menubar__menu"), {
+      timeout: 15000,
+      message: "the bar to open on Alt let go by itself",
+    });
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".menubar__menu")) ? null : 1), {
+      timeout: 15000,
+      message: "the bar to close again",
+    });
+  });
+
   it("leaves the arrows to the box the caret is in", async () => {
     const before = await playheadSettles();
     await clickElement(toplevel, ".currentline__text");

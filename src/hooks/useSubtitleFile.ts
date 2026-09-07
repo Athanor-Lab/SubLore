@@ -101,6 +101,8 @@ export type SubtitleFile = {
   /** Many cues in one call, and so one undo step whatever the count. See find-replace-tasks F1. */
   setTexts: (edits: { cue: number; text: string }[]) => Promise<void>;
   setTimes: (cue: number, startMs: number, endMs: number) => Promise<void>;
+  /** Many cues retimed in one call, and so one undo step: a shift, or times made continuous. */
+  setManyTimes: (edits: { cue: number; startMs: number; endMs: number }[]) => Promise<void>;
   /** One ASS event field of one cue. A field the row does not declare is refused, so its control
    * greys itself off `declaredFields` rather than asking. See edit-bar-first-tasks.md E2. */
   setField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
@@ -428,6 +430,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const setManyTimes = useCallback(
+    (edits: { cue: number; startMs: number; endMs: number }[]) =>
+      command("subtitle_set_many_times", { edits }),
+    [command],
+  );
+
   const setTexts = useCallback(
     (edits: { cue: number; text: string }[]) => command("subtitle_set_texts", { edits }),
     [command],
@@ -583,6 +591,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     adoptTranscription,
     setText,
     setTexts,
+    setManyTimes,
     setTimes,
     setField,
     setComment,

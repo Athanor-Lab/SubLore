@@ -107,7 +107,13 @@ export function ownsTheKeyboard(
  * measured, the same physical key reads `1` under `us`, `&` under `fr`, and `!` under Shift. A
  * function key is `code` as well: it is one physical key with no glyph to shift into (F5).
  */
-type Chord = { ctrl: boolean; shift: boolean; on: "key" | "code"; value: string };
+type Chord = {
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  on: "key" | "code";
+  value: string;
+};
 
 /** The arrow tokens an accelerator spells, and the `key` each one arrives as. */
 const ARROWS: Record<string, string> = {
@@ -125,28 +131,36 @@ function parseAccelerator(text: string | undefined): Chord | null {
   const parts = text.split("+").map((part) => part.trim());
   const token = parts.pop();
   const modifiers = parts.map((part) => part.toLowerCase());
-  // Alt is not a modifier any of these use: AltGr arrives as ctrl+alt and is typing, and the menu
-  // bar opens on Alt alone. Anything else in the string is one this cannot honour. Ctrl is not
-  // required: F3 has no modifier at all.
-  if (token === undefined || modifiers.some((part) => part !== "ctrl" && part !== "shift")) {
+  // Anything not one of these three is a modifier this cannot honour. Ctrl is not required: F3 has
+  // no modifier at all.
+  if (
+    token === undefined ||
+    modifiers.some((part) => part !== "ctrl" && part !== "shift" && part !== "alt")
+  ) {
     return null;
   }
   const ctrl = modifiers.includes("ctrl");
   const shift = modifiers.includes("shift");
+  const alt = modifiers.includes("alt");
+  // AltGr arrives as ctrl and alt held together and what it produces is a character: a chord asking
+  // for both is one nothing may match, or a command would eat someone's typing.
+  if (ctrl && alt) {
+    return null;
+  }
   const arrow = ARROWS[token.toLowerCase()];
   if (arrow !== undefined) {
-    return { ctrl, shift, on: "key", value: arrow };
+    return { ctrl, shift, alt, on: "key", value: arrow };
   }
   if (/^[0-9]$/.test(token)) {
-    return { ctrl, shift, on: "code", value: `Digit${token}` };
+    return { ctrl, shift, alt, on: "code", value: `Digit${token}` };
   }
   // The function keys, whose `code` is the name they are drawn with (F5).
   const functionKey = FUNCTION_KEY.exec(token);
   if (functionKey !== null) {
-    return { ctrl, shift, on: "code", value: `F${functionKey[1]}` };
+    return { ctrl, shift, alt, on: "code", value: `F${functionKey[1]}` };
   }
   if (/^[a-z]$/i.test(token)) {
-    return { ctrl, shift, on: "key", value: token.toLowerCase() };
+    return { ctrl, shift, alt, on: "key", value: token.toLowerCase() };
   }
   return null;
 }
@@ -156,13 +170,21 @@ function parseAccelerator(text: string | undefined): Chord | null {
  * command that declares a shortcut has one and the label cannot name a key that does nothing.
  */
 export function commandFor(commands: CommandRegistry, event: KeyboardEvent): CommandId | null {
-  if (event.altKey || event.metaKey) {
+  // The Windows and Command keys carry no accelerator here: a press holding one is asking the
+  // desktop for something, not the shell. AltGr needs nothing here, because it arrives as ctrl and
+  // alt together and `parseAccelerator` refuses to build a chord out of that pair.
+  if (event.metaKey) {
     return null;
   }
   const pressed = event.key.toLowerCase();
   for (const command of Object.values(commands)) {
     const chord = parseAccelerator(command.accelerator);
-    if (chord === null || chord.ctrl !== event.ctrlKey || chord.shift !== event.shiftKey) {
+    if (
+      chord === null ||
+      chord.ctrl !== event.ctrlKey ||
+      chord.shift !== event.shiftKey ||
+      chord.alt !== event.altKey
+    ) {
       continue;
     }
     if (chord.on === "code" ? chord.value === event.code : chord.value === pressed) {

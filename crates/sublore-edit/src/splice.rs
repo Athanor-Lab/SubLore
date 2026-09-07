@@ -60,6 +60,9 @@ pub enum EditKind {
     /// a replace that rewrote forty cues must never merge into the keystroke before it.
     SetTexts,
     SetTimes,
+    /// Its own kind, not `SetTimes` over more rows, for the reason `SetTexts` is its own: a shift
+    /// that moved forty lines must never merge into the nudge before it.
+    SetManyTimes,
     /// Which field is on the label, not just that a field was written: two fields of one cue must
     /// never merge into one undo step. See ass-field-write-tasks.md W3.
     SetField(AssField),

@@ -923,6 +923,86 @@ export default function App() {
     await seek((forward ? landing.startMs : landing.endMs) / 1000);
   }
 
+  /**
+   * How many frames the picture jumps by. Ten, which is what the reference opens at; it makes the
+   * number a preference and Sublore will when it has a preferences dialog to put it in.
+   */
+  const JUMP_FRAMES = 10;
+
+  /** The selected rows in file order. The set is what a command reads; the order is what it needs. */
+  const selectedRows = Array.from(selection.selected).sort((one, other) => one - other);
+
+  /**
+   * Whether the selection is one run with no gap in it, which is what making times continuous
+   * needs: one cue, a stretch, or the whole file. A scattered selection has no "previous line" to
+   * join to (interface-spec 3.4, item 9).
+   */
+  const selectionIsContiguous =
+    selectedRows.length > 0 &&
+    selectedRows[selectedRows.length - 1] - selectedRows[0] === selectedRows.length - 1;
+
+  /**
+   * Move every selected line so the cursor's line starts where the picture is, keeping every
+   * duration and every gap. One undo step, whatever the count.
+   */
+  async function shiftSelectionToPlayhead() {
+    await flushEditors();
+    const anchor = selection.active === null ? null : (subtitle.cues[selection.active] ?? null);
+    if (anchor === null || selectedRows.length === 0) {
+      return;
+    }
+    const by = Math.round(position * 1000) - anchor.startMs;
+    if (by === 0) {
+      return;
+    }
+    const edits = selectedRows.flatMap((row) => {
+      const cue = subtitle.cues[row];
+      return cue === undefined
+        ? []
+        : [{ cue: row, startMs: cue.startMs + by, endMs: cue.endMs + by }];
+    });
+    await subtitle.setManyTimes(edits);
+  }
+
+  /**
+   * Close the gaps inside the selection: every line's start onto the line before it, or every
+   * line's end onto the line after it. A single selected line acts as if its neighbour were
+   * selected too, which is what the reference does.
+   *
+   * A pair that would leave a line ending before it starts is not repaired here: the whole edit is
+   * sent as it stands and the backend refuses it, so the refusal reaches the status bar instead of
+   * a half-done change reaching the file.
+   */
+  async function makeTimesContinuous(which: "start" | "end") {
+    await flushEditors();
+    if (!selectionIsContiguous) {
+      return;
+    }
+    const alone = selectedRows.length === 1;
+    const edits: { cue: number; startMs: number; endMs: number }[] = [];
+    for (const row of selectedRows) {
+      const cue = subtitle.cues[row];
+      const neighbour = subtitle.cues[which === "start" ? row - 1 : row + 1];
+      if (cue === undefined || neighbour === undefined) {
+        continue;
+      }
+      // Every line of the run but the one at its far end, unless the run is a single line: then
+      // the neighbour outside the selection is the one it joins to.
+      const joins = alone || selection.selected.has(which === "start" ? row - 1 : row + 1);
+      if (!joins) {
+        continue;
+      }
+      const startMs = which === "start" ? neighbour.endMs : cue.startMs;
+      const endMs = which === "start" ? cue.endMs : neighbour.startMs;
+      if (startMs !== cue.startMs || endMs !== cue.endMs) {
+        edits.push({ cue: row, startMs, endMs });
+      }
+    }
+    if (edits.length > 0) {
+      await subtitle.setManyTimes(edits);
+    }
+  }
+
   /** The step the boundaries move by. One size, no larger variant under Shift (owner ruling 23). */
   const NUDGE_MS = 10;
 
@@ -1164,6 +1244,27 @@ export default function App() {
       run: () => void boundaryToPlayhead("end"),
     },
     {
+      id: "time.shift-to-playhead",
+      label: en.menu.timing.shiftToPlayhead,
+      accelerator: en.menu.keys.shiftToPlayhead,
+      // A video to read the playhead off and a line to move: the reference leaves this item alive
+      // with nothing selected and does nothing when it is used, which the spec corrects here.
+      enabled: ready && selection.active !== null && selection.selected.size > 0,
+      run: () => void shiftSelectionToPlayhead(),
+    },
+    {
+      id: "time.continuous-start",
+      label: en.menu.timing.continuousStart,
+      enabled: subtitle.summary !== null && selectionIsContiguous,
+      run: () => void makeTimesContinuous("start"),
+    },
+    {
+      id: "time.continuous-end",
+      label: en.menu.timing.continuousEnd,
+      enabled: subtitle.summary !== null && selectionIsContiguous,
+      run: () => void makeTimesContinuous("end"),
+    },
+    {
       id: "video.to-cue-start",
       label: en.menu.timing.toCueStart,
       accelerator: en.menu.keys.videoToCueStart,
@@ -1380,6 +1481,20 @@ export default function App() {
       accelerator: en.menu.keys.videoStepForward,
       enabled: state.status === "ready",
       run: () => void stepVideo(1),
+    },
+    {
+      id: "video.jump-back",
+      label: en.menu.video.jumpBack,
+      accelerator: en.menu.keys.videoJumpBack,
+      enabled: state.status === "ready",
+      run: () => void stepVideo(-JUMP_FRAMES),
+    },
+    {
+      id: "video.jump-forward",
+      label: en.menu.video.jumpForward,
+      accelerator: en.menu.keys.videoJumpForward,
+      enabled: state.status === "ready",
+      run: () => void stepVideo(JUMP_FRAMES),
     },
     {
       id: "video.prev-boundary",
@@ -1693,6 +1808,9 @@ export default function App() {
         "time.next-cue",
         "time.start-to-playhead",
         "time.end-to-playhead",
+        "time.shift-to-playhead",
+        "time.continuous-start",
+        "time.continuous-end",
         "video.to-cue-start",
         "video.to-cue-end",
         "edit.select-at-playhead",
@@ -1733,6 +1851,8 @@ export default function App() {
         // of the picture's navigation belongs.
         "video.step-prev-frame",
         "video.step-next-frame",
+        "video.jump-back",
+        "video.jump-forward",
         "video.prev-boundary",
         "video.next-boundary",
         "video.toggle-subtitle-overlay",
