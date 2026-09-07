@@ -49,6 +49,15 @@ impl EditSession {
         }
     }
 
+    /// A document with no file and nothing in it yet, which is not unsaved work: there is nothing
+    /// to lose until something is typed, and a close gate that asked about it would be noise.
+    pub fn blank(document: SubtitleDocument) -> Self {
+        Self {
+            history: History::new(),
+            ..Self::untitled(document)
+        }
+    }
+
     /// Where a save writes, or none while the document has never had a file.
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()

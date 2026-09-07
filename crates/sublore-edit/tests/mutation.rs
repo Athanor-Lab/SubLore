@@ -665,22 +665,27 @@ fn inserting_into_an_ass_file_copies_every_field_it_does_not_own() {
 }
 
 #[test]
-fn an_ass_file_with_no_event_refuses_an_insert_rather_than_guessing_its_fields() {
+fn an_ass_file_with_no_event_writes_its_first_one_from_its_own_format_line() {
     let document = parse(
         SubtitleFormat::Ass,
         "[Script Info]\nTitle: Nothing timed yet\n\n[Events]\nFormat: Layer, Start, End, Text\n",
     );
-    let error = edit(
+    let result = edit(
         &document,
         &Edit::Insert {
             before: 0,
             start_ms: 0,
             end_ms: 1_000,
-            text: "Guessed".to_owned(),
+            text: "The first one".to_owned(),
         },
     )
-    .expect_err("there is no event to copy a shape from");
-    assert_eq!(error.kind, EditErrorKind::NotApplicable);
+    .expect("the section's own format line says what a line looks like");
+    assert_eq!(result.document.cues().count(), 1);
+    assert!(
+        String::from_utf8_lossy(&result.document.to_bytes())
+            .contains("Dialogue: 0,0:00:00.00,0:00:01.00,The first one"),
+        "the line is written in the order this file declares",
+    );
 }
 
 #[test]
@@ -694,6 +699,12 @@ fn inserting_into_a_file_with_no_cues_writes_the_first_one() {
             "only-blank-lines",
         ),
         (SubtitleFormat::Vtt, "WEBVTT\n".to_owned(), "header only"),
+        (
+            SubtitleFormat::Ass,
+            std::fs::read_to_string(root().join("ass/clean/no-events.ass"))
+                .expect("fixture is readable"),
+            "no-events",
+        ),
         (
             SubtitleFormat::Vtt,
             "WEBVTT".to_owned(),

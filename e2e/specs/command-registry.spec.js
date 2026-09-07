@@ -38,6 +38,7 @@ import { findToplevel } from "../lib/x11.js";
  * loudly as an item with no entry behind it (C1).
  */
 const DECLARED = [
+  "file-new",
   "file-open-subtitle",
   "file-open-source",
   "file-close-source",

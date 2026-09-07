@@ -932,7 +932,7 @@ export default function App() {
   }
 
   const dirty = subtitle.dirty || editorOpen || lineEdited;
-  const blocked = subtitle.blockedPath !== null;
+  const blocked = subtitle.blockedPath !== null || subtitle.blockedNew;
   // Whatever the stored layout says, and following until it says otherwise: the panel is decoration
   // on any file longer than its own window if it does not follow the line.
   const waveAutoscroll = layout?.waveAutoscroll ?? true;
@@ -951,6 +951,13 @@ export default function App() {
    * one (interface-spec 2.3). A generated set is entries like any other (interface-spec 2.7).
    */
   const declared: Command[] = [
+    {
+      id: "file.new",
+      label: en.menu.file.new,
+      accelerator: en.menu.keys.new,
+      enabled: true,
+      run: () => void subtitle.newDocument(),
+    },
     {
       id: "file.open-subtitle",
       label: en.menu.file.openSubtitle,
@@ -1464,6 +1471,7 @@ export default function App() {
       id: "file",
       title: en.menu.file.title,
       items: [
+        "file.new",
         "file.open-subtitle",
         "file.open-source",
         "file.close-source",

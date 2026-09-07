@@ -1425,3 +1425,78 @@ fn raw_core(session: &EditSession, cue: usize, field: AssField) -> String {
         .trim_end_matches([' ', '\t', '\r'])
         .to_owned()
 }
+
+/// A file with a `Format:` line and no event under it takes its first one.
+///
+/// Until this was written the planner refused: it built every new ASS line by copying a neighbour,
+/// and an empty section has no neighbour to copy. What the line has to look like is on the section's
+/// own `Format:` line, so that is what it is written from.
+#[test]
+fn an_empty_events_section_takes_its_first_line() {
+    let mut session = session("ass/clean/no-events.ass");
+    let before = session.to_bytes();
+    session
+        .apply(
+            &Edit::Insert {
+                before: 0,
+                start_ms: 1_340,
+                end_ms: 3_980,
+                text: "The first line of the file".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first line of an empty section");
+
+    let written = String::from_utf8(session.to_bytes()).expect("the file stays UTF-8");
+    let line = written
+        .lines()
+        .find(|line| line.starts_with("Dialogue:"))
+        .expect("a dialogue line");
+    // Every column the `Format:` line declares, in its order: the timings where they were declared,
+    // the declared style named, zeros where a number is owed and the text last.
+    assert_eq!(
+        line,
+        "Dialogue: 0,0:00:01.34,0:00:03.98,Default,,0,0,0,,The first line of the file",
+    );
+    assert_eq!(session.views().len(), 1);
+
+    session.undo().expect("one undo");
+    assert_eq!(session.to_bytes(), before, "the undo puts the file back");
+}
+
+/// The line goes under the `Format:` line it was written from, not at the end of the file: an
+/// `[Events]` section is not always the last one, and a line after another section's header is in
+/// that section.
+#[test]
+fn the_first_line_goes_inside_its_own_section() {
+    let mut session = session("ass/clean/events-then-fonts.ass");
+    session
+        .apply(
+            &Edit::Insert {
+                before: 0,
+                start_ms: 0,
+                end_ms: 5_000,
+                text: "Inside the events".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first line");
+    let written = String::from_utf8(session.to_bytes()).expect("the file stays UTF-8");
+    let lines: Vec<&str> = written.lines().collect();
+    let event = lines
+        .iter()
+        .position(|line| line.starts_with("Dialogue:"))
+        .expect("a dialogue line");
+    let fonts = lines
+        .iter()
+        .position(|line| *line == "[Fonts]")
+        .expect("the fonts section");
+    assert!(
+        event < fonts,
+        "the line landed outside its own section:\n{written}"
+    );
+    // And the file still parses as one event, which is the whole of what "inside" means here.
+    assert_eq!(session.views().len(), 1);
+}

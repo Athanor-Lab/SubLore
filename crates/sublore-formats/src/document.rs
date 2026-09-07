@@ -91,6 +91,29 @@ pub enum SegmentKind {
     Cue(Cue),
 }
 
+/// What an `[Events]` section's `Format:` line declares, and where that line sits.
+///
+/// Kept so a file with no event yet can still be given its first one: without it the only way to
+/// know a section's field list is to copy an event, and an empty section has none to copy.
+/// See ass-first-event-tasks.md.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AssEventFormat {
+    /// How many fields an event in this section carries.
+    pub count: usize,
+    pub start_index: Option<usize>,
+    pub end_index: Option<usize>,
+    pub style_index: Option<usize>,
+    pub name_index: Option<usize>,
+    pub effect_index: Option<usize>,
+    pub layer_index: Option<usize>,
+    pub margin_l_index: Option<usize>,
+    pub margin_r_index: Option<usize>,
+    pub margin_v_index: Option<usize>,
+    /// Which segment the `Format:` line is, so a first event can be written after it rather than
+    /// at the end of a file whose last section is not this one.
+    pub format_segment: usize,
+}
+
 /// One style a `[V4 Styles]` or `[V4+ Styles]` section declares.
 ///
 /// The name only. What an inline styling control would want beside it (the bold, italic and
@@ -150,6 +173,7 @@ pub struct SubtitleDocument {
     source: SourceText,
     segments: Vec<Segment>,
     ass_styles: Vec<AssStyle>,
+    ass_event_format: Option<AssEventFormat>,
 }
 
 impl SubtitleDocument {
@@ -161,6 +185,7 @@ impl SubtitleDocument {
             source,
             segments,
             ass_styles: Vec::new(),
+            ass_event_format: None,
         }
     }
 
@@ -176,6 +201,19 @@ impl SubtitleDocument {
     /// spells them. See styles-and-fields-tasks.md S3.
     pub fn ass_styles(&self) -> &[AssStyle] {
         &self.ass_styles
+    }
+
+    /// Attach what the `[Events]` section's `Format:` line declared. None for every other format,
+    /// and for an ASS file that has no events section at all.
+    pub fn with_ass_event_format(mut self, format: Option<AssEventFormat>) -> Self {
+        self.ass_event_format = format;
+        self
+    }
+
+    /// What an event in this file has to look like, or nothing when the file declares no events
+    /// section. Re-read after every splice, like the styles above.
+    pub fn ass_event_format(&self) -> Option<AssEventFormat> {
+        self.ass_event_format
     }
 
     pub fn format(&self) -> SubtitleFormat {

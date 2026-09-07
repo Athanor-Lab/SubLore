@@ -7,7 +7,9 @@
 //! a save. See BACKLOG.md M1.3.
 
 use crate::cue::{AssEvent, AssEventKind, AssField, Cue, CueDetail};
-use crate::document::{AssStyle, Segment, SegmentKind, SubtitleDocument, SubtitleFormat};
+use crate::document::{
+    AssEventFormat, AssStyle, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
+};
 use crate::error::{ParseError, ParseErrorKind};
 use crate::span::Span;
 use crate::text::SourceText;
@@ -25,7 +27,7 @@ struct Section {
 
 /// What a section's `Format:` line declared, plus where it sits: a Format line without timing
 /// fields is reported at itself, not at the event that tripped over it.
-struct FieldFormat {
+pub(crate) struct FieldFormat {
     count: usize,
     start_index: Option<usize>,
     end_index: Option<usize>,
@@ -44,6 +46,7 @@ struct FieldFormat {
 pub(crate) fn parse(source: SourceText) -> Result<SubtitleDocument, ParseError> {
     let mut segments: Vec<Segment> = Vec::new();
     let mut styles: Vec<AssStyle> = Vec::new();
+    let mut events_format: Option<AssEventFormat> = None;
     let mut section = Section {
         is_events: false,
         is_styles: false,
@@ -141,7 +144,26 @@ pub(crate) fn parse(source: SourceText) -> Result<SubtitleDocument, ParseError> 
             _ => {
                 if descriptor.eq_ignore_ascii_case("format") {
                     let names = source.body().get(remainder.range()).unwrap_or("");
-                    section.format = Some(field_format(names, at));
+                    let read = field_format(names, at);
+                    // The events section's own list is kept, with the segment it was read from: a
+                    // file with a `Format:` line and no event yet can still be told what its first
+                    // one has to look like and where it goes. See plan.rs `first_ass_event`.
+                    if section.is_events {
+                        events_format = Some(AssEventFormat {
+                            count: read.count,
+                            start_index: read.start_index,
+                            end_index: read.end_index,
+                            style_index: read.style_index,
+                            name_index: read.name_index,
+                            effect_index: read.effect_index,
+                            layer_index: read.layer_index,
+                            margin_l_index: read.margin_l_index,
+                            margin_r_index: read.margin_r_index,
+                            margin_v_index: read.margin_v_index,
+                            format_segment: segments.len(),
+                        });
+                    }
+                    section.format = Some(read);
                     if section.is_styles {
                         section.style_format = Some(style_format(names));
                     }
@@ -168,7 +190,9 @@ pub(crate) fn parse(source: SourceText) -> Result<SubtitleDocument, ParseError> 
             kind: SegmentKind::Blank,
         });
     }
-    Ok(SubtitleDocument::new(SubtitleFormat::Ass, source, segments).with_ass_styles(styles))
+    Ok(SubtitleDocument::new(SubtitleFormat::Ass, source, segments)
+        .with_ass_styles(styles)
+        .with_ass_event_format(events_format))
 }
 
 /// One field's own bytes without the padding around it: leading spaces and tabs, trailing spaces,

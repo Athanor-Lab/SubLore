@@ -1916,6 +1916,88 @@ fn insert_block(
     ))
 }
 
+/// The first event of a file that has none: written from the section's own `Format:` line.
+///
+/// Every field the list declares is written, empty unless it is one of the six that would make the
+/// line unreadable empty: the two timings, the text, the layer and the three margins take a zero,
+/// and the style takes the first one the file declares. The line goes straight after the `Format:`
+/// line, not at the end of the file, because `[Events]` is not always the last section.
+fn first_ass_event(
+    document: &SubtitleDocument,
+    start_ms: u32,
+    end_ms: u32,
+    text: &str,
+) -> Result<(Splice, String, usize, usize), EditError> {
+    let Some(format) = document.ass_event_format() else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the file declares no events section to put a line in",
+        ));
+    };
+    let (Some(start_index), Some(end_index)) = (format.start_index, format.end_index) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the events section declares no start and end for a line to carry",
+        ));
+    };
+    // The text is the last field: everything after the last comma belongs to it, which is what the
+    // parser reads and what a shorter list would break.
+    let text_index = format.count.saturating_sub(1);
+    if start_index >= text_index || end_index >= text_index {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the events section puts a timing where the text has to be",
+        ));
+    }
+
+    let shape = default_shape(SubtitleFormat::Ass);
+    let mut fields = vec![String::new(); format.count];
+    fields[start_index] = render_timecode(start_ms, shape)?;
+    fields[end_index] = render_timecode(end_ms, shape)?;
+    fields[text_index] = text.to_owned();
+    for zero in [
+        format.layer_index,
+        format.margin_l_index,
+        format.margin_r_index,
+        format.margin_v_index,
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|at| *at < text_index)
+    {
+        fields[zero] = "0".to_owned();
+    }
+    if let Some(at) = format.style_index.filter(|at| *at < text_index) {
+        if let Some(style) = document.ass_styles().first() {
+            fields[at] = document.slice(style.name).trim().to_owned();
+        }
+    }
+
+    let segments = document.segments();
+    let anchor = segments.get(format.format_segment).ok_or_else(|| {
+        EditError::new(
+            EditErrorKind::NotApplicable,
+            "the events section's format line is not where the parser left it",
+        )
+    })?;
+    let line = document.slice(anchor.span);
+    let terminated = terminator_len(line) > 0;
+    let newline = default_newline(document);
+    let mut written = String::new();
+    if !terminated {
+        written.push_str(newline);
+    }
+    written.push_str("Dialogue: ");
+    written.push_str(&fields.join(","));
+    written.push_str(newline);
+    Ok((
+        Splice::new(anchor.span.end, String::new(), written),
+        text.to_owned(),
+        format.format_segment.saturating_add(1),
+        1,
+    ))
+}
+
 fn insert_ass(
     document: &SubtitleDocument,
     before: usize,
@@ -1925,13 +2007,9 @@ fn insert_ass(
     text: &str,
     neighbour: Option<&Located<'_>>,
 ) -> Result<(Splice, String, usize, usize), EditError> {
-    // Without an event to copy from there is no way to know the section's field list, and guessing
-    // one would write a line the file's own `Format:` does not describe.
+    // With no event to copy from, the section's own `Format:` line says what one looks like.
     let Some(near) = neighbour else {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            "the file holds no event to copy a shape from",
-        ));
+        return first_ass_event(document, start_ms, end_ms, text);
     };
 
     if before < count {
@@ -2238,13 +2316,34 @@ fn plan_merge(document: &SubtitleDocument, index: usize) -> Result<Planned, Edit
 #[cfg(test)]
 mod tests {
     use super::{
-        default_shape, is_blank_line, render_text, render_timecode, shape_of, validate_text,
-        verify_field, TimeShape,
+        default_shape, first_ass_event, is_blank_line, render_text, render_timecode, shape_of,
+        validate_text, verify_field, TimeShape,
     };
     use crate::error::EditErrorKind;
     use sublore_formats::{
         timecode::parse_timecode, AssField, SubtitleDocument, SubtitleFormat, MAX_TIMECODE_MS,
     };
+
+    /// A `Format:` line that puts a timing after the text describes a line this cannot write: the
+    /// text takes everything after the last comma, so a field behind it would be eaten by it.
+    #[test]
+    fn a_first_line_is_refused_where_the_text_is_not_the_last_field() {
+        let body = "[Events]\nFormat: Layer, Text, Start, End\n";
+        let document = sublore_formats::parse(SubtitleFormat::Ass, body.as_bytes())
+            .expect("a file with a format line and no events");
+        let refused = first_ass_event(&document, 0, 1_000, "Anything").expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+
+    /// And a file with no events section at all has nowhere to put a line.
+    #[test]
+    fn a_first_line_is_refused_where_there_is_no_events_section() {
+        let body = "[Script Info]\nScriptType: v4.00+\n";
+        let document = sublore_formats::parse(SubtitleFormat::Ass, body.as_bytes())
+            .expect("a file with no events section");
+        let refused = first_ass_event(&document, 0, 1_000, "Anything").expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
 
     /// Every rendered timestamp is proved by the scanner that will read it back.
     fn round_trip(millis: u32, shape: TimeShape) -> String {
