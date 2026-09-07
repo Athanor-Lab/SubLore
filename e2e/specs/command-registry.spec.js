@@ -69,6 +69,7 @@ const DECLARED = [
   "time-next-cue",
   "time-start-to-playhead",
   "time-end-to-playhead",
+  "time-shift",
   "time-shift-to-playhead",
   "time-continuous-start",
   "time-continuous-end",
