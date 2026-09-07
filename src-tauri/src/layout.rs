@@ -81,6 +81,26 @@ const DEFAULT_WAVE_AUTOSCROLL: bool = true;
 /// opens at: a translator who moves down the grid expects the frame to move with them.
 const DEFAULT_VIDEO_FOLLOW_SELECTION: bool = true;
 
+/// Which panels the window draws, as the View menu's four radios name them.
+///
+/// Stored rather than derived: what a translator chose to see outlives the session, and a layout
+/// that reset to everything on every launch would be a setting that does not settle.
+/// See interface-spec 3.7.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PanelLayout {
+    /// The grid and the tools column, with no picture and no wave.
+    GridOnly,
+    VideoGrid,
+    WaveformGrid,
+    /// Everything, which is what the window has always opened at, and what a name this version does
+    /// not know reads as: a layout written by a later one keeps its sizes rather than being thrown
+    /// away whole for a word.
+    #[default]
+    #[serde(other)]
+    Full,
+}
+
 /// What the panels were left at. Every field carries a default so a file written by an older
 /// version, or one a hand has been in, reads as far as it goes and defaults the rest.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -92,6 +112,7 @@ pub struct Layout {
     pub interface_scale: f64,
     pub wave_autoscroll: bool,
     pub video_follow_selection: bool,
+    pub panels: PanelLayout,
 }
 
 impl Default for Layout {
@@ -103,6 +124,7 @@ impl Default for Layout {
             interface_scale: DEFAULT_INTERFACE_SCALE,
             wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
             video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
+            panels: PanelLayout::Full,
         }
     }
 }
@@ -156,6 +178,9 @@ impl Layout {
             // to warn about: it is either in the file or it is the default.
             wave_autoscroll: self.wave_autoscroll,
             video_follow_selection: self.video_follow_selection,
+            // A closed list has nothing to clamp, and an unknown name has already become `Full`
+            // where it was read.
+            panels: self.panels,
         }
     }
 }
@@ -356,6 +381,7 @@ mod tests {
             interface_scale: 1.25,
             wave_autoscroll: false,
             video_follow_selection: false,
+            panels: PanelLayout::GridOnly,
         };
         write_to(&path, left).expect("a layout written under the temp dir");
         assert_eq!(read_from(&path), left);
@@ -449,6 +475,7 @@ mod tests {
                 interface_scale: 1.25,
                 wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
                 video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
+                panels: PanelLayout::Full,
             }
         );
     }
@@ -489,6 +516,41 @@ mod tests {
             .expect("a layout under the temp dir");
             assert_eq!(read_from(&path).video_follow_selection, wanted);
         }
+    }
+
+    /// The panels the window draws are a name and not a number, so what it owes is that every one
+    /// of the four comes back as itself and that a name the file does not know opens at the default.
+    #[test]
+    fn every_panel_layout_survives_a_write_and_a_stranger_opens_at_the_default() {
+        let dir = TempDir::new("panel-layout");
+        let path = dir.join(LAYOUT_FILE);
+        for wanted in [
+            PanelLayout::GridOnly,
+            PanelLayout::VideoGrid,
+            PanelLayout::WaveformGrid,
+            PanelLayout::Full,
+        ] {
+            write_to(
+                &path,
+                Layout {
+                    panels: wanted,
+                    ..Layout::default()
+                },
+            )
+            .expect("a layout under the temp dir");
+            assert_eq!(read_from(&path).panels, wanted);
+        }
+
+        // A name from a later version reads as everything, and the sizes beside it are kept: the
+        // file is not thrown away over a word.
+        std::fs::write(
+            &path,
+            "{\"panels\": \"somethingElse\", \"waveformHeight\": 211}",
+        )
+        .expect("a layout naming a panel set this version does not know");
+        let read = read_from(&path);
+        assert_eq!(read.panels, PanelLayout::Full);
+        assert_eq!(read.waveform_height, 211.0);
     }
 
     #[test]
@@ -543,6 +605,7 @@ mod tests {
                     interface_scale: broken,
                     wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
                     video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
+                    panels: PanelLayout::Full,
                 }
                 .sane(),
                 Layout::default(),
@@ -589,6 +652,7 @@ mod tests {
             interface_scale: 1.25,
             wave_autoscroll: false,
             video_follow_selection: false,
+            panels: PanelLayout::GridOnly,
         };
         write_to(&path, second).expect("the second layout");
         assert_eq!(read_from(&path), second);
