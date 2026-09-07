@@ -19,6 +19,17 @@ const TEXT_INPUT_TYPES = ["text", "search", "url", "email", "tel", "password", "
 const FIELD_CHORDS: ReadonlySet<string> = new Set(["a", "c", "v", "x", "y", "z"]);
 
 /**
+ * The two of those the document takes back inside its own editors: undo and redo there are the
+ * document's history and not the field's, which is what a translator means by pressing them over a
+ * line they are writing.
+ *
+ * The other four stay with the field even there. That matters from the moment the shell has a
+ * command on one of them: Ctrl+A over the grid selects every cue, and over the box it selects the
+ * words being typed, which is what the keyboard spec's two contexts say and what every editor does.
+ */
+const HISTORY_CHORDS: ReadonlySet<string> = new Set(["y", "z"]);
+
+/**
  * F1 to F12, the only bare keys a text field has no use for.
  *
  * One definition, read twice: against an accelerator's token, and against a press's own `key`. The
@@ -65,7 +76,7 @@ export function ownsTheKeyboard(
   if (!chorded) {
     return !FUNCTION_KEY.test(key);
   }
-  return FIELD_CHORDS.has(key) && !isDocumentEditor(target);
+  return FIELD_CHORDS.has(key) && !(isDocumentEditor(target) && HISTORY_CHORDS.has(key));
 }
 
 /**

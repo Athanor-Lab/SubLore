@@ -4,6 +4,7 @@
 pub mod asr;
 pub mod audio;
 pub mod chooser;
+pub mod clipboard;
 pub mod crash;
 pub mod dialog;
 pub mod fonts;
@@ -216,6 +217,10 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_set_override_tags,
             subtitle::subtitle_clear_text,
             subtitle::subtitle_set_style_field,
+            subtitle::subtitle_copy_cues,
+            subtitle::subtitle_paste_over,
+            clipboard::clipboard_write,
+            clipboard::clipboard_read,
             fonts::fonts_installed,
             subtitle::subtitle_open_source,
             subtitle::subtitle_close_source,
