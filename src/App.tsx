@@ -20,6 +20,7 @@ import Waveform, { type LiveTimes } from "./components/Waveform";
 import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
 import VideoDetailsPanel from "./components/VideoDetails";
+import JumpToTime from "./components/JumpToTime";
 import VideoStage from "./components/VideoStage";
 import { type VideoDetails } from "./types/video";
 import { useAudioPeaks } from "./hooks/useAudioPeaks";
@@ -517,6 +518,7 @@ export default function App() {
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
   /** What Video details is showing, and nothing on screen while it is null. */
   const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
+  const [jumpToOpen, setJumpToOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   // The find band, and what it is looking for. The query outlives a close so reopening the band
@@ -1289,6 +1291,13 @@ export default function App() {
       run: () => storeLayout({ videoFollowSelection: !videoFollowSelection }),
     },
     {
+      id: "video.jump-to",
+      label: en.menu.video.jumpTo,
+      accelerator: en.menu.keys.videoJumpTo,
+      enabled: state.status === "ready",
+      run: () => setJumpToOpen(true),
+    },
+    {
       id: "video.jump-cue-start",
       label: en.menu.video.jumpCueStart,
       accelerator: en.menu.keys.videoToCueStart,
@@ -1640,6 +1649,7 @@ export default function App() {
         "video.play-cue",
         "video.stop",
         "video.toggle-follow-selection",
+        "video.jump-to",
         "video.jump-cue-start",
         "video.jump-cue-end",
         "video.toggle-subtitle-overlay",
@@ -2021,6 +2031,22 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {jumpToOpen && (
+          <JumpToTime
+            position={position}
+            duration={state.duration ?? 0}
+            onJump={(seconds) => {
+              void seek(seconds);
+              setJumpToOpen(false);
+              // The reference leaves the keyboard on the seek slider, so the next arrow key steps
+              // the picture. Focused after the panel has gone, or its unmount takes it back.
+              requestAnimationFrame(() => {
+                document.querySelector<HTMLInputElement>(".controls__slider")?.focus();
+              });
+            }}
+            onClose={() => setJumpToOpen(false)}
+          />
+        )}
         {videoDetails !== null && (
           <VideoDetailsPanel details={videoDetails} onClose={() => setVideoDetails(null)} />
         )}
