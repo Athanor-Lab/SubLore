@@ -241,6 +241,12 @@ fn refused(command: &str, outcome: Result<(), VideoError>) -> Result<(), VideoEr
     outcome
 }
 
+/// Unload the open media. The player keeps running, so the next open is as cheap as the first.
+#[tauri::command]
+pub async fn video_close(state: State<'_, VideoState>) -> Result<(), VideoError> {
+    refused("video_close", state.player().close())
+}
+
 #[tauri::command]
 pub async fn video_play(state: State<'_, VideoState>) -> Result<(), VideoError> {
     refused("video_play", state.player().play())

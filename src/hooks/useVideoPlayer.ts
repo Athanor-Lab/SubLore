@@ -41,6 +41,8 @@ export type VideoPlayer = {
   picture: VideoPictureSize | null;
   errorCode: VideoErrorCode | null;
   open: (path: string) => Promise<void>;
+  /** Unload the media, leaving the player up. See interface-spec 3.4, Close video. */
+  close: () => Promise<void>;
   togglePlayback: () => Promise<void>;
   seek: (position: number) => Promise<void>;
   /** Play a stretch and stop at its end, both in seconds. See docs/play-range-tasks.md. */
@@ -118,6 +120,20 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
       if (mine === opening.current) {
         setErrorCode(toErrorCode(error));
       }
+    }
+  }, []);
+
+  /** Unload the media. The player stays up, so the next open is as cheap as the first. */
+  const close = useCallback(async () => {
+    opening.current += 1;
+    setErrorCode(null);
+    try {
+      await invoke("video_close");
+      setPosition(0);
+      setState(IDLE_STATE);
+      setPicture(null);
+    } catch (error) {
+      setErrorCode(toErrorCode(error));
     }
   }, []);
 
@@ -204,6 +220,7 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
     picture,
     errorCode,
     open,
+    close,
     togglePlayback,
     seek,
     playRange,

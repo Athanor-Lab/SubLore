@@ -742,6 +742,21 @@ impl Player {
         self.shared.tell_picture(None);
     }
 
+    /// Unload the open media and leave the player running.
+    ///
+    /// `stop` and not a shutdown: the window keeps its surface and the next open costs no new
+    /// process, which is what closing a video means here. Everything the interface draws about the
+    /// media follows the state and the picture, so both are cleared before this answers.
+    pub fn close(&self) -> Result<(), VideoError> {
+        let mpv = self.handle()?;
+        mpv.command("stop", &[])
+            .map_err(|error| from_mpv(error, "stop"))?;
+        // The same reset a failed open does, which is the whole of what the interface reads: the
+        // state says idle, the state is told, and the picture goes.
+        self.reset_to_idle();
+        Ok(())
+    }
+
     fn loaded_duration(&self) -> Result<f64, VideoError> {
         let state = self.state()?;
         match (state.status, state.duration) {
