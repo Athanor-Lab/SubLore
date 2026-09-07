@@ -484,14 +484,27 @@ pub async fn subtitle_copy_cues(
             .iter()
             .filter(|segment| matches!(segment.kind, SegmentKind::Cue(_)))
             .collect();
+        // What separates two cues, between them and not after the last: an SRT or VTT block is
+        // followed by a blank line and an ASS event by nothing, and a copy of two cues that left
+        // the blank out would read back as one cue with the other's words stuck to it.
+        let between = match document.format() {
+            SubtitleFormat::Ass => "",
+            SubtitleFormat::Srt | SubtitleFormat::Vtt => match document.source().newline() {
+                Newline::Crlf => "\r\n",
+                Newline::Lf | Newline::Mixed | Newline::None => "\n",
+            },
+        };
         let mut out = String::new();
-        for index in cues {
+        for (written, index) in cues.into_iter().enumerate() {
             let Some(segment) = lines.get(index) else {
                 return Err(SubtitleError::new(
                     SubtitleErrorCode::InvalidCue,
                     format!("no cue {index} in this document"),
                 ));
             };
+            if written > 0 {
+                out.push_str(between);
+            }
             out.push_str(document.slice(segment.span));
         }
         Ok(out)

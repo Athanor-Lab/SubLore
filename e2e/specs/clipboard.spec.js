@@ -22,6 +22,8 @@ import { findToplevel } from "../lib/x11.js";
 /** Three cues whose texts differ, which is what makes a paste visible. */
 const FIXTURE = ["srt", "clean", "basic-lf.srt"];
 const FIRST = "The harbour was empty when we got there.";
+const SECOND =
+  "Nobody had told the crew we were coming,\nso we sat on the dock until it got light.";
 const THIRD = "By then the fog had eaten the boats.";
 
 function dataHome() {
@@ -218,5 +220,30 @@ describe("the clipboard", () => {
       timeout: 15000,
       message: "one undo to put the third row back",
     });
+  });
+
+  it("carries two cues out with the blank line that separates them, and both come back", async () => {
+    // Two at once is the case a single cue cannot see: an SRT block is followed by a blank line,
+    // and a copy that left it out would read back as one cue with the other's words stuck on.
+    await fromEditMenu(toplevel, "edit-select-all");
+    await waitFor(async () => ((await selectedCount()) === 3 ? 1 : null), {
+      timeout: 15000,
+      message: "every row to be selected",
+    });
+    await fromEditMenu(toplevel, "edit-copy");
+
+    await fromEditMenu(toplevel, "edit-paste-over");
+    // Three rows, three lines, and the second is the two-line one: a paste that read the clipboard
+    // as one cue would put the whole file's text on the first row and leave the others alone.
+    await waitFor(
+      async () => {
+        const rows = await rowTexts();
+        return rows[0] === FIRST && rows[1] === SECOND && rows[2] === THIRD ? 1 : null;
+      },
+      { timeout: 20000, message: "the three lines to land on the three rows, unchanged" },
+    );
+
+    // Nothing moved, so nothing was written: pasting a document over itself is a no-op edit.
+    expect(await present(".statusbar__dirty")).toBe(false);
   });
 });
