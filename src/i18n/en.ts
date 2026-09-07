@@ -78,6 +78,10 @@ export const en = {
       centreOnCue: "Centre the waveform on the current line",
       followCue: "Follow the current line",
       subtitles: "Subtitles on video",
+      /** The three ways the grid draws override tags, a radio set (interface-spec 3.5). */
+      tagsShow: "Show tags",
+      tagsSimplify: "Simplify tags",
+      tagsHide: "Hide tags",
       /** Draws the document being read on the frame instead of the one being written. See S3. */
       sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
