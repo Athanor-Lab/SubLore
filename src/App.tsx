@@ -351,16 +351,28 @@ export default function App() {
   // through a box rather than directly: the document is read before the selection exists.
   const rowsMovedRef = useRef<RowsMoved>(() => {});
   const selectRunRef = useRef<(from: number, to: number) => void>(() => {});
-  /** Set by a paste or an insert, read by the patch it causes: what lands is what is left selected. */
-  const pasteLanding = useRef(false);
+  const selectRowsRef = useRef<(rows: number[]) => void>(() => {});
+  /**
+   * What the next patch is to leave selected, set by the command that asks for it and read by the
+   * patch it causes: the rows a paste, an insert or a duplicate lands are the rows the translator
+   * carries on from. Read from the patch rather than after the call, so an edit that was refused,
+   * and made no patch, moves no cursor onto a row that was never written.
+   */
+  const landing = useRef<{ rows: number[] } | "inserted" | null>(null);
   const onRowsMoved = useCallback<RowsMoved>((at, removed, inserted) => {
     rowsMovedRef.current(at, removed, inserted);
-    if (pasteLanding.current) {
-      pasteLanding.current = false;
+    const wanted = landing.current;
+    landing.current = null;
+    if (wanted === null) {
+      return;
+    }
+    if (wanted === "inserted") {
       if (removed === 0 && inserted > 0) {
         selectRunRef.current(at, at + inserted - 1);
       }
+      return;
     }
+    selectRowsRef.current(wanted.rows);
   }, []);
   // What a module's activation puts on screen, and how far it has got while it runs. Two states,
   // because a module may publish a table without doing anything long, and the reverse.
@@ -393,6 +405,21 @@ export default function App() {
       // Plain first, which is also what sets the anchor the extension runs from.
       selection.move(from, "plain");
       selection.move(to, "extend");
+    };
+    selectRowsRef.current = (rows) => {
+      const [head, ...rest] = rows;
+      if (head === undefined) {
+        return;
+      }
+      selection.move(head, "plain");
+      for (const row of rest) {
+        selection.toggle(row);
+      }
+      // The cursor goes back to the first of them: a toggle takes it, and what a translator carries
+      // on from is the first line that landed, not the last.
+      if (rest.length > 0) {
+        selection.move(head, "cursorOnly");
+      }
     };
   }, [selection.rowsMoved, selection.move]);
 
@@ -737,6 +764,44 @@ export default function App() {
   }
 
   /**
+   * Every selected line written again after itself, as one undo step, with the copies left selected.
+   *
+   * Where each copy lands is worked out here rather than read back: a run of n rows is followed by
+   * its own n copies, and every run after it has moved down by the copies made before it.
+   */
+  async function duplicateCues() {
+    await flushEditors();
+    const rows = [...selection.selected]
+      .filter((row) => row < subtitle.cues.length)
+      .sort((one, two) => one - two);
+    if (rows.length === 0) {
+      return;
+    }
+    const copies: number[] = [];
+    let shift = 0;
+    let at = 0;
+    while (at < rows.length) {
+      let end = at;
+      while (end + 1 < rows.length && rows[end + 1] === rows[end] + 1) {
+        end += 1;
+      }
+      const length = end - at + 1;
+      const first = rows[end] + 1 + shift;
+      for (let step = 0; step < length; step += 1) {
+        copies.push(first + step);
+      }
+      shift += length;
+      at = end + 1;
+    }
+    landing.current = { rows: copies };
+    try {
+      await subtitle.duplicateCues(rows);
+    } finally {
+      landing.current = null;
+    }
+  }
+
+  /**
    * The clipboard's cues in before the row the cursor is on, as one undo step, and the rows that
    * land are the ones left selected. With no row to go before they go at the end.
    */
@@ -746,9 +811,12 @@ export default function App() {
     if (text === "") {
       return;
     }
-    pasteLanding.current = true;
-    await subtitle.pasteCues(selection.active ?? subtitle.cues.length, text);
-    pasteLanding.current = false;
+    landing.current = "inserted";
+    try {
+      await subtitle.pasteCues(selection.active ?? subtitle.cues.length, text);
+    } finally {
+      landing.current = null;
+    }
   }
 
   /** The clipboard's lines over the selected rows, in order, as one undo step. */
@@ -844,11 +912,11 @@ export default function App() {
       if (!after || atPlayhead) {
         return;
       }
-      pasteLanding.current = true;
+      landing.current = "inserted";
       try {
         await subtitle.insertCue(subtitle.cues.length, 0, NEW_CUE_MS, "");
       } finally {
-        pasteLanding.current = false;
+        landing.current = null;
       }
       return;
     }
@@ -876,11 +944,11 @@ export default function App() {
       // No room between the two: a cue that started where it ended would be one no player draws.
       return;
     }
-    pasteLanding.current = true;
+    landing.current = "inserted";
     try {
       await subtitle.insertCue(before, startMs, endMs, "");
     } finally {
-      pasteLanding.current = false;
+      landing.current = null;
     }
   }
 
@@ -1889,6 +1957,12 @@ export default function App() {
       run: () => void insertCue(false, true),
     },
     {
+      id: "subtitle.duplicate",
+      label: en.menu.subtitles.duplicate,
+      enabled: selection.selected.size > 0,
+      run: () => void duplicateCues(),
+    },
+    {
       id: "subtitle.next-line",
       label: en.menu.subtitles.nextLine,
       // A document with no rows can still take its first one, exactly as the insert above can.
@@ -2133,6 +2207,7 @@ export default function App() {
           ],
         },
         "subtitle.next-line",
+        "subtitle.duplicate",
         "subtitle.delete",
         "subtitle.split",
         "subtitle.merge",

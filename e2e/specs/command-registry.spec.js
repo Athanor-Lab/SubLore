@@ -97,6 +97,7 @@ const DECLARED = [
   "subtitle-insert-before-at-playhead",
   "subtitle-insert-after-at-playhead",
   "subtitle-next-line",
+  "subtitle-duplicate",
   "subtitle-delete",
   "subtitle-split",
   "subtitle-merge",
@@ -197,6 +198,7 @@ const SUBTITLE_ITEMS = [
   { id: "subtitle-insert-before-at-playhead", disabled: true },
   { id: "subtitle-insert-after-at-playhead", disabled: true },
   { id: "subtitle-next-line", disabled: true },
+  { id: "subtitle-duplicate", disabled: true },
   { id: "subtitle-delete", disabled: true },
   { id: "subtitle-split", disabled: true },
   { id: "subtitle-merge", disabled: true },
@@ -637,6 +639,7 @@ describe("the command registry", () => {
       { route: "menu", id: "subtitle-insert-before", disabled: false },
       { route: "menu", id: "subtitle-insert-after", disabled: false },
       { route: "menu", id: "subtitle-next-line", disabled: false },
+      { route: "menu", id: "subtitle-duplicate", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous

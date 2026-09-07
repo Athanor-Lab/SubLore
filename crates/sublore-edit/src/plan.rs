@@ -122,6 +122,11 @@ pub enum Edit {
     DeleteMany {
         cues: Vec<usize>,
     },
+    /// Every named cue written again straight after itself, as one undo step. Strictly ascending,
+    /// each named once. The copy is the line as the file spells it, so it carries every field.
+    Duplicate {
+        cues: Vec<usize>,
+    },
     /// `text_offset` is a byte offset into the normalized text of `cue`.
     Split {
         cue: usize,
@@ -212,6 +217,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
         Edit::Paste { before, fragment } => plan_paste(document, *before, fragment),
         Edit::Delete { cue } => plan_delete(document, *cue),
         Edit::DeleteMany { cues } => plan_delete_many(document, cues),
+        Edit::Duplicate { cues } => plan_duplicate(document, cues),
         Edit::Split {
             cue,
             text_offset,
@@ -2474,6 +2480,124 @@ fn delete_region(document: &SubtitleDocument, at: usize) -> (usize, usize) {
             }
         }
     }
+}
+
+/// Every named cue written again straight after itself, as one undo step.
+///
+/// One splice from the first named cue to the last, so a scattered selection is one step as well as
+/// a run: what goes back is the region as it stands with a second copy of each named line after it.
+/// The copy is the line's own bytes, so it carries every field the format declares, and on an SRT it
+/// carries the index line too. Nothing is renumbered, which is the rule an insert already follows:
+/// duplicates and gaps are what every player tolerates, and renumbering would rewrite lines the
+/// translator did not touch.
+fn plan_duplicate(document: &SubtitleDocument, cues: &[usize]) -> Result<Planned, EditError> {
+    let (Some(first), Some(last)) = (cues.first(), cues.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a duplicate naming no cues",
+        ));
+    };
+    if cues.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues must be given in file order, each one named once",
+        ));
+    }
+
+    let run = locate_run(document, *first, *last)?;
+    let (Some(head), Some(tail)) = (run.first(), run.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a duplicate naming no cues",
+        ));
+    };
+    let region_from = head.segment_index;
+    let region_to = tail.segment_index;
+    let segments = document.segments();
+    let newline = default_newline(document);
+    // What separates two blocks: a blank line in an SRT or a VTT, nothing at all between two ASS
+    // events.
+    let blank = match document.format() {
+        SubtitleFormat::Ass => "",
+        SubtitleFormat::Srt | SubtitleFormat::Vtt => newline,
+    };
+
+    let mut inserted = String::new();
+    let mut cues_after = Vec::with_capacity(run.len().saturating_mul(2));
+    let mut segments_inserted = 0usize;
+    let mut naming = cues.iter().peekable();
+    let mut index = *first;
+    // The copies of the run being walked, held until its last line is written: a block of lines
+    // duplicated is a block after the block, not a copy wedged after each line, which is what keeps
+    // an exchange of dialogue in the order it was written in.
+    let mut pending: Vec<(&str, ExpectedCue)> = Vec::new();
+    for at in region_from..=region_to {
+        let Some(segment) = segments.get(at) else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                "the cues' segments moved while the edit was planned",
+            ));
+        };
+        let slice = document.slice(segment.span);
+        inserted.push_str(slice);
+        segments_inserted = segments_inserted.saturating_add(1);
+        let SegmentKind::Cue(cue) = &segment.kind else {
+            continue;
+        };
+        let copy = ExpectedCue {
+            text_raw: document.slice(cue.text).to_owned(),
+            start_ms: cue.start.millis(),
+            end_ms: cue.end.millis(),
+        };
+        cues_after.push(copy.clone());
+        let wanted = naming.next_if(|want| **want == index).is_some();
+        index = index.saturating_add(1);
+        if wanted {
+            pending.push((slice, copy));
+        }
+        // The run ends where the next cue is not one of the named ones.
+        if wanted && naming.peek().is_some_and(|next| **next == index) {
+            continue;
+        }
+        for (line, expected) in pending.drain(..) {
+            // A file that ends without a terminator never gave its last block one, and a copy
+            // cannot start on the line it is copying.
+            if !inserted.ends_with('\n') && !inserted.ends_with('\r') {
+                inserted.push_str(newline);
+            }
+            inserted.push_str(blank);
+            inserted.push_str(line);
+            segments_inserted = segments_inserted
+                .saturating_add(1)
+                .saturating_add(usize::from(!blank.is_empty()));
+            cues_after.push(expected);
+        }
+    }
+
+    let (Some(opening), Some(closing)) = (segments.get(region_from), segments.get(region_to))
+    else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues' segments moved while the edit was planned",
+        ));
+    };
+    let region = Span::new(opening.span.start, closing.span.end);
+
+    Ok(Planned {
+        splice: Splice::new(region.start, document.slice(region).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::Duplicate,
+            cue: *first,
+        },
+        expect: Expectation {
+            from: *first,
+            removed: last.saturating_sub(*first).saturating_add(1),
+            cues: cues_after,
+            segments_from: region_from,
+            segments_removed: region_to.saturating_sub(region_from).saturating_add(1),
+            segments_inserted,
+        },
+    })
 }
 
 /// Several cues removed as one undo step, each with the blank line that follows it.
