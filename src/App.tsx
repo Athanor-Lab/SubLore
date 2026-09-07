@@ -272,8 +272,18 @@ export default function App() {
   const centreOnCue = useRef<() => void>(() => {});
   /** The pair a hand is holding on the panel, so playing the selection plays where it is now. */
   const liveTimes = useRef<LiveTimes>(null);
-  const { state, position, picture, errorCode, open, togglePlayback, seek, playRange, setRegion } =
-    useVideoPlayer(layers.covered);
+  const {
+    state,
+    position,
+    picture,
+    errorCode,
+    open,
+    close: closeVideo,
+    togglePlayback,
+    seek,
+    playRange,
+    setRegion,
+  } = useVideoPlayer(layers.covered);
   const audio = useAudioTracks(state.path, state.status === "ready");
   // The two states the grid indexes by row live below, so the patch that moves rows reaches them
   // through a box rather than directly: the document is read before the selection exists.
@@ -1204,6 +1214,12 @@ export default function App() {
       },
     })),
     {
+      id: "video.close",
+      label: en.menu.video.close,
+      enabled: state.status === "ready",
+      run: () => void closeVideo(),
+    },
+    {
       id: "video.jump-cue-start",
       label: en.menu.video.jumpCueStart,
       accelerator: en.menu.keys.videoToCueStart,
@@ -1549,6 +1565,7 @@ export default function App() {
       title: en.menu.video.title,
       items: [
         "video.open",
+        "video.close",
         "video.jump-cue-start",
         "video.jump-cue-end",
         "video.toggle-subtitle-overlay",

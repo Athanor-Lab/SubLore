@@ -93,6 +93,7 @@ const DECLARED = [
   "help-about",
   "video-toggle-subtitle-overlay",
   "video-show-source-on-video",
+  "video-close",
   "video-jump-cue-start",
   "video-jump-cue-end",
   "view-tags-show",

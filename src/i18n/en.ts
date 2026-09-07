@@ -51,6 +51,7 @@ export const en = {
      */
     video: {
       title: "Video",
+      close: "Close video",
       jumpCueStart: "Jump to cue start",
       jumpCueEnd: "Jump to cue end",
     },
