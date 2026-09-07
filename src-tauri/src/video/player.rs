@@ -121,6 +121,20 @@ pub struct SubtitlesDrawn {
     pub chars: Option<usize>,
 }
 
+/// What the details dialog reads off the open media. Every field but the path is optional: a
+/// container that does not carry a number is said to not carry it, never guessed at.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoDetails {
+    pub path: String,
+    pub fps: Option<f64>,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub frames: Option<i64>,
+    pub duration: Option<f64>,
+    pub codec: Option<String>,
+}
+
 /// One external subtitle track, as `track-list` reports it.
 struct ExternalSubtitle {
     id: i64,
@@ -740,6 +754,39 @@ impl Player {
         // An open that never reached mpv leaves no StartFile behind, so the picture is cleared
         // here too: nothing is on screen after a failed open.
         self.shared.tell_picture(None);
+    }
+
+    /// Unload the open media and leave the player running.
+    ///
+    /// `stop` and not a shutdown: the window keeps its surface and the next open costs no new
+    /// process, which is what closing a video means here. Everything the interface draws about the
+    /// media follows the state and the picture, so both are cleared before this answers.
+    pub fn close(&self) -> Result<(), VideoError> {
+        let mpv = self.handle()?;
+        mpv.command("stop", &[])
+            .map_err(|error| from_mpv(error, "stop"))?;
+        // The same reset a failed open does, which is the whole of what the interface reads: the
+        // state says idle, the state is told, and the picture goes.
+        self.reset_to_idle();
+        Ok(())
+    }
+
+    /// What the open media is, for the details dialog. See interface-spec 9.9.
+    pub fn details(&self) -> Result<VideoDetails, VideoError> {
+        let mpv = self.handle()?;
+        // Nothing loaded is not a media with nothing to say about it, so it is an error and not an
+        // answer full of empty fields.
+        self.loaded_duration()?;
+        let path = self.loaded_path().unwrap_or_default();
+        Ok(VideoDetails {
+            path,
+            fps: mpv.get_property::<f64>("container-fps").ok(),
+            width: mpv.get_property::<i64>("width").ok(),
+            height: mpv.get_property::<i64>("height").ok(),
+            frames: mpv.get_property::<i64>("estimated-frame-count").ok(),
+            duration: mpv.get_property::<f64>("duration").ok(),
+            codec: mpv.get_property::<String>("video-codec").ok(),
+        })
     }
 
     fn loaded_duration(&self) -> Result<f64, VideoError> {

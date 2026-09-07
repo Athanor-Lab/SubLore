@@ -16,7 +16,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::crash::force::{trip, ForcePoint};
 use crate::log;
 use error::VideoError;
-use player::{Player, PlayerConfig, VideoOpened};
+use player::{Player, PlayerConfig, VideoDetails, VideoOpened};
 use surface::{SurfaceRegion, VideoSurface};
 
 /// How long a surface change waits for the main thread to apply it.
@@ -230,7 +230,7 @@ pub async fn video_open(
 /// A refusal the interface is about to draw is one a person is about to read, so it goes in the log
 /// with the name of the command that produced it. Without this the only trace of a refusal is the
 /// sentence on screen, which does not say what asked. See BACKLOG N36.
-fn refused(command: &str, outcome: Result<(), VideoError>) -> Result<(), VideoError> {
+fn refused<T>(command: &str, outcome: Result<T, VideoError>) -> Result<T, VideoError> {
     if let Err(error) = &outcome {
         crate::log::warn!(
             "video: {command} was refused as {:?} ({})",
@@ -239,6 +239,18 @@ fn refused(command: &str, outcome: Result<(), VideoError>) -> Result<(), VideoEr
         );
     }
     outcome
+}
+
+/// Unload the open media. The player keeps running, so the next open is as cheap as the first.
+#[tauri::command]
+pub async fn video_close(state: State<'_, VideoState>) -> Result<(), VideoError> {
+    refused("video_close", state.player().close())
+}
+
+/// What the open media is: the read-only dialog behind Video details (interface-spec 9.9).
+#[tauri::command]
+pub async fn video_details(state: State<'_, VideoState>) -> Result<VideoDetails, VideoError> {
+    refused("video_details", state.player().details())
 }
 
 #[tauri::command]

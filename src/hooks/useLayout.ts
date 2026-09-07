@@ -11,6 +11,8 @@ export type Layout = {
   interfaceScale: number;
   /** Whether the waveform brings the cursor's line into view whenever its range changes. */
   waveAutoscroll: boolean;
+  /** Whether moving the cursor takes the picture to that line's start. */
+  videoFollowSelection: boolean;
 };
 
 /**

@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window, getComputedStyle, PointerEvent */
+/* global describe, it, before, document, window, Event, getComputedStyle, PointerEvent */
 /**
  * M2.5: the cursor's cue puts two markers on the waveform and either can be dragged.
  *
@@ -126,6 +126,18 @@ function asMillis(timecode) {
  * marker: the neighbouring lines' boundaries are the same shape but a different colour, far enough
  * from both of these for the tolerance below.
  */
+/** Put the playhead somewhere, the way the transport's own slider does. */
+async function seekTo(seconds) {
+  await browser.execute((target) => {
+    const slider = document.querySelector(".controls__slider");
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(slider, String(target));
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    slider.dispatchEvent(new Event("change", { bubbles: true }));
+  }, seconds);
+  await browser.pause(300);
+}
+
 function markerColumns() {
   return browser.execute(() => {
     const canvas = document.querySelector(".waveform__canvas");
@@ -299,6 +311,10 @@ describe("dragging a cue boundary on the waveform", () => {
     });
 
     await cursorToSecondRow(toplevel);
+    // The cursor takes the picture to that line's start, so the playhead would be drawn over the
+    // start marker and the scan below would find the marker's colour a column or two late. Moved
+    // to the middle of the fixture, which is far from both of the second cue's boundaries.
+    await seekTo(30);
     columns = await waitFor(
       async () => {
         const found = await markerColumns();

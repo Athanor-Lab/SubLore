@@ -237,6 +237,8 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_save_as,
             subtitle::subtitle_adopt_transcription,
             video::video_open,
+            video::video_close,
+            video::video_details,
             video::video_play,
             video::video_pause,
             video::video_seek,

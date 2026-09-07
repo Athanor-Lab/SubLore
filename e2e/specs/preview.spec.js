@@ -89,6 +89,24 @@ function lastDrawn() {
 }
 
 /**
+ * The newest thing the app said about the frame, whichever of its two reports that was.
+ *
+ * `lastDrawn` reads only the report mpv answers with. This one also sees the report the app writes
+ * when there is no frame at all, which is the only thing outside the window that says the media was
+ * really let go.
+ */
+function lastPreviewReport() {
+  const lines = appLog(dataHome())
+    .split("\n")
+    .filter(
+      (line) =>
+        line.includes("preview: mpv holds the document") ||
+        line.includes("preview: the document is shadowed"),
+    );
+  return lines.at(-1) ?? null;
+}
+
+/**
  * Wait until the app's newest report about the overlay contains `expected`.
  *
  * The newest and not any: the log keeps every line, so "somewhere in the file" would let a reading
@@ -416,6 +434,81 @@ describe("the document on the video frame", () => {
       timeout: 15000,
       message: "the picture to jump back to the line's start",
     });
+  });
+
+  it("closes the video and leaves the document where it was", async () => {
+    const fromVideoMenu = async (token) => {
+      await clickElement(toplevel, ".menubar__title--video");
+      await waitFor(() => present(`.menubar__item--${token}`), {
+        timeout: 15000,
+        message: `the Video menu to open on ${token}`,
+      });
+      await clickElement(toplevel, `.menubar__item--${token}`);
+    };
+
+    await fromVideoMenu("video-close");
+    // Nothing is loaded any more: the stage says so and the transport cannot be pressed.
+    await waitFor(
+      () =>
+        browser.execute(
+          () =>
+            document.querySelector(".stage__empty") !== null &&
+            document.querySelector(".controls__button")?.disabled === true,
+        ),
+      { timeout: 20000, message: "the stage to go back to saying nothing is open" },
+    );
+    expect(await textOf(".statusbar__video-error")).toBe(null);
+
+    // Whether mpv really let the media go is not on screen, and the interface alone would say the
+    // same thing if the file were still loaded. The app says it the next time it has something to
+    // draw, so an edit is made here and the report that follows it is read.
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(
+      async () =>
+        lastPreviewReport()?.includes("no video is open to draw it on") === true ? 1 : null,
+      { timeout: 20000, message: "the app to report it has no frame to draw the document on" },
+    );
+    await clickElement(toplevel, ".toolbar__edit-redo");
+    await waitFor(async () => ((await rowText(FIRST_ROW)) === EDITED_FIRST_CUE ? 1 : null), {
+      timeout: 15000,
+      message: "the redo to put the edited line back",
+    });
+
+    // Nothing left to close, so the item that closed it is greyed and stays drawn (24 A2).
+    await clickElement(toplevel, ".menubar__title--video");
+    await waitFor(() => present(".menubar__item--video-close"), {
+      timeout: 15000,
+      message: "the Video menu to open on its close item",
+    });
+    expect(
+      await browser.execute(
+        () => document.querySelector(".menubar__item--video-close")?.disabled ?? null,
+      ),
+    ).toBe(true);
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".menubar__item--video-close")) ? null : 1), {
+      timeout: 15000,
+      message: "the Video menu to close",
+    });
+
+    // The document is untouched by any of it: closing a video is not closing a subtitle.
+    expect(await textOf(".statusbar__document")).toContain(SHORT_STATUS);
+
+    // And the same video opens again straight afterwards, because the player never went down.
+    await openVideo(toplevel, requireVideoFixture());
+    await waitFor(
+      () =>
+        browser.execute(
+          () =>
+            document.querySelector(".stage__empty") === null &&
+            document.querySelector(".controls__button")?.disabled === false,
+        ),
+      { timeout: 30000, message: "the video fixture to reach the ready state again" },
+    );
+    await waitForDrawn(
+      drawing(EDITED_FIRST_CUE.length),
+      "the document back on the frame after a second open",
+    );
   });
 
   it("never writes the subtitle file it is drawing from, and keeps no backup of it", async () => {
