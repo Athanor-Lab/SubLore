@@ -460,3 +460,96 @@
   color: inherit;
   font: inherit;
 }
+
+/* Shift times: the amount, the direction, which lines and which of their times (9.1). */
+.shifttimes {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.shifttimes__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: min(22rem, 90vw);
+  max-height: 90vh;
+  padding: 1rem;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.shifttimes__title {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.shifttimes__field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.shifttimes__label {
+  flex: none;
+  width: 5rem;
+  color: var(--ink-muted);
+}
+
+.shifttimes__amount {
+  flex: 1;
+  min-width: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.shifttimes__refusal {
+  margin: 0;
+  color: var(--ink-warn);
+}
+
+.shifttimes__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.shifttimes__legend {
+  padding: 0;
+  color: var(--ink-dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.shifttimes__choice {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.shifttimes__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.shifttimes__go,
+.shifttimes__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}

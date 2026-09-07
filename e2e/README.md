@@ -366,6 +366,19 @@ index is what the check exists to find: a package whose dependencies do not reso
 will not start, a library the bundler never declared. A retry there would turn a real failure into a
 slow one.
 
+## Reading a battery: "Spec Files" is not the whole verdict
+
+A run prints `Spec Files: 45 passed, 45 total` and then, separately, may print
+`ERROR @wdio/cli:utils: Error in onCompleteHook: Error: E2E guard: expected at least N passing
+tests, got N-1`. The first line is about files and the second is about tests, and a run can pass the
+first and fail the second: that is exactly what the guard is for, and it is the only thing that sees
+a test that stopped running.
+
+**So a battery is read with two greps, not one:** the `Spec Files:` line and `E2E guard`. On
+2026-09-07 three branches in a row went red on CI for a count that was one too high, and the local
+runs had said the same thing in a line nobody was grepping for. The number in `EXPECTED_TESTS` is
+what a battery counts, never what arithmetic over the diff says it should be.
+
 ## How long a wait waits, and why CI waits twice as long
 
 Every `waitFor` in this suite takes a timeout, and every one of them is multiplied by `PATIENCE` in

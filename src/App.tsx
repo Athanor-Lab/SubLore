@@ -21,6 +21,7 @@ import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
 import VideoDetailsPanel from "./components/VideoDetails";
 import JumpToTime from "./components/JumpToTime";
+import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
 import { type VideoDetails } from "./types/video";
 import { useAudioPeaks } from "./hooks/useAudioPeaks";
@@ -520,6 +521,7 @@ export default function App() {
   /** What Video details is showing, and nothing on screen while it is null. */
   const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
   const [jumpToOpen, setJumpToOpen] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
   // The find band, and what it is looking for. The query outlives a close so reopening the band
@@ -965,6 +967,41 @@ export default function App() {
   }
 
   /**
+   * Move some or all of the lines by a fixed amount. One undo step, whatever the count.
+   *
+   * A time is never taken below zero: the reference clamps each timestamp at the start of the media
+   * and so does this. A shift that would leave a line ending before it starts is sent as it stands
+   * and refused by the backend, so the refusal reaches the status bar. See interface-spec 9.1.
+   */
+  async function shiftTimes(request: ShiftRequest) {
+    await flushEditors();
+    const first = selectedRows[0];
+    const rows =
+      request.affect === "all" || first === undefined
+        ? subtitle.cues.map((_, index) => index)
+        : request.affect === "selected"
+          ? selectedRows
+          : // Selection onward: the run the selection starts at, and every line after it.
+            Array.from(
+              { length: Math.max(0, subtitle.cues.length - first) },
+              (_, step) => first + step,
+            );
+    const by = request.backward ? -request.amountMs : request.amountMs;
+    const edits = rows.flatMap((row) => {
+      const cue = subtitle.cues[row];
+      if (cue === undefined) {
+        return [];
+      }
+      const startMs = request.times === "end" ? cue.startMs : Math.max(0, cue.startMs + by);
+      const endMs = request.times === "start" ? cue.endMs : Math.max(0, cue.endMs + by);
+      return startMs === cue.startMs && endMs === cue.endMs ? [] : [{ cue: row, startMs, endMs }];
+    });
+    if (edits.length > 0) {
+      await subtitle.setManyTimes(edits);
+    }
+  }
+
+  /**
    * Close the gaps inside the selection: every line's start onto the line before it, or every
    * line's end onto the line after it. A single selected line acts as if its neighbour were
    * selected too, which is what the reference does.
@@ -1242,6 +1279,15 @@ export default function App() {
       accelerator: en.menu.keys.endToPlayhead,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void boundaryToPlayhead("end"),
+    },
+    {
+      id: "time.shift",
+      label: en.menu.timing.shift,
+      accelerator: en.menu.keys.shift,
+      // Always, which is what the reference does and what the interface spec's own table says: the
+      // form opens on a document that is not there yet and shifts nothing.
+      enabled: true,
+      run: () => setShiftOpen(true),
     },
     {
       id: "time.shift-to-playhead",
@@ -1808,6 +1854,7 @@ export default function App() {
         "time.next-cue",
         "time.start-to-playhead",
         "time.end-to-playhead",
+        "time.shift",
         "time.shift-to-playhead",
         "time.continuous-start",
         "time.continuous-end",
@@ -2234,6 +2281,16 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {shiftOpen && (
+          <ShiftTimes
+            hasSelection={selection.selected.size > 0}
+            onShift={(request) => {
+              setShiftOpen(false);
+              void shiftTimes(request);
+            }}
+            onClose={() => setShiftOpen(false)}
+          />
+        )}
         {jumpToOpen && (
           <JumpToTime
             position={position}

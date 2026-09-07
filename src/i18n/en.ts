@@ -74,6 +74,7 @@ export const en = {
       nextCue: "Next line",
       startToPlayhead: "Set start to playhead",
       endToPlayhead: "Set end to playhead",
+      shift: "Shift times",
       shiftToPlayhead: "Shift selection to playhead",
       continuousStart: "Make times continuous, change start",
       continuousEnd: "Make times continuous, change end",
@@ -157,6 +158,7 @@ export const en = {
       videoToCueEnd: "Ctrl+2",
       startToPlayhead: "Ctrl+3",
       endToPlayhead: "Ctrl+4",
+      shift: "Ctrl+I",
       shiftToPlayhead: "Ctrl+6",
       find: "Ctrl+F",
       /** The one accelerator with no modifier at all, which is why the field rule has two halves. */
@@ -456,6 +458,24 @@ export const en = {
      * What Edit beside the Style dropdown opens. Every field is one write and one undo step, and
      * the name is not among them: renaming a style rewrites every line that names it. See B10.
      */
+    shiftTimes: {
+      title: "Shift times",
+      amount: "Amount",
+      direction: "Direction",
+      forward: "Forward",
+      backward: "Backward",
+      affect: "Affect",
+      allLines: "All lines",
+      selectedLines: "Selected lines",
+      onwardLines: "Selection onward",
+      which: "Times",
+      bothTimes: "Start and end",
+      startOnly: "Start only",
+      endOnly: "End only",
+      go: "Shift",
+      cancel: "Cancel",
+      refused: "That is not an amount of time to shift by.",
+    },
     styleEditor: {
       /** The button beside the Style dropdown, which is where the reference's own row puts it. */
       edit: "Edit",
