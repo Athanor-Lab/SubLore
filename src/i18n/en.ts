@@ -78,8 +78,10 @@ export const en = {
       endToPlayhead: "Set end to playhead",
       shift: "Shift times",
       shiftToPlayhead: "Shift selection to playhead",
-      continuousStart: "Make times continuous, change start",
-      continuousEnd: "Make times continuous, change end",
+      /** The submenu the two below sit in, which is where the interface puts them. */
+      continuous: "Make times continuous",
+      continuousStart: "Change start",
+      continuousEnd: "Change end",
       toCueStart: "Jump to cue start",
       toCueEnd: "Jump to cue end",
       selectAtPlayhead: "Select cue at playhead",

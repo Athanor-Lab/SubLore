@@ -324,15 +324,62 @@ function titlesOnTheBar() {
   );
 }
 
-/** What the open dropdown draws, by command token, in the order it draws it. */
-function itemsOfOpenMenu() {
-  return browser.execute(() =>
-    Array.from(document.querySelectorAll(".menubar__menu .menubar__item")).map((item) => ({
-      id: item.id.replace("menuitem-", ""),
-      label: item.querySelector(".menubar__label")?.textContent ?? null,
-      disabled: item.disabled,
-    })),
+/** Every command in the open dropdown's own list of items, in the order it draws them. */
+function itemsIn(selector) {
+  return browser.execute(
+    (css) =>
+      Array.from(document.querySelectorAll(css)).map((item) => ({
+        id: item.id.replace("menuitem-", ""),
+        label: item.querySelector(".menubar__label")?.textContent ?? null,
+        disabled: item.disabled,
+      })),
+    selector,
   );
+}
+
+/**
+ * What the open dropdown draws, by command token, in the order it draws it, with every list inside
+ * it walked into.
+ *
+ * A submenu is a row and not a command, so it is not counted here; what it holds is counted in its
+ * place, which is what keeps this a reading of the registry rather than of the shape of the menu.
+ */
+async function itemsOfOpenMenu(toplevel) {
+  const rows = await browser.execute(() =>
+    Array.from(document.querySelector(".menubar__menu")?.children ?? []).map((row) => {
+      const opener = row.querySelector(".menubar__submenu");
+      return opener === null
+        ? {
+            item: {
+              id: row.id.replace("menuitem-", ""),
+              label: row.querySelector(".menubar__label")?.textContent ?? null,
+              disabled: row.disabled,
+            },
+          }
+        : { submenu: opener.id.replace("menuitem-", "") };
+    }),
+  );
+
+  const items = [];
+  for (const row of rows) {
+    if (row.item !== undefined) {
+      items.push(row.item);
+      continue;
+    }
+    await clickElement(toplevel, `.menubar__submenu--${row.submenu}`);
+    await waitFor(() => present(".menubar__menu--sub"), {
+      timeout: 15000,
+      message: `the ${row.submenu} list to open`,
+    });
+    items.push(...(await itemsIn(".menubar__menu--sub .menubar__item")));
+    // One Escape gives back one level, so the dropdown around it stays open for the next row.
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".menubar__menu--sub")) ? null : 1), {
+      timeout: 15000,
+      message: `the ${row.submenu} list to close`,
+    });
+  }
+  return items;
 }
 
 /** What the toolbar draws, by command token, in the order it draws it. */
@@ -364,7 +411,7 @@ async function drawnEverywhere(toplevel) {
     }
     await clickElement(toplevel, `.menubar__title--${title.id}`);
     await waitForOpenMenu(title.label);
-    menus.push({ id: title.id, items: await itemsOfOpenMenu() });
+    menus.push({ id: title.id, items: await itemsOfOpenMenu(toplevel) });
     pressKey("Escape");
     await waitForNoMenu();
   }

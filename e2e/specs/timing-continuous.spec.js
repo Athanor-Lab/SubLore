@@ -147,31 +147,54 @@ async function clickRow(toplevel, position) {
 }
 
 /** Open the Timing menu and choose one of its items by command token. */
-async function fromTimingMenu(toplevel, token) {
+/**
+ * Open the Timing menu, and the list inside it that holds `token` when that is where it lives.
+ *
+ * The two continuous items sit in a list of their own, behind a row that is not a command: it opens
+ * something rather than running (interface-spec 3.4 item 9).
+ */
+async function openTimingTo(toplevel, token) {
   await clickElement(toplevel, ".menubar__title--timing");
+  await waitFor(() => present(".menubar__menu"), {
+    timeout: 15000,
+    message: "the Timing menu to open",
+  });
+  if (!(await present(`.menubar__item--${token}`))) {
+    await clickElement(toplevel, ".menubar__submenu--time-continuous");
+  }
   await waitFor(() => present(`.menubar__item--${token}`), {
     timeout: 15000,
     message: `the Timing menu to open on ${token}`,
   });
+}
+
+/** Escape gives back one level at a time, so a list inside a menu takes two. */
+async function closeTimingMenu() {
+  await waitFor(
+    async () => {
+      if (!(await present(".menubar__menu"))) {
+        return 1;
+      }
+      pressKey("Escape");
+      return null;
+    },
+    { timeout: 15000, message: "the Timing menu to close" },
+  );
+}
+
+async function fromTimingMenu(toplevel, token) {
+  await openTimingTo(toplevel, token);
   await clickElement(toplevel, `.menubar__item--${token}`);
 }
 
 /** Whether a Timing item is drawn and greyed, without choosing it. */
 async function timingItem(toplevel, token) {
-  await clickElement(toplevel, ".menubar__title--timing");
-  await waitFor(() => present(`.menubar__item--${token}`), {
-    timeout: 15000,
-    message: `the Timing menu to open on ${token}`,
-  });
+  await openTimingTo(toplevel, token);
   const state = await browser.execute((css) => {
     const item = document.querySelector(css);
     return item === null ? null : { drawn: true, disabled: item.disabled === true };
   }, `.menubar__item--${token}`);
-  pressKey("Escape");
-  await waitFor(async () => ((await present(`.menubar__item--${token}`)) ? null : 1), {
-    timeout: 15000,
-    message: "the Timing menu to close",
-  });
+  await closeTimingMenu();
   return state;
 }
 
