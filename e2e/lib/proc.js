@@ -5,6 +5,19 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { requireLinuxBackend } from "./platform.js";
 
 /**
+ * How much longer than asked every wait in the suite waits.
+ *
+ * The CI runner has two cores and runs the whole battery one spec at a time: a wait that is
+ * generous on a workstation is tight there, and three pull requests in a row went red on timeouts
+ * that a rerun did not reproduce. Waiting longer weakens nothing, because what is asserted does not
+ * change and a check that fails still fails; it only takes longer to give up. See e2e/README.md.
+ */
+const PATIENCE = (() => {
+  const asked = Number(process.env.E2E_PATIENCE ?? (process.env.CI === "true" ? "2" : "1"));
+  return Number.isFinite(asked) && asked >= 1 ? asked : 1;
+})();
+
+/**
  * Poll until `probe` returns something truthy. Never a fixed sleep: every wait has a deadline and
  * a message saying what was expected (design section 10).
  * @template T
@@ -12,7 +25,8 @@ import { requireLinuxBackend } from "./platform.js";
  * @param {{timeout?: number, interval?: number, message: string}} options
  * @returns {Promise<T>}
  */
-export async function waitFor(probe, { timeout = 30000, interval = 250, message }) {
+export async function waitFor(probe, { timeout: asked = 30000, interval = 250, message }) {
+  const timeout = Math.round(asked * PATIENCE);
   const deadline = Date.now() + timeout;
   let lastError = null;
   for (;;) {
