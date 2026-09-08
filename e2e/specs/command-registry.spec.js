@@ -103,6 +103,12 @@ const DECLARED = [
   "subtitle-join-concat",
   "subtitle-join-keep-first",
   "subtitle-merge",
+  "subtitle-move-up",
+  "subtitle-move-down",
+  "subtitle-sort-all-start",
+  "subtitle-sort-all-end",
+  "subtitle-sort-selected-start",
+  "subtitle-sort-selected-end",
   "help-about",
   "video-toggle-subtitle-overlay",
   "video-show-source-on-video",
@@ -206,6 +212,12 @@ const SUBTITLE_ITEMS = [
   { id: "subtitle-join-concat", disabled: true },
   { id: "subtitle-join-keep-first", disabled: true },
   { id: "subtitle-merge", disabled: true },
+  { id: "subtitle-move-up", disabled: true },
+  { id: "subtitle-move-down", disabled: true },
+  { id: "subtitle-sort-all-start", disabled: true },
+  { id: "subtitle-sort-all-end", disabled: true },
+  { id: "subtitle-sort-selected-start", disabled: true },
+  { id: "subtitle-sort-selected-end", disabled: true },
 ];
 
 /** Every button the toolbar will ever draw, drawn with nothing open (C2). */
@@ -660,6 +672,14 @@ describe("the command registry", () => {
       { route: "menu", id: "subtitle-duplicate", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },
+      // A document opens on a selected row, so the two moves wake with it; a move at the edge is
+      // enabled and does nothing rather than greying, which is what the reference does (§3.3 12-13).
+      { route: "menu", id: "subtitle-move-up", disabled: false },
+      { route: "menu", id: "subtitle-move-down", disabled: false },
+      // A document open is one selected row: sort all wakes (it needs only a document), sort
+      // selected stays greyed until two or more are selected.
+      { route: "menu", id: "subtitle-sort-all-start", disabled: false },
+      { route: "menu", id: "subtitle-sort-all-end", disabled: false },
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous
       // line stays greyed because the cursor opens on row 0 and there is nothing above it.
       { route: "menu", id: "time-next-cue", disabled: false },
