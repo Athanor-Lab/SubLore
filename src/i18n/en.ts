@@ -144,6 +144,11 @@ export const en = {
       /** Move the selected cues one row up or down, past the neighbour above or below them. */
       moveUp: "Move cues up",
       moveDown: "Move cues down",
+      /** The two sort submenus and the two keys each offers (interface-spec 3.3 items 16, 17). */
+      sortAll: "Sort all cues",
+      sortSelected: "Sort selected cues",
+      byStart: "By start time",
+      byEnd: "By end time",
     },
     audio: {
       title: "Audio",
