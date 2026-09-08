@@ -11,6 +11,11 @@ export const en = {
       title: "File",
       new: "New",
       openSubtitle: "Open subtitle…",
+      /** Opens the same picker, then a dialog naming the file's charset instead of guessing it. */
+      openEncoding: "Open with encoding…",
+      recent: "Recent projects",
+      /** The one greyed row the recent list holds while nothing has been remembered yet. */
+      recentEmpty: "Empty",
       /** The document to read from while translating. It is never written to. */
       openSource: "Open source subtitle…",
       closeSource: "Close source subtitle",
@@ -19,7 +24,10 @@ export const en = {
       openVideo: "Open video…",
       save: "Save",
       saveAs: "Save as…",
+      export: "Export…",
       discard: "Discard changes",
+      /** Opens the script's own metadata, read-only in v1 (interface-spec 3.1 item 11, 9.5). */
+      properties: "Project properties",
       quit: "Quit",
     },
     edit: {
@@ -54,6 +62,8 @@ export const en = {
      */
     video: {
       title: "Video",
+      /** The recent-videos submenu (interface-spec 3.5 item 3). */
+      recent: "Recent videos",
       close: "Close video",
       details: "Video details",
       jumpTo: "Jump to time",
@@ -115,6 +125,9 @@ export const en = {
       title: "View",
       waveform: "Waveform",
       centreOnCue: "Centre the waveform on the current line",
+      /** The keyboard-only pan pair, named for the accelerator table even with no menu row. */
+      scrollLeft: "Scroll the waveform left",
+      scrollRight: "Scroll the waveform right",
       followCue: "Follow the current line",
       /** The two toggles that decide what a commit does, beside their sibling above (5). */
       autoCommit: "Commit as the markers move",
@@ -124,10 +137,13 @@ export const en = {
       tagsShow: "Show tags",
       tagsSimplify: "Simplify tags",
       tagsHide: "Hide tags",
+      /** The one button that steps the three above, on the toolbar and nowhere else (interface-spec 4.1). */
+      tagsCycle: "Cycle tag display",
       /** Draws the document being read on the frame instead of the one being written. See S3. */
       sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
       scale: "{percent}%",
+      language: "Language…",
     },
     /** The four cue structure edits, interface-spec section 3 order (M2.7 E2, T3 C2). */
     subtitles: {
@@ -147,15 +163,32 @@ export const en = {
       joinKeepFirst: "Keep first",
       delete: "Delete cues",
       split: "Split cue",
+      /** Frame-accurate split at the video playhead, before or after the current frame (§3.9). */
+      splitBeforePlayhead: "Split before the playhead",
+      splitAfterPlayhead: "Split after the playhead",
       merge: "Merge with next",
+      /** Move the selected cues one row up or down, past the neighbour above or below them. */
+      moveUp: "Move cues up",
+      moveDown: "Move cues down",
+      /** The two sort submenus and the two keys each offers (interface-spec 3.3 items 16, 17). */
+      sortAll: "Sort all cues",
+      sortSelected: "Sort selected cues",
+      byStart: "By start time",
+      byEnd: "By end time",
     },
     audio: {
       title: "Audio",
       /** For a track the file gives neither a title nor a language, numbered as the file lists them. */
+      useVideoTrack: "Use the video's audio",
       track: "Track",
     },
     help: {
       title: "Help",
+      contents: "Help contents",
+      website: "Project website",
+      reportBug: "Report a bug",
+      checkUpdates: "Check for updates",
+      eventLog: "Event log",
       about: "About Sublore",
     },
     /** Drawn beside a menu item. Each key is handled by whichever component owns that command. */
@@ -189,9 +222,15 @@ export const en = {
       shift: "Ctrl+I",
       shiftToPlayhead: "Ctrl+6",
       find: "Ctrl+F",
-      /** The one accelerator with no modifier at all, which is why the field rule has two halves. */
+      /** A function key, and the two leads below, are the accelerators with no modifier at all,
+          which is why the field rule has two halves (interface-spec 3.4, 3.2). */
       findNext: "F3",
       replace: "Ctrl+H",
+      /** Bare letters, run only outside a text field where they are not a character. */
+      leadIn: "C",
+      leadOut: "V",
+      moveCuesUp: "Alt+Up",
+      moveCuesDown: "Alt+Down",
     },
     errors: {
       quitFailed: "Sublore could not quit. Close the window instead.",
@@ -263,6 +302,29 @@ export const en = {
     version: "Version {version}",
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
+  },
+  /** The Language dialog (interface-spec 3.7 item 12). One language today, English. */
+  language: {
+    title: "Language",
+    prompt: "Please choose a language:",
+    ok: "OK",
+    cancel: "Cancel",
+  },
+  /** The charset dialog Open with encoding raises after the file picker (interface-spec 9.8). */
+  openEncoding: {
+    title: "Charset",
+    prompt: "Choose charset code:",
+    open: "Open",
+    cancel: "Cancel",
+  },
+  /** What a command reports on the status bar's timed slot (interface-spec 1.5). */
+  notices: {
+    /** Keyed by TagMode, worded as the reference words them. */
+    tagMode: {
+      show: "ASS Override Tag mode set to show full tags.",
+      simplify: "ASS Override Tag mode set to simplify tags.",
+      hide: "ASS Override Tag mode set to hide tags.",
+    },
   },
   /** The draggable edges between the panels (D1). Read aloud where a separator is announced. */
   shell: {
@@ -433,6 +495,18 @@ export const en = {
   },
 
   subtitle: {
+    /** The Project properties dialog: the script's own metadata, read-only in v1 (interface-spec 9.5). */
+    properties: {
+      title: "Project properties",
+      scriptTitle: "Title",
+      resolution: "Script resolution",
+      wrapStyle: "Wrap style",
+      /** Shown when the open format carries no script-level metadata, as SRT and VTT do not. */
+      empty: "This format carries no script metadata.",
+      /** A field the open file does not name. */
+      unset: "not set",
+      close: "Close",
+    },
     /** Appended to the status line while the document differs from the file on disk. */
     dirty: "Unsaved changes",
     /** Shown once the undo bound has dropped its oldest entries. */
@@ -473,6 +547,8 @@ export const en = {
       staleRevision:
         "Sublore and this list no longer agree about the file. Open it again before editing.",
       invalidCue: "That line is not in this file any more.",
+      unencodableCharacter:
+        "The document holds a character the chosen charset cannot write. Nothing was exported.",
       unwritableText:
         "This format cannot hold that text. Remove the blank line or the line break and try again.",
       editRefused: "Sublore did not make that change, so the file is exactly as it was.",
@@ -562,6 +638,8 @@ export const en = {
       cps: "CPS",
       /** Marks an ASS Comment: event, which a player does not draw. */
       comment: "Comment",
+      /** Named for a reader reaching the grid's context menu without seeing it (interface-spec 3.9). */
+      contextMenu: "Cue actions",
     },
     /** The box in the tools column that edits whichever line the cursor is on (T5). */
     currentLine: {

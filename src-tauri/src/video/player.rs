@@ -1025,10 +1025,37 @@ fn mpv_path(path: &Path) -> String {
 
 /// The only caller of `wait_event` in the codebase, so a second mpv client handle is never needed
 /// and libmpv2's unchecked `create_client` is never reached. See the M0.2 design, section 2.1.
+/// What the duration read at `FileLoaded` means for the pending open (BACKLOG N40).
+enum OpenVerdict {
+    /// The open has its answer, a duration or a failure.
+    Resolve(Result<f64, VideoError>),
+    /// mpv has the file but not its duration yet, seen on a stalled runner with an audio-only
+    /// file: retry on the next event-loop pass, with `OPEN_TIMEOUT` in `open` as the backstop.
+    /// Resolving this read as an error painted "no file is open" over an open about to succeed.
+    Wait,
+}
+
+/// The one mapping N40 was about, pure so a check can pin it: `PropertyUnavailable` is a demuxer
+/// that has not answered yet, never a file that is not open.
+fn open_verdict(read: Result<f64, libmpv2::Error>) -> OpenVerdict {
+    match read {
+        Ok(duration) if duration > 0.0 => OpenVerdict::Resolve(Ok(duration)),
+        Ok(duration) => OpenVerdict::Resolve(Err(VideoError::open_failed(format!(
+            "mpv reported duration {duration}"
+        )))),
+        Err(libmpv2::Error::Raw(code)) if code == libmpv2::mpv_error::PropertyUnavailable => {
+            OpenVerdict::Wait
+        }
+        Err(error) => OpenVerdict::Resolve(Err(from_mpv(error, "duration"))),
+    }
+}
+
 fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
     let mut last_position = Instant::now() - POSITION_EVENT_INTERVAL;
     // A position the throttle held back, waiting for the interval to pass.
     let mut held: Option<f64> = None;
+    // FileLoaded arrived before mpv had a duration, so the open's verdict is still owed (N40).
+    let mut awaiting_duration = false;
 
     while !stop.load(Ordering::Relaxed) {
         match mpv.wait_event(EVENT_POLL_SECONDS) {
@@ -1089,6 +1116,8 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                 // reconfigures, so the interface is told the size is unknown rather than left
                 // holding the file before's. See docs/video-aspect-tasks.md.
                 shared.tell_picture(None);
+                // A new load began, so a duration still owed belongs to a file that is gone (N40).
+                awaiting_duration = false;
             }
             Some(Ok(Event::VideoReconfig)) => {
                 // mpv's own notice that its video output changed, and the one that arrives for
@@ -1111,14 +1140,20 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                         "video: this media carries no picture, so there is no size to report"
                     );
                 }
-                let outcome = match mpv.get_property::<f64>("duration") {
-                    Ok(duration) if duration > 0.0 => Ok(duration),
-                    Ok(duration) => Err(VideoError::open_failed(format!(
-                        "mpv reported duration {duration}"
-                    ))),
-                    Err(error) => Err(from_mpv(error, "duration")),
-                };
-                shared.resolve_open(outcome);
+                match open_verdict(mpv.get_property::<f64>("duration")) {
+                    OpenVerdict::Resolve(outcome) => {
+                        awaiting_duration = false;
+                        shared.resolve_open(outcome);
+                    }
+                    // The demuxer can reach FileLoaded before it has a duration, seen on a stalled
+                    // CI runner with an audio-only file: resolving that read as an error painted
+                    // "no file is open" over an open about to succeed. Retried below; `open`'s own
+                    // timeout stays the backstop. See BACKLOG N40.
+                    OpenVerdict::Wait => {
+                        awaiting_duration = true;
+                        log::info!("video: mpv has no duration yet at FileLoaded, waiting for it");
+                    }
+                }
             }
             Some(Ok(Event::Shutdown)) => break,
             // libmpv2 turns a failed load or a failed playback into Err rather than an EndFile
@@ -1147,6 +1182,16 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                 }
             }
             _ => {}
+        }
+        // The duration the open is still owed, retried until mpv has one or the open's own
+        // timeout gives up waiting for it (N40). A resolve into a channel the open no longer
+        // holds returns false, and there is then nothing left to keep asking for.
+        if awaiting_duration {
+            if let OpenVerdict::Resolve(outcome) = open_verdict(mpv.get_property::<f64>("duration"))
+            {
+                awaiting_duration = false;
+                shared.resolve_open(outcome);
+            }
         }
         // The held report, once the interval it was waiting for has passed. Every path through the
         // loop reaches here, and the wait above returns at least ten times a second.
@@ -1313,5 +1358,45 @@ mod gpu_context_tests {
         let (context, source) = gpu_context_from(Some(raw));
         assert_eq!(context.as_ref(), "x11egl");
         assert_eq!(source, "default, the variable was not valid Unicode");
+    }
+}
+
+#[cfg(test)]
+mod open_verdict_tests {
+    use super::*;
+
+    /// The mapping N40 pinned down: a demuxer that has not answered yet is a wait, never a
+    /// failure (n40-open-verdict-tasks V1).
+    #[test]
+    fn a_duration_not_yet_available_waits_instead_of_failing() {
+        let read = Err(libmpv2::Error::Raw(libmpv2::mpv_error::PropertyUnavailable));
+        assert!(matches!(open_verdict(read), OpenVerdict::Wait));
+    }
+
+    #[test]
+    fn a_positive_duration_resolves_the_open() {
+        assert!(matches!(
+            open_verdict(Ok(61.5)),
+            OpenVerdict::Resolve(Ok(duration)) if duration == 61.5
+        ));
+    }
+
+    /// Zero is a file mpv cannot measure, which is a failed open and not a wait.
+    #[test]
+    fn a_zero_duration_is_a_failed_open() {
+        assert!(matches!(
+            open_verdict(Ok(0.0)),
+            OpenVerdict::Resolve(Err(error)) if error.code == VideoErrorCode::OpenFailed
+        ));
+    }
+
+    /// Any other mpv error keeps its own mapping; nothing else is allowed to wait.
+    #[test]
+    fn any_other_error_resolves_as_its_own_failure() {
+        let read = Err(libmpv2::Error::Raw(libmpv2::mpv_error::Generic));
+        assert!(matches!(
+            open_verdict(read),
+            OpenVerdict::Resolve(Err(error)) if error.code == VideoErrorCode::CommandFailed
+        ));
     }
 }

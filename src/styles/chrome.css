@@ -61,6 +61,13 @@
   outline: none;
 }
 
+/* A rule between two groups of a menu. Drawn, not walked: it carries no cursor, hover or command. */
+.menubar__separator {
+  height: 0;
+  margin: 0.25rem 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
 .menubar__item {
   display: flex;
   gap: 2rem;
@@ -440,6 +447,75 @@
   font: inherit;
 }
 
+/* Project properties: the script's own metadata over the shell, read-only, closed like About (9.5). */
+.properties {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.properties__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: min(28rem, 90vw);
+  max-height: 90vh;
+  padding: 1rem;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.properties__heading {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.properties__empty {
+  margin: 0 0 0.4rem;
+  color: var(--ink-muted);
+}
+
+.properties__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.properties__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.properties__label {
+  flex: none;
+  width: 9rem;
+  color: var(--ink-muted);
+}
+
+.properties__value {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.properties__close {
+  align-self: flex-end;
+  margin-top: 0.5rem;
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
 /* Jump to time: one field over the shell, closed the three ways every layer is (9.7). */
 .jumpto {
   position: fixed;
@@ -495,6 +571,114 @@
 
 .jumpto__go,
 .jumpto__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+/* Open with encoding: the charset dialog raised after the file picker (9.8). */
+.openencoding {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.openencoding__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(26rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.openencoding__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.openencoding__label {
+  color: var(--ink-muted);
+}
+
+.openencoding__select {
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.openencoding__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.openencoding__open,
+.openencoding__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+/* Language: one interface language chosen and remembered (3.7 item 12). */
+.languagedialog {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.languagedialog__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(22rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.languagedialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.languagedialog__label {
+  color: var(--ink-muted);
+}
+
+.languagedialog__select {
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.languagedialog__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.languagedialog__ok,
+.languagedialog__cancel {
   padding: 0.15rem 0.8rem;
   border: 1px solid var(--line);
   background: var(--bg-sunken);

@@ -157,7 +157,7 @@ async function cursorToRow(toplevel, position) {
 /** The three commits are keyboard commands: the reference draws no variant in any menu, and the
  *  panel's strip has no room to grow without taking it out of the wave. G, Shift+G, Ctrl+G. */
 function commitKey(which) {
-  pressKey(which === "plain" ? "g" : which === "next" ? "shift+g" : "ctrl+g");
+  pressKey(which === "plain" ? "g" : which === "next" ? "shift+g" : "alt+g");
 }
 
 /** Drag the start marker a little later and answer with where it was before. */

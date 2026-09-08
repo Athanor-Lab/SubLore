@@ -18,7 +18,7 @@ use sublore_edit::plan::{self, AssStyleField, Edit};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{
-    parse, AssField, Newline, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
+    parse, AssField, Newline, ScriptInfo, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
 };
 use sublore_io::atomic::save_with_backup;
 use sublore_io::backup::BackupStore;
@@ -213,6 +213,28 @@ pub struct SubtitleSaved {
     pub dirty: bool,
 }
 
+/// The script-level metadata a Properties dialog shows (interface-spec 9.5). Every field is absent
+/// for a format that carries no `[Script Info]`, which is what the dialog then says of it.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptInfoDto {
+    pub title: Option<String>,
+    pub play_res_x: Option<String>,
+    pub play_res_y: Option<String>,
+    pub wrap_style: Option<String>,
+}
+
+impl From<ScriptInfo> for ScriptInfoDto {
+    fn from(info: ScriptInfo) -> Self {
+        Self {
+            title: info.title,
+            play_res_x: info.play_res_x,
+            play_res_y: info.play_res_y,
+            wrap_style: info.wrap_style,
+        }
+    }
+}
+
 /// The bytes the open document would write, and what they are. What the video preview draws from,
 /// and the only reader of the document that is not a save (decision 7).
 pub struct DocumentBytes {
@@ -250,6 +272,22 @@ pub async fn subtitle_open(
     let opened = blocking(move || open_session(&slot, &path)).await;
     // Whatever the open did, the frame follows it: a refused open leaves the old document drawn,
     // and one that failed after clearing the session leaves nothing (decision 7).
+    crate::preview::refresh(&app).await;
+    opened
+}
+
+/// Open the file the user picked, decoding it as the charset they named instead of auto-detecting
+/// UTF-8 (interface-spec 9.8). `label` is an `encoding_rs` charset label from the dialog's own list.
+#[tauri::command]
+pub async fn subtitle_open_with_encoding(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    path: String,
+    label: String,
+) -> Result<SubtitleOpened, SubtitleError> {
+    let slot = state.slot();
+    let opened = blocking(move || open_session_with_encoding(&slot, &path, &label)).await;
+    // The frame follows the open exactly as it does for plain open above.
     crate::preview::refresh(&app).await;
     opened
 }
@@ -501,6 +539,21 @@ pub async fn subtitle_toggle_style(
             to,
         },
     )
+    .await
+}
+
+/// The open document's script-level metadata, for the Properties dialog (interface-spec 9.5). A
+/// read, so no revision and no patch: it never changes the document.
+#[tauri::command]
+pub async fn subtitle_script_info(
+    state: State<'_, SubtitleState>,
+) -> Result<ScriptInfoDto, SubtitleError> {
+    let slot = state.slot();
+    blocking(move || {
+        let guard = lock(&slot)?;
+        let session = current_ref(&guard)?;
+        Ok(ScriptInfoDto::from(session.document().script_info()))
+    })
     .await
 }
 
@@ -875,6 +928,19 @@ pub async fn subtitle_delete_many(
     edited(&app, state.slot(), revision, Edit::DeleteMany { cues }).await
 }
 
+/// A contiguous run of cues put back in a new order, as one undo step. `order` is a permutation of
+/// `from..from + order.len()`: the same cues rearranged, nothing renumbered. See reorder-tasks.md.
+#[tauri::command]
+pub async fn subtitle_reorder(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    from: usize,
+    order: Vec<usize>,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(&app, state.slot(), revision, Edit::Reorder { from, order }).await
+}
+
 #[tauri::command]
 pub async fn subtitle_split(
     app: AppHandle,
@@ -892,6 +958,58 @@ pub async fn subtitle_split(
             cue,
             text_offset,
             at_ms,
+        },
+    )
+    .await
+}
+
+/// Split the cue in two at the playhead's frame, the whole text kept in both halves. `before` cuts on
+/// the near edge of the current frame, otherwise on the far edge. The caller passes the cue's own
+/// times and the playhead so the frame math has what it needs; when the playhead is not inside the
+/// cue at frame level the split falls back to the playhead millisecond, which the caller has already
+/// checked is inside. See docs/split-at-playhead-tasks.md.
+/// The frame geometry a playhead split needs, bundled so the command stays under seven arguments.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayheadSplit {
+    start_ms: u32,
+    end_ms: u32,
+    playhead_ms: u32,
+    fps: f64,
+    before: bool,
+}
+
+#[tauri::command]
+pub async fn subtitle_split_at_playhead(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    split: PlayheadSplit,
+) -> Result<CuePatchDto, SubtitleError> {
+    let (first_end_ms, second_start_ms) = match crate::frames::split_at_playhead(
+        split.start_ms,
+        split.end_ms,
+        split.playhead_ms,
+        split.fps,
+        split.before,
+    ) {
+        crate::frames::SplitAt::Between {
+            first_end_ms,
+            second_start_ms,
+        } => (first_end_ms, second_start_ms),
+        // The frame check put the playhead outside the cue, which the caller's own millisecond
+        // check said was inside: split on the playhead itself rather than refuse.
+        crate::frames::SplitAt::Degenerate { .. } => (split.playhead_ms, split.playhead_ms),
+    };
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::SplitInTwo {
+            cue,
+            first_end_ms,
+            second_start_ms,
         },
     )
     .await
@@ -952,6 +1070,22 @@ pub async fn subtitle_save_as(
     let slot = state.slot();
     let backups = backup_root(&app)?;
     blocking(move || save_as(&slot, revision, &destination, backups)).await
+}
+
+/// Write a copy of the open document at `destination`, encoded as the charset `label` names
+/// (interface-spec 3.1 item 9). The document on screen adopts nothing: its file, its dirty state
+/// and its undo history stay exactly as they were, the way Save a copy leaves them.
+#[tauri::command]
+pub async fn subtitle_export(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    destination: String,
+    label: String,
+) -> Result<SubtitleSaved, SubtitleError> {
+    let slot = state.slot();
+    let backups = backup_root(&app)?;
+    blocking(move || export_copy(&slot, revision, &destination, &label, backups)).await
 }
 
 /// Make the cues a finished transcription produced the open document.
@@ -1030,6 +1164,29 @@ async fn adopt_through_dialogs(
 /// Read `path`, parse it, and make it the open file. Refused while the open file has unsaved
 /// edits: dropping the user's work is a decision only the user makes (CONTRIBUTING.md §3).
 pub fn open_session(slot: &SessionSlot, path: &str) -> Result<SubtitleOpened, SubtitleError> {
+    open_read(slot, path, read_document)
+}
+
+/// Open a file the user named a charset for (interface-spec 9.8). The same as [`open_session`] but
+/// the read decodes with `label` instead of auto-detecting UTF-8.
+pub fn open_session_with_encoding(
+    slot: &SessionSlot,
+    path: &str,
+    label: &str,
+) -> Result<SubtitleOpened, SubtitleError> {
+    open_read(slot, path, |target| {
+        read_document_with_encoding(target, label)
+    })
+}
+
+/// The body both opens share: guard the unsaved file, read through `read`, and install the result
+/// as the file on screen. `read` is the only difference between an auto-detected open and one the
+/// user named a charset for.
+fn open_read(
+    slot: &SessionSlot,
+    path: &str,
+    read: impl FnOnce(&Path) -> Result<SubtitleDocument, SubtitleError>,
+) -> Result<SubtitleOpened, SubtitleError> {
     let mut guard = lock(slot)?;
     if guard.as_ref().is_some_and(EditSession::dirty) {
         return Err(SubtitleError::new(
@@ -1041,7 +1198,7 @@ pub fn open_session(slot: &SessionSlot, path: &str) -> Result<SubtitleOpened, Su
     // A file that did not open is not the file on screen either, and the one being replaced was
     // just proven saved, so closing it first loses nothing.
     *guard = None;
-    let document = read_document(Path::new(path))?;
+    let document = read(Path::new(path))?;
     let summary = summarize(Some(path), &document);
     let session = EditSession::open(PathBuf::from(path), document);
     let opened = opened_payload(&session, summary);
@@ -1476,6 +1633,84 @@ pub fn save_as(
     save_as_locked(session, destination, backup_root)
 }
 
+/// The export write: the same atomic machinery as Save as, the bytes encoded first, and nothing
+/// adopted. The revision gate holds here too, so an export cannot write a list that has moved.
+pub fn export_copy(
+    slot: &SessionSlot,
+    revision: u64,
+    destination: &str,
+    label: &str,
+    backup_root: PathBuf,
+) -> Result<SubtitleSaved, SubtitleError> {
+    let mut guard = lock(slot)?;
+    let session = current(&mut guard)?;
+    check_revision(session, revision)?;
+    if destination.is_empty() {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::InvalidPath,
+            "the destination path is empty",
+        ));
+    }
+
+    let bytes = encode_for_export(&session.to_bytes(), label)?;
+    let outcome = save_with_backup(
+        Path::new(destination),
+        &bytes,
+        &BackupStore::new(backup_root),
+    )
+    .map_err(SubtitleError::from_io)?;
+    crate::log::info!(
+        "subtitle: exported a copy to {} as {label}",
+        outcome.destination.display(),
+    );
+    // A copy adopts nothing, so the dirty state going back is the one the document already had.
+    Ok(saved(outcome, session.dirty()))
+}
+
+/// Encode a document's UTF-8 bytes as the charset `label` names. UTF-8 passes through untouched,
+/// BOM and all. A legacy code page has no byte-order mark, so the UTF-8 one is stripped first; a
+/// character the charset cannot hold refuses the whole export, never a substitution (CLAUDE.md §3
+/// over the reference's lenient write, the same one-point departure the open-side decode took).
+fn encode_for_export(bytes: &[u8], label: &str) -> Result<Vec<u8>, SubtitleError> {
+    let encoding = encoding_rs::Encoding::for_label(label.as_bytes()).ok_or_else(|| {
+        SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("unknown text encoding {label:?}"),
+        )
+    })?;
+    if encoding == encoding_rs::UTF_8 {
+        return Ok(bytes.to_vec());
+    }
+    // UTF-16 labels encode as UTF-8 on the WHATWG path, which would write a file that lies about
+    // itself. Only Sublore's own dialog names the label, so this is a bug, never the user's choice.
+    if encoding.output_encoding() != encoding {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("{} is not writable", encoding.name()),
+        ));
+    }
+    let rest = bytes
+        .strip_prefix(&sublore_formats::text::UTF8_BOM)
+        .unwrap_or(bytes);
+    let text = std::str::from_utf8(rest).map_err(|error| {
+        SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("the session bytes are not UTF-8: {error}"),
+        )
+    })?;
+    let (encoded, _actual, had_unmappable) = encoding.encode(text);
+    if had_unmappable {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnencodableCharacter,
+            format!(
+                "the document holds a character {} cannot write",
+                encoding.name()
+            ),
+        ));
+    }
+    Ok(encoded.into_owned())
+}
+
 /// The write to a named destination, under a lock the caller already holds.
 fn save_as_locked(
     session: &mut EditSession,
@@ -1771,6 +2006,50 @@ fn saved(outcome: sublore_io::atomic::SaveOutcome, dirty: bool) -> SubtitleSaved
 }
 
 pub(crate) fn read_document(path: &Path) -> Result<SubtitleDocument, SubtitleError> {
+    let bytes = read_capped_bytes(path)?;
+    document_from_bytes(path, &bytes)
+}
+
+/// Read a file the user names with an explicit charset instead of the auto-detection
+/// [`read_document`] does (interface-spec 9.8). The bytes are decoded to UTF-8 first, so the parser
+/// and everything after it see the UTF-8 they always see and a later save writes UTF-8; a legacy
+/// code page becoming UTF-8 on open is the wanted outcome. `sublore-formats` never sees the charset.
+pub(crate) fn read_document_with_encoding(
+    path: &Path,
+    label: &str,
+) -> Result<SubtitleDocument, SubtitleError> {
+    let bytes = read_capped_bytes(path)?;
+    let text = decode_with_label(&bytes, label)?;
+    document_from_bytes(path, text.as_bytes())
+}
+
+/// Decode `bytes` as the named charset. A byte-order mark is honoured and stripped; anything that
+/// does not decode cleanly is refused rather than turned into U+FFFD the user could then save
+/// (CLAUDE.md §3 over the reference's lenient decode). An unknown label is a bug in Sublore's own
+/// dialog, never something the user typed, so it is `CommandFailed`, not a file problem.
+fn decode_with_label<'a>(
+    bytes: &'a [u8],
+    label: &str,
+) -> Result<std::borrow::Cow<'a, str>, SubtitleError> {
+    let encoding = encoding_rs::Encoding::for_label(label.as_bytes()).ok_or_else(|| {
+        SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("unknown text encoding {label:?}"),
+        )
+    })?;
+    let (text, _actual, had_errors) = encoding.decode(bytes);
+    if had_errors {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnsupportedEncoding,
+            format!("the bytes do not decode as {}", encoding.name()),
+        ));
+    }
+    Ok(text)
+}
+
+/// Read a subtitle file's bytes, refusing an empty path, a non-file and anything past the size cap.
+/// Shared by the auto-detecting read and the explicit-charset one.
+fn read_capped_bytes(path: &Path) -> Result<Vec<u8>, SubtitleError> {
     if path.as_os_str().is_empty() {
         return Err(SubtitleError::new(
             SubtitleErrorCode::InvalidPath,
@@ -1808,14 +2087,19 @@ pub(crate) fn read_document(path: &Path) -> Result<SubtitleDocument, SubtitleErr
             format!("more than {MAX_SUBTITLE_BYTES} bytes"),
         ));
     }
+    Ok(bytes)
+}
 
-    let format = detect(path, &bytes).ok_or_else(|| {
+/// Detect the format and parse. The bytes are already UTF-8: either the file was UTF-8 or the
+/// charset decode above turned it into UTF-8.
+fn document_from_bytes(path: &Path, bytes: &[u8]) -> Result<SubtitleDocument, SubtitleError> {
+    let format = detect(path, bytes).ok_or_else(|| {
         SubtitleError::new(
             SubtitleErrorCode::UnknownFormat,
             format!("{} is not an SRT, VTT or ASS file", path.display()),
         )
     })?;
-    parse(format, &bytes).map_err(SubtitleError::from_parse)
+    parse(format, bytes).map_err(SubtitleError::from_parse)
 }
 
 /// Content decides, extension breaks ties. Undecodable bytes make the content say nothing, and the
@@ -1837,8 +2121,92 @@ fn newline_str(newline: Newline) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{new_document, rows, AssField, AssFieldDto, SessionSlot, SubtitleErrorCode};
+    use super::{
+        decode_with_label, encode_for_export, new_document, rows, AssField, AssFieldDto,
+        SessionSlot, SubtitleErrorCode,
+    };
     use sublore_edit::diff::CueView;
+
+    /// Pure ASCII is the same bytes in UTF-8 and in any single-byte code page, so an export that
+    /// changes them would be an export that rewrote the document (export-tasks E1).
+    #[test]
+    fn ascii_exports_byte_identically_in_a_single_byte_charset() {
+        let bytes = b"1\n00:00:01,000 --> 00:00:02,000\nplain words\n";
+        let encoded = encode_for_export(bytes, "windows-1252").expect("ascii");
+        assert_eq!(encoded, bytes);
+    }
+
+    /// UTF-8 passes through untouched, byte-order mark included: the export is then a byte copy.
+    #[test]
+    fn utf8_export_is_a_byte_copy_bom_included() {
+        let bytes = b"\xef\xbb\xbfCaf\xc3\xa9";
+        assert_eq!(encode_for_export(bytes, "utf-8").expect("utf-8"), bytes);
+    }
+
+    /// An é encodes to the one byte Windows-1252 spells it with, and the UTF-8 byte-order mark is
+    /// stripped on the way: a legacy code page has no byte-order mark to carry (E2).
+    #[test]
+    fn accents_encode_to_the_legacy_byte_and_the_bom_is_stripped() {
+        let encoded =
+            encode_for_export(b"\xef\xbb\xbfCaf\xc3\xa9", "windows-1252").expect("cp1252");
+        assert_eq!(encoded, b"Caf\xe9");
+    }
+
+    /// A character the charset cannot hold refuses the export outright: no substitution byte is
+    /// ever produced, because a silent substitution is data loss (E3, CLAUDE.md §3).
+    #[test]
+    fn a_character_the_charset_cannot_hold_refuses_the_export() {
+        let error =
+            encode_for_export("a \u{2192} b".as_bytes(), "windows-1252").expect_err("refused");
+        assert_eq!(error.code, SubtitleErrorCode::UnencodableCharacter);
+    }
+
+    /// UTF-16 encodes as UTF-8 on the WHATWG path, which would write a file that lies about itself,
+    /// so the label is refused as Sublore's own bug: only its dialog ever names one.
+    #[test]
+    fn a_utf16_export_label_is_a_command_failure() {
+        let error = encode_for_export(b"anything", "utf-16le").expect_err("refused");
+        assert_eq!(error.code, SubtitleErrorCode::CommandFailed);
+    }
+
+    /// The common single-byte case: every accented letter is one byte and maps straight across, so
+    /// the é a Windows-1252 file spells `0xE9` comes back as é (interface-spec 9.8, O1/O3).
+    #[test]
+    fn windows_1252_bytes_decode_to_their_accented_letters() {
+        let decoded = decode_with_label(b"Caf\xe9 y Se\xf1ora", "windows-1252").expect("cp1252");
+        assert_eq!(decoded, "Café y Señora");
+    }
+
+    /// A UTF-16LE byte-order mark is honoured and stripped, so a file plain open refuses on the wide
+    /// BOM opens here (O2). `31 00` is `1`, the low byte first.
+    #[test]
+    fn a_utf16le_byte_order_mark_is_honoured_and_stripped() {
+        let bytes = b"\xff\xfe1\x00\x0a\x00H\x00\xe9\x00";
+        let decoded = decode_with_label(bytes, "utf-16le").expect("utf-16le");
+        assert_eq!(decoded, "1\nHé");
+    }
+
+    /// An unknown label can only come from a bug in Sublore's own dialog, never from the user, so
+    /// it is a command failure and not a claim about the file (O3).
+    #[test]
+    fn an_unknown_charset_label_is_a_command_failure() {
+        let error = decode_with_label(b"anything", "not-a-real-charset").expect_err("refused");
+        assert_eq!(error.code, SubtitleErrorCode::CommandFailed);
+    }
+
+    /// Bytes that do not decode as the named charset are refused, not turned into U+FFFD the user
+    /// could save. `D8 00` is a lone high surrogate in UTF-16BE, unpaired by the `00 41` after it.
+    #[test]
+    fn bytes_that_do_not_decode_as_the_named_charset_are_refused() {
+        let error =
+            decode_with_label(b"\xd8\x00\x00\x41", "utf-16be").expect_err("a lone surrogate");
+        assert_eq!(error.code, SubtitleErrorCode::UnsupportedEncoding);
+        assert!(
+            !error.detail.contains('\u{fffd}'),
+            "the refusal names the charset, it does not carry the replacement char: {}",
+            error.detail
+        );
+    }
 
     /// The document New opens has to be one the parser accepts, one the style editor finds a style
     /// in, and one with no line in it: an empty script that carried a cue would be a surprise.

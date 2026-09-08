@@ -166,6 +166,17 @@ pub struct AssStyle {
     pub strikeout_field: Span,
 }
 
+/// The script-level metadata a Properties dialog shows: an ASS `[Script Info]` section's title,
+/// resolution and wrap style, each as the file spells it (interface-spec 9.5). Every field is
+/// `None` for a format that carries no such section, which is what the dialog says of an SRT or VTT.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ScriptInfo {
+    pub title: Option<String>,
+    pub play_res_x: Option<String>,
+    pub play_res_y: Option<String>,
+    pub wrap_style: Option<String>,
+}
+
 /// A parsed file: the bytes it came from, and the ordered segments that tile them.
 #[derive(Clone, Debug)]
 pub struct SubtitleDocument {
@@ -265,6 +276,40 @@ impl SubtitleDocument {
             read(style.margin_v),
             read(style.encoding),
         ]
+    }
+
+    /// The `[Script Info]` fields a Properties dialog shows: title, resolution and wrap style
+    /// (interface-spec 9.5). Read from the section's own key/value lines, matched case-insensitively
+    /// on the key, and trimmed the way the file's own reader would. A format with no `[Script Info]`
+    /// carries none of them.
+    pub fn script_info(&self) -> ScriptInfo {
+        let mut info = ScriptInfo::default();
+        if self.format != SubtitleFormat::Ass {
+            return info;
+        }
+        let mut in_section = false;
+        for segment in &self.segments {
+            let line = self.slice(segment.span);
+            if let Some(name) = section_name(line.trim()) {
+                in_section = name.trim().eq_ignore_ascii_case("script info");
+                continue;
+            }
+            if !in_section {
+                continue;
+            }
+            let Some((key, value)) = line.split_once(':') else {
+                continue;
+            };
+            let value = value.trim().to_owned();
+            match key.trim().to_ascii_lowercase().as_str() {
+                "title" => info.title = Some(value),
+                "playresx" => info.play_res_x = Some(value),
+                "playresy" => info.play_res_y = Some(value),
+                "wrapstyle" => info.wrap_style = Some(value),
+                _ => {}
+            }
+        }
+        info
     }
 
     /// Every cue a player would draw: ASS `Comment:` events excluded. This is the number the UI
@@ -596,5 +641,64 @@ mod tests {
         assert_eq!(SubtitleFormat::Srt.as_str(), "srt");
         assert_eq!(SubtitleFormat::Vtt.as_str(), "vtt");
         assert_eq!(SubtitleFormat::Ass.as_str(), "ass");
+    }
+
+    #[test]
+    fn script_info_reads_the_headers_fields() {
+        let doc = crate::parse(
+            SubtitleFormat::Ass,
+            b"[Script Info]\nTitle: Episode 3\nWrapStyle: 0\nPlayResX: 1920\nPlayResY: 1080\n\n[Events]\nFormat: Start, End, Text\n",
+        )
+        .unwrap();
+        let info = doc.script_info();
+        assert_eq!(info.title.as_deref(), Some("Episode 3"));
+        assert_eq!(info.play_res_x.as_deref(), Some("1920"));
+        assert_eq!(info.play_res_y.as_deref(), Some("1080"));
+        assert_eq!(info.wrap_style.as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn script_info_is_empty_for_a_format_with_no_such_section() {
+        let doc = crate::parse(
+            SubtitleFormat::Srt,
+            b"1\n00:00:01,000 --> 00:00:02,000\nHi\n",
+        )
+        .unwrap();
+        assert_eq!(doc.script_info(), super::ScriptInfo::default());
+    }
+
+    #[test]
+    fn script_info_leaves_a_field_the_header_omits_as_none() {
+        let doc =
+            crate::parse(SubtitleFormat::Ass, b"[Script Info]\nTitle: Only a title\n").unwrap();
+        let info = doc.script_info();
+        assert_eq!(info.title.as_deref(), Some("Only a title"));
+        assert_eq!(info.play_res_x, None);
+        assert_eq!(info.wrap_style, None);
+    }
+
+    #[test]
+    fn script_info_matches_the_key_whatever_its_case() {
+        let doc = crate::parse(
+            SubtitleFormat::Ass,
+            b"[Script Info]\nplayresx: 640\nPLAYRESY: 480\n",
+        )
+        .unwrap();
+        let info = doc.script_info();
+        assert_eq!(info.play_res_x.as_deref(), Some("640"));
+        assert_eq!(info.play_res_y.as_deref(), Some("480"));
+    }
+
+    #[test]
+    fn script_info_ignores_a_field_outside_its_section() {
+        // A resolution line that sits in another section is not the script's resolution.
+        let doc = crate::parse(
+            SubtitleFormat::Ass,
+            b"[Script Info]\nTitle: T\n\n[V4+ Styles]\nPlayResX: 999\n",
+        )
+        .unwrap();
+        let info = doc.script_info();
+        assert_eq!(info.title.as_deref(), Some("T"));
+        assert_eq!(info.play_res_x, None);
     }
 }
