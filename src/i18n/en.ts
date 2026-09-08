@@ -11,6 +11,8 @@ export const en = {
       title: "File",
       new: "New",
       openSubtitle: "Open subtitle…",
+      /** Opens the same picker, then a dialog naming the file's charset instead of guessing it. */
+      openEncoding: "Open with encoding…",
       /** The document to read from while translating. It is never written to. */
       openSource: "Open source subtitle…",
       closeSource: "Close source subtitle",
@@ -256,6 +258,13 @@ export const en = {
     version: "Version {version}",
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
+  },
+  /** The charset dialog Open with encoding raises after the file picker (interface-spec 9.8). */
+  openEncoding: {
+    title: "Charset",
+    prompt: "Choose charset code:",
+    open: "Open",
+    cancel: "Cancel",
   },
   /** The draggable edges between the panels (D1). Read aloud where a separator is announced. */
   shell: {

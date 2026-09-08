@@ -21,6 +21,7 @@ import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
 import VideoDetailsPanel from "./components/VideoDetails";
 import JumpToTime from "./components/JumpToTime";
+import OpenEncoding from "./components/OpenEncoding";
 import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
 import { type VideoDetails } from "./types/video";
@@ -669,6 +670,9 @@ export default function App() {
   /** What Video details is showing, and nothing on screen while it is null. */
   const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
   const [jumpToOpen, setJumpToOpen] = useState(false);
+  // The file the user picked for Open with encoding, waiting on the charset dialog. Null when no
+  // such open is in flight. See interface-spec 9.8.
+  const [encodingPath, setEncodingPath] = useState<string | null>(null);
   const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
@@ -1473,6 +1477,14 @@ export default function App() {
       run: () => void pick("subtitle", undefined, (path) => void subtitle.open(path)),
     },
     {
+      id: "file.open-encoding",
+      label: en.menu.file.openEncoding,
+      // The reference's order: the file picker first, then the charset dialog the picked path opens
+      // (interface-spec 9.8). Greyed only while a chooser is up, the same as Open.
+      enabled: !choosing,
+      run: () => void pick("subtitle", undefined, (path) => setEncodingPath(path)),
+    },
+    {
       id: "file.open-source",
       label: en.menu.file.openSource,
       // No target needed: a translation is begun from a source, so the source is opened first and
@@ -2186,6 +2198,7 @@ export default function App() {
       items: [
         "file.new",
         "file.open-subtitle",
+        "file.open-encoding",
         "file.open-source",
         "file.close-source",
         "file.new-translation",
@@ -2706,6 +2719,16 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {encodingPath !== null && (
+          <OpenEncoding
+            onChoose={(label) => {
+              const path = encodingPath;
+              setEncodingPath(null);
+              void subtitle.openWithEncoding(path, label);
+            }}
+            onClose={() => setEncodingPath(null)}
+          />
+        )}
         {shiftOpen && (
           <ShiftTimes
             hasSelection={selection.selected.size > 0}
