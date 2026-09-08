@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { choosePath, type ChooseKind } from "./chooser";
+import { openHelpLink } from "./help";
 import AboutDialog from "./components/AboutDialog";
 import StyleEditor from "./components/StyleEditor";
 import CueList from "./components/CueList";
@@ -2026,6 +2027,40 @@ export default function App() {
       run: () => void mergeCue(),
     },
     {
+      // Greyed until the manual exists, which is the slice that also brings the F1 accelerator.
+      // Drawn now, not absent (2026-09-03 ruling); see help-menu-tasks.md.
+      id: "help.contents",
+      label: en.menu.help.contents,
+      enabled: false,
+      run: () => {},
+    },
+    {
+      id: "help.website",
+      label: en.menu.help.website,
+      enabled: true,
+      run: () => void openHelpLink("website"),
+    },
+    {
+      id: "help.report-bug",
+      label: en.menu.help.reportBug,
+      enabled: true,
+      run: () => void openHelpLink("bugs"),
+    },
+    {
+      // Greyed until the update check is built, the one network call §1 allows the open core.
+      id: "help.check-updates",
+      label: en.menu.help.checkUpdates,
+      enabled: false,
+      run: () => {},
+    },
+    {
+      // Greyed until the event-log window exists (interface-spec §9.12).
+      id: "help.event-log",
+      label: en.menu.help.eventLog,
+      enabled: false,
+      run: () => {},
+    },
+    {
       id: "help.about",
       label: en.menu.help.about,
       enabled: true,
@@ -2346,7 +2381,20 @@ export default function App() {
         ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
       ],
     },
-    { id: "help", title: en.menu.help.title, items: ["help.about"] },
+    {
+      // Interface-spec §3.8 order, minus Community chat (scoped later, question 11) and the two
+      // separators (no menu draws one yet; filed as its own task). See help-menu-tasks.md.
+      id: "help",
+      title: en.menu.help.title,
+      items: [
+        "help.contents",
+        "help.website",
+        "help.report-bug",
+        "help.check-updates",
+        "help.event-log",
+        "help.about",
+      ],
+    },
     // A module's own titles, after the core's. A title exists exactly when a module pushed one with
     // children under it, so there is no branch anywhere that says a module is installed (5.1).
     ...contributions

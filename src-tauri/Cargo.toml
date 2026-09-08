@@ -50,6 +50,11 @@ sublore-module-host = { path = "../crates/sublore-module-host" }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
+# Opens the Help menu's two links in the user's default browser. Official Tauri 2 plugin,
+# MIT/Apache-2.0, and the cross-platform launcher the app needs on Linux now and mac/Windows later;
+# stdlib has no portable browser launch. Reached from Rust only, behind help::open_help_link, so the
+# webview is never granted the plugin's own open-url permission. See help-menu-tasks.md.
+tauri-plugin-opener = "2"
 
 [dev-dependencies]
 libc = "0.2"

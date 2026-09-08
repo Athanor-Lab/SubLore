@@ -293,10 +293,18 @@ describe("the picture gets out of the way for an HTML layer", () => {
       timeout: 15000,
       message: `the Help dropdown to be the open one after walking right (saw ${await openDropdown()})`,
     });
-    await waitFor(async () => ((await cursorCommand()) === "help-about" ? true : null), {
-      timeout: 15000,
-      message: "the menu cursor to sit on About",
-    });
+    // About is the last Help item now, and the cursor lands on the first enabled one; walk down to
+    // it. The three greyed items are skipped by the cursor.
+    await waitFor(
+      async () => {
+        if ((await cursorCommand()) === "help-about") {
+          return true;
+        }
+        pressKey("Down");
+        return null;
+      },
+      { timeout: 15000, message: "the menu cursor to walk down to About" },
+    );
     await waitForHidden(toplevel, "the surface to hide while a dropdown is open");
 
     // Enter closes the dropdown and opens the dialog in one update, so the frame should never come
