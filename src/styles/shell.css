@@ -163,6 +163,11 @@ body {
   font-weight: 600;
 }
 
+/* A command's own report on the timed slot: information, not alarm ink (1.5). */
+.statusbar__notice {
+  color: var(--ink-muted);
+}
+
 /* The document being read from, said quieter than the one being written. See S1. */
 .statusbar__source {
   color: var(--ink-muted);

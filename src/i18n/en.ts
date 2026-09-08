@@ -259,6 +259,15 @@ export const en = {
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
   },
+  /** What a command reports on the status bar's timed slot (interface-spec 1.5). */
+  notices: {
+    /** Keyed by TagMode, worded as the reference words them. */
+    tagMode: {
+      show: "ASS Override Tag mode set to show full tags.",
+      simplify: "ASS Override Tag mode set to simplify tags.",
+      hide: "ASS Override Tag mode set to hide tags.",
+    },
+  },
   /** The draggable edges between the panels (D1). Read aloud where a separator is announced. */
   shell: {
     videoSash: "Video panel width",
