@@ -43,7 +43,7 @@ const TITLES = [
 const OPENING = TITLES.filter((title) => !title.disabled);
 
 /** The File commands nothing open leaves usable. Each is drawn greyed rather than left out. */
-const GREYED_IN_FILE = ["file-save", "file-save-as", "file-discard"];
+const GREYED_IN_FILE = ["file-save", "file-save-as", "file-export", "file-discard"];
 
 /** Every command the bars T3 removed used to offer. Each has to reach both routes. */
 const FROM_THE_BARS = [
@@ -54,6 +54,9 @@ const FROM_THE_BARS = [
   "edit-undo",
   "edit-redo",
 ];
+
+/** The commands the reference keeps on the toolbar and in no menu (interface-spec 4.1). */
+const TOOLBAR_ONLY = ["view-tags-cycle"];
 
 const NO_FILE_STATUS = "No subtitle file open.";
 
@@ -142,9 +145,14 @@ function openMenu() {
 
 /** The command the menu cursor is on, by id, or null when no item carries it. */
 function cursorCommand() {
-  return browser.execute(
-    () => document.querySelector(".menubar__item--cursor")?.id.replace("menuitem-", "") ?? null,
-  );
+  return browser.execute(() => {
+    // A cursored submenu row carries its own class, and when its list is open the keyboard is on
+    // an item inside it, which is why the item is read first.
+    const row =
+      document.querySelector(".menubar__item--cursor") ??
+      document.querySelector(".menubar__submenu--cursor");
+    return row?.id.replace("menuitem-", "") ?? null;
+  });
 }
 
 /** The class the element holding the keyboard carries, which is how focus is named here. */
@@ -239,9 +247,11 @@ describe("the menu bar and the toolbar", () => {
       ),
     );
 
-    // Nothing on the toolbar is missing from the menus, and every command the bars carried is on
-    // both routes. Quit and About are menu-only, which is what a toolbar is for.
-    expect(inToolbar.filter((id) => !inMenus.includes(id))).toEqual([]);
+    // Nothing on the toolbar is missing from the menus, bar the few the reference keeps to the
+    // toolbar alone (interface-spec 4.1). Quit and About are menu-only, which is what a toolbar is for.
+    expect(inToolbar.filter((id) => !inMenus.includes(id) && !TOOLBAR_ONLY.includes(id))).toEqual(
+      [],
+    );
     for (const id of FROM_THE_BARS) {
       expect({ id, menu: inMenus.includes(id), toolbar: inToolbar.includes(id) }).toEqual({
         id,
@@ -274,6 +284,12 @@ describe("the menu bar and the toolbar", () => {
 
     pressKey("Down");
     await waitForCursor("file-open-subtitle");
+    pressKey("Down");
+    await waitForCursor("file-open-encoding");
+    pressKey("Down");
+    // The recent-projects row takes the cursor in every state: with nothing remembered it still
+    // holds its greyed placeholder, and a submenu with anything in it is a stop on the walk.
+    await waitForCursor("file-recent");
     pressKey("Down");
     await waitForCursor("file-open-source");
     pressKey("Down");

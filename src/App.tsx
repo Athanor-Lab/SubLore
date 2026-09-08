@@ -21,6 +21,8 @@ import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
 import VideoDetailsPanel from "./components/VideoDetails";
 import JumpToTime from "./components/JumpToTime";
+import LanguageDialog from "./components/LanguageDialog";
+import OpenEncoding from "./components/OpenEncoding";
 import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
 import { type VideoDetails } from "./types/video";
@@ -38,9 +40,10 @@ import { useModules, refusalLine } from "./hooks/useModules";
 import { useSearch, type SearchOutcome } from "./hooks/useSearch";
 import { useFonts } from "./hooks/useFonts";
 import { useSourceFile } from "./hooks/useSourceFile";
-import { useProject } from "./hooks/useProject";
+import { fileName, useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
 import { useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
+import { useTimedMessage } from "./hooks/useTimedMessage";
 import { useTranscription } from "./hooks/useTranscription";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { en } from "./i18n/en";
@@ -51,10 +54,12 @@ import { requestQuit } from "./quit";
 import { replaceOne, type Match, type Query } from "./search";
 import {
   runCommand,
+  SEPARATOR,
   type Command,
   type CommandId,
   type CommandRegistry,
   type Menu,
+  type Separator,
 } from "./types/chrome";
 import { type EpisodeFileView } from "./types/project";
 import { type CueRow, type StyleFlagName } from "./types/subtitle";
@@ -267,6 +272,106 @@ const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
   { id: "edit.style-underline", flag: "underline", label: en.menu.edit.underline },
   { id: "edit.style-strikeout", flag: "strikeout", label: en.menu.edit.strikeout },
 ];
+
+/**
+ * The new order a move up or down gives, the way the reference's `move_one` does it: each selected
+ * cue trades places with the nearest unselected cue on the side it moves toward, walked top to
+ * bottom, and a cue with nothing unselected to trade with stays put. Down is the same walk over the
+ * reversed list, which is how the reference reuses one routine for both.
+ *
+ * Returns the contiguous run that changed, its new order (a permutation of `from..from + length`),
+ * and where the selected cues landed, or null when nothing moves because the whole selection is
+ * already against the edge. See docs/reorder-tasks.md.
+ */
+type ReorderRun = { from: number; order: number[]; after: number[] };
+
+/**
+ * From a full permutation `arr` (`arr[position]` is the original index now at that position), the
+ * contiguous run that actually changed, its order, and where the selected cues landed so the
+ * selection can follow them. Null when nothing moved. Shared by move and sort: the backend edit
+ * takes one run, and the unchanged prefix and suffix are not worth rewriting.
+ */
+function runFromPermutation(arr: number[], selected: ReadonlySet<number>): ReorderRun | null {
+  const count = arr.length;
+  let from = 0;
+  while (from < count && arr[from] === from) {
+    from += 1;
+  }
+  if (from === count) {
+    return null;
+  }
+  let to = count - 1;
+  while (to > from && arr[to] === to) {
+    to -= 1;
+  }
+  const order = arr.slice(from, to + 1);
+  const after: number[] = [];
+  for (let position = 0; position < count; position += 1) {
+    if (selected.has(arr[position])) {
+      after.push(position);
+    }
+  }
+  return { from, order, after };
+}
+
+function reorderForMove(
+  count: number,
+  selected: ReadonlySet<number>,
+  down: boolean,
+): ReorderRun | null {
+  const arr = Array.from({ length: count }, (_, index) => index);
+  if (down) {
+    arr.reverse();
+  }
+  let prev = -1;
+  let moved = 0;
+  for (let at = 0; at < count && moved < selected.size; at += 1) {
+    if (!selected.has(arr[at])) {
+      prev = at;
+    } else if (prev !== -1) {
+      [arr[at], arr[prev]] = [arr[prev], arr[at]];
+      prev = at;
+      moved += 1;
+    }
+  }
+  if (down) {
+    arr.reverse();
+  }
+  return runFromPermutation(arr, selected);
+}
+
+/**
+ * The permutation a sort gives: the whole document by `key`, or the selected cues among the
+ * positions they occupy, others left where they are. Stable, so equal keys keep the order they had.
+ * Null when it is already in that order, or the selected sort has fewer than two to sort. Mirrors
+ * the reference's grid/sort. See docs/reorder-tasks.md.
+ */
+function reorderForSort(
+  cues: readonly { startMs: number; endMs: number }[],
+  selected: ReadonlySet<number>,
+  key: "start" | "end",
+  selectedOnly: boolean,
+): ReorderRun | null {
+  const count = cues.length;
+  const keyOf = (index: number) => (key === "start" ? cues[index].startMs : cues[index].endMs);
+  const arr = Array.from({ length: count }, (_, index) => index);
+  if (selectedOnly) {
+    const positions = [...selected].filter((index) => index < count).sort((one, two) => one - two);
+    if (positions.length < 2) {
+      return null;
+    }
+    const sorted = [...positions].sort((one, two) => keyOf(one) - keyOf(two));
+    positions.forEach((position, rank) => {
+      arr[position] = sorted[rank];
+    });
+  } else {
+    if (count < 2) {
+      return null;
+    }
+    arr.sort((one, two) => keyOf(one) - keyOf(two));
+  }
+  return runFromPermutation(arr, selected);
+}
 
 export default function App() {
   // Every HTML layer registers here while it is open, and the video surface hides for as long as
@@ -664,11 +769,21 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   /** How the grid draws override tags. Shown as the file spells them until told otherwise. */
   const [tagMode, setTagMode] = useState<TagMode>("show");
+  // The status bar's timed slot: a sentence a command pushes, cleared by its own clock (1.5).
+  const [notice, say] = useTimedMessage();
   /** Which declared style the editor is open over, or null while it is closed. See B10. */
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
   /** What Video details is showing, and nothing on screen while it is null. */
   const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
   const [jumpToOpen, setJumpToOpen] = useState(false);
+  // The file the user picked for Open with encoding, waiting on the charset dialog. Null when no
+  // such open is in flight. See interface-spec 9.8.
+  const [encodingPath, setEncodingPath] = useState<string | null>(null);
+  // Whether the export charset dialog is up; the reference's order is dialog first, then the
+  // destination chooser (interface-spec 3.1 item 9).
+  const [exportOpen, setExportOpen] = useState(false);
+  // Whether the Language dialog is up (interface-spec 3.7 item 12).
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
@@ -828,6 +943,52 @@ export default function App() {
    * The clipboard's cues in before the row the cursor is on, as one undo step, and the rows that
    * land are the ones left selected. With no row to go before they go at the end.
    */
+  /**
+   * The selected cues moved one row up or down, as one undo step, with the selection following them.
+   *
+   * The whole permutation is worked out here and trimmed to the run that changed, so an SRT index
+   * rides along with its block and the backend is asked for a reorder only when one is real: a move
+   * with the selection already against the edge does nothing and adds no undo step.
+   */
+  async function moveSelection(down: boolean) {
+    await flushEditors();
+    const count = subtitle.cues.length;
+    const selected = new Set([...selection.selected].filter((row) => row < count));
+    if (selected.size === 0) {
+      return;
+    }
+    const move = reorderForMove(count, selected, down);
+    if (move === null) {
+      return;
+    }
+    landing.current = { rows: move.after };
+    try {
+      await subtitle.reorderCues(move.from, move.order);
+    } finally {
+      landing.current = null;
+    }
+  }
+
+  /**
+   * The whole document, or the selected cues among the positions they occupy, put in order by start
+   * or by end as one undo step, with the selection following. A sort that changes nothing does
+   * nothing and adds no undo step. See docs/reorder-tasks.md.
+   */
+  async function sortSelection(key: "start" | "end", selectedOnly: boolean) {
+    await flushEditors();
+    const selected = new Set([...selection.selected].filter((row) => row < subtitle.cues.length));
+    const run = reorderForSort(subtitle.cues, selected, key, selectedOnly);
+    if (run === null) {
+      return;
+    }
+    landing.current = { rows: run.after };
+    try {
+      await subtitle.reorderCues(run.from, run.order);
+    } finally {
+      landing.current = null;
+    }
+  }
+
   async function pasteCues() {
     await flushEditors();
     const text = await invoke<string>("clipboard_read").catch(() => "");
@@ -1473,6 +1634,31 @@ export default function App() {
       run: () => void pick("subtitle", undefined, (path) => void subtitle.open(path)),
     },
     {
+      id: "file.open-encoding",
+      label: en.menu.file.openEncoding,
+      // The reference's order: the file picker first, then the charset dialog the picked path opens
+      // (interface-spec 9.8). Greyed only while a chooser is up, the same as Open.
+      enabled: !choosing,
+      run: () => void pick("subtitle", undefined, (path) => setEncodingPath(path)),
+    },
+    // One row per remembered project, newest first, numbered the way the reference numbers them
+    // (3.1 item 5). Data like the audio tracks; with none remembered, one greyed placeholder row.
+    ...(project.recent.length === 0
+      ? [
+          {
+            id: "file.recent.empty" as CommandId,
+            label: en.menu.file.recentEmpty,
+            enabled: false,
+            run: () => undefined,
+          },
+        ]
+      : project.recent.map((folder, index): Command => ({
+          id: `file.recent.${index}`,
+          label: `${index + 1} ${fileName(folder)}`,
+          enabled: true,
+          run: () => void project.open(folder),
+        }))),
+    {
       id: "file.open-source",
       label: en.menu.file.openSource,
       // No target needed: a translation is begun from a source, so the source is opened first and
@@ -1514,6 +1700,13 @@ export default function App() {
       accelerator: en.menu.keys.saveAs,
       enabled: subtitle.summary !== null && !choosing,
       run: () => void saveAs(),
+    },
+    {
+      id: "file.export",
+      label: en.menu.file.export,
+      // A copy in a charset the user names: nothing to write without a document (3.1 item 9).
+      enabled: subtitle.summary !== null && !choosing,
+      run: () => setExportOpen(true),
     },
     {
       id: "file.discard",
@@ -2028,6 +2221,44 @@ export default function App() {
       run: () => void mergeCue(),
     },
     {
+      id: "subtitle.move-up",
+      label: en.menu.subtitles.moveUp,
+      accelerator: en.menu.keys.moveCuesUp,
+      enabled: selection.selected.size > 0,
+      run: () => void moveSelection(false),
+    },
+    {
+      id: "subtitle.move-down",
+      label: en.menu.subtitles.moveDown,
+      accelerator: en.menu.keys.moveCuesDown,
+      enabled: selection.selected.size > 0,
+      run: () => void moveSelection(true),
+    },
+    {
+      id: "subtitle.sort-all-start",
+      label: en.menu.subtitles.byStart,
+      enabled: subtitle.cues.length > 0,
+      run: () => void sortSelection("start", false),
+    },
+    {
+      id: "subtitle.sort-all-end",
+      label: en.menu.subtitles.byEnd,
+      enabled: subtitle.cues.length > 0,
+      run: () => void sortSelection("end", false),
+    },
+    {
+      id: "subtitle.sort-selected-start",
+      label: en.menu.subtitles.byStart,
+      enabled: selection.selected.size > 1,
+      run: () => void sortSelection("start", true),
+    },
+    {
+      id: "subtitle.sort-selected-end",
+      label: en.menu.subtitles.byEnd,
+      enabled: selection.selected.size > 1,
+      run: () => void sortSelection("end", true),
+    },
+    {
       id: "help.about",
       label: en.menu.help.about,
       enabled: true,
@@ -2110,6 +2341,21 @@ export default function App() {
       enabled: true,
       run: () => setTagMode(mode),
     })),
+    // One button that steps the three modes above, which the reference draws on the toolbar and
+    // gives no menu of its own (interface-spec 4.1). A registry command like any other, not a fourth
+    // face of the setting.
+    {
+      id: "view.tags-cycle",
+      label: en.menu.view.tagsCycle,
+      enabled: true,
+      run: () => {
+        const order = TAG_MODES.map((each) => each.mode);
+        const next = order[(order.indexOf(tagMode) + 1) % order.length];
+        setTagMode(next);
+        // The reference reports the cycle's landing on the status bar for ten seconds (1.5).
+        say(en.notices.tagMode[next]);
+      },
+    },
     // Radio items, drawn the way the Audio menu draws its track list.
     ...interfaceScales.map(({ percent, scale }): Command => ({
       id: `view.interface-scale-${percent}`,
@@ -2119,6 +2365,13 @@ export default function App() {
       enabled: true,
       run: () => storeLayout({ interfaceScale: scale }),
     })),
+    {
+      id: "view.language",
+      label: en.menu.view.language,
+      // The interface language, chosen and remembered; drawn always (3.7 item 12).
+      enabled: true,
+      run: () => setLanguageOpen(true),
+    },
     ...audio.tracks.map((track, index): Command => ({
       id: `audio.track.${track.id}`,
       label: track.title ?? track.lang ?? `${en.menu.audio.track} ${index + 1}`,
@@ -2177,6 +2430,32 @@ export default function App() {
     [...declared, ...contributedCommands].map((command) => [command.id, command]),
   );
 
+  // What right-clicking a grid row opens, drawn from the same registry as the menu bar and grouped
+  // with the reference's own rules (interface-spec 3.9). Split before and after playhead are not
+  // built yet, so the split slot holds the one split command that is.
+  const gridContextItems: (CommandId | Separator)[] = [
+    "subtitle.insert-before",
+    "subtitle.insert-after",
+    "subtitle.insert-before-at-playhead",
+    "subtitle.insert-after-at-playhead",
+    SEPARATOR,
+    "subtitle.duplicate",
+    "subtitle.split",
+    SEPARATOR,
+    "subtitle.join-concat",
+    "subtitle.join-keep-first",
+    SEPARATOR,
+    "time.continuous-start",
+    "time.continuous-end",
+    SEPARATOR,
+    "edit.cut",
+    "edit.copy",
+    "edit.paste",
+    "edit.paste-over",
+    SEPARATOR,
+    "subtitle.delete",
+  ];
+
   /*
    * The layout lists: ids only, one per route, and neither list changes with the state. What the
    * state moves is the greying inside the records above (CLAUDE.md, owner ruling 2026-09-03).
@@ -2185,15 +2464,32 @@ export default function App() {
     {
       id: "file",
       title: en.menu.file.title,
+      // Grouped the way the reference groups File: opening, then saving, then quit
+      // (interface-spec 3.1 separators 6, 10 and 14). The properties and font groups it puts
+      // between are not built, so their rules fold into the one before Quit.
       items: [
         "file.new",
         "file.open-subtitle",
+        "file.open-encoding",
+        {
+          // The remembered projects, after the opens (3.1 item 5). Its rows are generated; with
+          // none remembered it holds the one greyed placeholder instead of greying itself.
+          id: "file-recent",
+          label: en.menu.file.recent,
+          items:
+            project.recent.length === 0
+              ? ["file.recent.empty" as CommandId]
+              : project.recent.map((_, index): CommandId => `file.recent.${index}`),
+        },
         "file.open-source",
         "file.close-source",
         "file.new-translation",
+        SEPARATOR,
         "file.save",
         "file.save-as",
+        "file.export",
         "file.discard",
+        SEPARATOR,
         "app.quit",
       ],
     },
@@ -2202,25 +2498,34 @@ export default function App() {
     {
       id: "edit",
       title: en.menu.edit.title,
+      // The reference groups Edit undo/redo, clipboard, find (interface-spec 3.2 separators 3, 8,
+      // 12). Sublore's own line commands (revert, clear, insert-original) and the inline-styling
+      // set have no reference home, so they take groups of their own by what they do; transcribe
+      // trails alone until it moves to an Audio title of its own.
       items: [
         "edit.undo",
         "edit.redo",
+        SEPARATOR,
         "edit.cut",
         "edit.copy",
         "edit.paste",
         "edit.paste-over",
+        SEPARATOR,
         "edit.select-all",
         "edit.revert",
         "edit.clear",
         "edit.clear-text",
         "edit.insert-original",
+        SEPARATOR,
         "edit.style-bold",
         "edit.style-italic",
         "edit.style-underline",
         "edit.style-strikeout",
+        SEPARATOR,
         "edit.find",
         "edit.find-next",
         "edit.replace",
+        SEPARATOR,
         "asr.transcribe",
       ],
     },
@@ -2247,6 +2552,9 @@ export default function App() {
         "subtitle.duplicate",
         "subtitle.delete",
         "subtitle.split",
+        // The reference rules off the insert-and-split family before the join family
+        // (interface-spec 3.3 separator 7). Its move and sort groups are not on this branch yet.
+        SEPARATOR,
         // The two ways of joining lines sit in a list of their own, which is where the interface
         // puts them (interface-spec 3.3 item 8).
         {
@@ -2255,6 +2563,20 @@ export default function App() {
           items: ["subtitle.join-concat", "subtitle.join-keep-first"],
         },
         "subtitle.merge",
+        "subtitle.move-up",
+        "subtitle.move-down",
+        {
+          // The two sorts sit in lists of their own, which is where the interface puts them
+          // (interface-spec 3.3 items 16 and 17).
+          id: "subtitle-sort-all",
+          label: en.menu.subtitles.sortAll,
+          items: ["subtitle.sort-all-start", "subtitle.sort-all-end"],
+        },
+        {
+          id: "subtitle-sort-selected",
+          label: en.menu.subtitles.sortSelected,
+          items: ["subtitle.sort-selected-start", "subtitle.sort-selected-end"],
+        },
       ],
     },
     {
@@ -2262,9 +2584,13 @@ export default function App() {
       title: en.menu.timing.title,
       // The order the panel's own strip runs in, so a translator who learns one has learned the
       // other (owner ruling 2026-09-05). The four nudges keep the end, where they have always been.
+      // Runs in the panel strip's order, so the rules mark its functional blocks rather than the
+      // reference's own Timing groups (interface-spec 3.4), which this strip reorders: cue
+      // navigation, then setting times, then playing them back, then the fine adjustments.
       items: [
         "time.prev-cue",
         "time.next-cue",
+        SEPARATOR,
         "time.start-to-playhead",
         "time.end-to-playhead",
         "time.shift",
@@ -2279,6 +2605,7 @@ export default function App() {
         "video.to-cue-start",
         "video.to-cue-end",
         "edit.select-at-playhead",
+        SEPARATOR,
         "wave.play-selection",
         "time.play-line",
         "wave.stop",
@@ -2287,6 +2614,7 @@ export default function App() {
         "wave.play-first",
         "wave.play-last",
         "time.play-to-end",
+        SEPARATOR,
         "time.lead-in",
         "time.lead-out",
         "time.start-earlier",
@@ -2304,10 +2632,15 @@ export default function App() {
         "video.open",
         "video.close",
         "video.details",
+        // The reference groups Video into the file, transport, jump and overlay blocks
+        // (interface-spec 3.5 separators 6, 11, 15). Sublore's frame-step and boundary navigation
+        // ride with the jump block, where the rest of the picture's navigation belongs.
+        SEPARATOR,
         "video.play",
         "video.play-cue",
         "video.stop",
         "video.toggle-follow-selection",
+        SEPARATOR,
         "video.jump-to",
         "video.jump-cue-start",
         "video.jump-cue-end",
@@ -2320,6 +2653,7 @@ export default function App() {
         "video.jump-forward",
         "video.prev-boundary",
         "video.next-boundary",
+        SEPARATOR,
         "video.toggle-subtitle-overlay",
         "video.show-source-on-video",
       ],
@@ -2334,18 +2668,25 @@ export default function App() {
     {
       id: "view",
       title: en.menu.view.title,
+      // The reference rules off the layout radios from the tag radios (interface-spec 3.7
+      // separators 5 and 9). Sublore's own waveform toggles and interface-scale radios take the
+      // groups after, where the reference keeps the toolbar toggle and the preferences.
       items: [
         "view.layout-grid-only",
         "view.layout-video-grid",
         "view.layout-waveform-grid",
         "view.layout-full",
+        SEPARATOR,
         "view.tags-show",
         "view.tags-simplify",
         "view.tags-hide",
+        SEPARATOR,
         "view.waveform-panel",
         "wave.center-on-cue",
         "wave.toggle-autoscroll",
+        SEPARATOR,
         ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
+        "view.language",
       ],
     },
     { id: "help", title: en.menu.help.title, items: ["help.about"] },
@@ -2367,6 +2708,8 @@ export default function App() {
   const toolbar: CommandId[][] = [
     ["file.open-subtitle", "video.open", "file.save", "file.save-as", "file.discard"],
     ["edit.undo", "edit.redo"],
+    // The tag-cycle button, which the reference keeps on the toolbar and nowhere else (4.1).
+    ["view.tags-cycle"],
   ];
 
   /*
@@ -2613,6 +2956,8 @@ export default function App() {
             flushRef={flushGrid}
             onEditingChange={setEditorOpen}
             onCommit={subtitle.setText}
+            commands={commands}
+            contextItems={gridContextItems}
           />
         </section>
         {/* Under the grid, which is the one region that gives up space when it opens, so the top
@@ -2704,10 +3049,37 @@ export default function App() {
           projectError={project.error}
           chromeError={quitError ?? (windowFloor.failed ? en.shell.errors.windowFloor : null)}
           waveformFailed={peaks.error !== null}
+          notice={notice}
           previewFailed={preview.failed}
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {encodingPath !== null && (
+          <OpenEncoding
+            onChoose={(label) => {
+              const path = encodingPath;
+              setEncodingPath(null);
+              void subtitle.openWithEncoding(path, label);
+            }}
+            onClose={() => setEncodingPath(null)}
+          />
+        )}
+        {languageOpen && <LanguageDialog onClose={() => setLanguageOpen(false)} />}
+        {exportOpen && (
+          <OpenEncoding
+            writable
+            confirm={en.menu.file.export}
+            onChoose={(label) => {
+              setExportOpen(false);
+              void pick(
+                "subtitle-save",
+                subtitle.summary?.path ?? undefined,
+                (path) => void subtitle.exportCopy(path, label),
+              );
+            }}
+            onClose={() => setExportOpen(false)}
+          />
+        )}
         {shiftOpen && (
           <ShiftTimes
             hasSelection={selection.selected.size > 0}

@@ -84,8 +84,23 @@ export type Submenu = {
   items: CommandId[];
 };
 
-/** One entry of a menu: a command by id, or a submenu holding more of them. */
-export type MenuEntry = CommandId | Submenu;
+/**
+ * A rule that groups the items around it. Not a command and not a submenu: nothing runs it, the
+ * cursor steps over it the way it steps over a greyed item, and it holds no id the registry knows.
+ * The reference groups every menu with these (interface-spec 3); Sublore draws the same rules.
+ */
+export type Separator = { readonly separator: true };
+
+/** The one separator value, so a menu writes `SEPARATOR` rather than repeating the shape. */
+export const SEPARATOR: Separator = { separator: true };
+
+/** One entry of a menu: a command by id, a submenu holding more of them, or a grouping rule. */
+export type MenuEntry = CommandId | Submenu | Separator;
+
+/** Whether a menu entry is a grouping rule rather than something the cursor can land on. */
+export function isSeparator(entry: MenuEntry): entry is Separator {
+  return typeof entry === "object" && "separator" in entry;
+}
 
 /** A menu bar title and what it opens, as ids into a `CommandRegistry` (interface-spec 2.1, T3 C1). */
 export type Menu = {
@@ -94,9 +109,11 @@ export type Menu = {
   items: MenuEntry[];
 };
 
-/** Every command a menu can reach, its submenus walked into (T3 C1). */
+/** Every command a menu can reach, its submenus walked into, its separators skipped (T3 C1). */
 export function commandsIn(menu: Menu): CommandId[] {
-  return menu.items.flatMap((entry) => (typeof entry === "string" ? [entry] : entry.items));
+  return menu.items.flatMap((entry) =>
+    typeof entry === "string" ? [entry] : isSeparator(entry) ? [] : entry.items,
+  );
 }
 
 /**
