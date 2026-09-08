@@ -278,29 +278,16 @@ const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
  * and where the selected cues landed, or null when nothing moves because the whole selection is
  * already against the edge. See docs/reorder-tasks.md.
  */
-function reorderForMove(
-  count: number,
-  selected: ReadonlySet<number>,
-  down: boolean,
-): { from: number; order: number[]; after: number[] } | null {
-  const arr = Array.from({ length: count }, (_, index) => index);
-  if (down) {
-    arr.reverse();
-  }
-  let prev = -1;
-  let moved = 0;
-  for (let at = 0; at < count && moved < selected.size; at += 1) {
-    if (!selected.has(arr[at])) {
-      prev = at;
-    } else if (prev !== -1) {
-      [arr[at], arr[prev]] = [arr[prev], arr[at]];
-      prev = at;
-      moved += 1;
-    }
-  }
-  if (down) {
-    arr.reverse();
-  }
+type ReorderRun = { from: number; order: number[]; after: number[] };
+
+/**
+ * From a full permutation `arr` (`arr[position]` is the original index now at that position), the
+ * contiguous run that actually changed, its order, and where the selected cues landed so the
+ * selection can follow them. Null when nothing moved. Shared by move and sort: the backend edit
+ * takes one run, and the unchanged prefix and suffix are not worth rewriting.
+ */
+function runFromPermutation(arr: number[], selected: ReadonlySet<number>): ReorderRun | null {
+  const count = arr.length;
   let from = 0;
   while (from < count && arr[from] === from) {
     from += 1;
@@ -320,6 +307,65 @@ function reorderForMove(
     }
   }
   return { from, order, after };
+}
+
+function reorderForMove(
+  count: number,
+  selected: ReadonlySet<number>,
+  down: boolean,
+): ReorderRun | null {
+  const arr = Array.from({ length: count }, (_, index) => index);
+  if (down) {
+    arr.reverse();
+  }
+  let prev = -1;
+  let moved = 0;
+  for (let at = 0; at < count && moved < selected.size; at += 1) {
+    if (!selected.has(arr[at])) {
+      prev = at;
+    } else if (prev !== -1) {
+      [arr[at], arr[prev]] = [arr[prev], arr[at]];
+      prev = at;
+      moved += 1;
+    }
+  }
+  if (down) {
+    arr.reverse();
+  }
+  return runFromPermutation(arr, selected);
+}
+
+/**
+ * The permutation a sort gives: the whole document by `key`, or the selected cues among the
+ * positions they occupy, others left where they are. Stable, so equal keys keep the order they had.
+ * Null when it is already in that order, or the selected sort has fewer than two to sort. Mirrors
+ * the reference's grid/sort. See docs/reorder-tasks.md.
+ */
+function reorderForSort(
+  cues: readonly { startMs: number; endMs: number }[],
+  selected: ReadonlySet<number>,
+  key: "start" | "end",
+  selectedOnly: boolean,
+): ReorderRun | null {
+  const count = cues.length;
+  const keyOf = (index: number) => (key === "start" ? cues[index].startMs : cues[index].endMs);
+  const arr = Array.from({ length: count }, (_, index) => index);
+  if (selectedOnly) {
+    const positions = [...selected].filter((index) => index < count).sort((one, two) => one - two);
+    if (positions.length < 2) {
+      return null;
+    }
+    const sorted = [...positions].sort((one, two) => keyOf(one) - keyOf(two));
+    positions.forEach((position, rank) => {
+      arr[position] = sorted[rank];
+    });
+  } else {
+    if (count < 2) {
+      return null;
+    }
+    arr.sort((one, two) => keyOf(one) - keyOf(two));
+  }
+  return runFromPermutation(arr, selected);
 }
 
 export default function App() {
@@ -903,6 +949,26 @@ export default function App() {
     landing.current = { rows: move.after };
     try {
       await subtitle.reorderCues(move.from, move.order);
+    } finally {
+      landing.current = null;
+    }
+  }
+
+  /**
+   * The whole document, or the selected cues among the positions they occupy, put in order by start
+   * or by end as one undo step, with the selection following. A sort that changes nothing does
+   * nothing and adds no undo step. See docs/reorder-tasks.md.
+   */
+  async function sortSelection(key: "start" | "end", selectedOnly: boolean) {
+    await flushEditors();
+    const selected = new Set([...selection.selected].filter((row) => row < subtitle.cues.length));
+    const run = reorderForSort(subtitle.cues, selected, key, selectedOnly);
+    if (run === null) {
+      return;
+    }
+    landing.current = { rows: run.after };
+    try {
+      await subtitle.reorderCues(run.from, run.order);
     } finally {
       landing.current = null;
     }
@@ -2120,6 +2186,30 @@ export default function App() {
       run: () => void moveSelection(true),
     },
     {
+      id: "subtitle.sort-all-start",
+      label: en.menu.subtitles.byStart,
+      enabled: subtitle.cues.length > 0,
+      run: () => void sortSelection("start", false),
+    },
+    {
+      id: "subtitle.sort-all-end",
+      label: en.menu.subtitles.byEnd,
+      enabled: subtitle.cues.length > 0,
+      run: () => void sortSelection("end", false),
+    },
+    {
+      id: "subtitle.sort-selected-start",
+      label: en.menu.subtitles.byStart,
+      enabled: selection.selected.size > 1,
+      run: () => void sortSelection("start", true),
+    },
+    {
+      id: "subtitle.sort-selected-end",
+      label: en.menu.subtitles.byEnd,
+      enabled: selection.selected.size > 1,
+      run: () => void sortSelection("end", true),
+    },
+    {
       id: "help.about",
       label: en.menu.help.about,
       enabled: true,
@@ -2349,6 +2439,18 @@ export default function App() {
         "subtitle.merge",
         "subtitle.move-up",
         "subtitle.move-down",
+        {
+          // The two sorts sit in lists of their own, which is where the interface puts them
+          // (interface-spec 3.3 items 16 and 17).
+          id: "subtitle-sort-all",
+          label: en.menu.subtitles.sortAll,
+          items: ["subtitle.sort-all-start", "subtitle.sort-all-end"],
+        },
+        {
+          id: "subtitle-sort-selected",
+          label: en.menu.subtitles.sortSelected,
+          items: ["subtitle.sort-selected-start", "subtitle.sort-selected-end"],
+        },
       ],
     },
     {
