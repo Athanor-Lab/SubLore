@@ -144,6 +144,15 @@ pub enum Edit {
     Merge {
         cue: usize,
     },
+    /// A contiguous run of cues put back in a new order, as one undo step. `order` is a permutation
+    /// of `from..from + order.len()`: the same cues, rearranged. Move up and down are a rotation of
+    /// the run; a sort is the order a key gives. Nothing is renumbered and no cue's bytes change,
+    /// only their sequence, so an SRT index rides along with its block exactly as an insert leaves
+    /// it. See docs/reorder-tasks.md.
+    Reorder {
+        from: usize,
+        order: Vec<usize>,
+    },
 }
 
 /// The byte replacement, its label, and what the document must look like once the edited bytes are
@@ -235,6 +244,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             at_ms,
         } => plan_split(document, *cue, *text_offset, *at_ms),
         Edit::Merge { cue } => plan_merge(document, *cue),
+        Edit::Reorder { from, order } => plan_reorder(document, *from, order),
     }
 }
 
@@ -2883,6 +2893,116 @@ fn plan_delete_many(document: &SubtitleDocument, cues: &[usize]) -> Result<Plann
             segments_from: region_from,
             segments_removed: region_to.saturating_sub(region_from).saturating_add(1),
             segments_inserted: stays,
+        },
+    })
+}
+
+/// A contiguous run of cues written back in `order`, a permutation of `from..from + order.len()`.
+///
+/// The cue blocks move whole and the separators between them keep their positions, so an SRT index
+/// rides along with its block and nothing is renumbered, the rule an insert already follows. A run
+/// already in `order` is refused with `NotApplicable`, so a move at a boundary or a sort of an
+/// already-sorted run adds no undo step; the caller is not meant to ask, and this is the safety net.
+fn plan_reorder(
+    document: &SubtitleDocument,
+    from: usize,
+    order: &[usize],
+) -> Result<Planned, EditError> {
+    let count = order.len();
+    if count == 0 {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder naming no cues",
+        ));
+    }
+    // A permutation of exactly `from..from + count`, each index named once.
+    let mut sorted = order.to_vec();
+    sorted.sort_unstable();
+    if sorted
+        .iter()
+        .enumerate()
+        .any(|(offset, at)| *at != from.saturating_add(offset))
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder must name each cue of one run once",
+        ));
+    }
+    // Already in this order: nothing to write, no undo step.
+    if order
+        .iter()
+        .enumerate()
+        .all(|(offset, at)| *at == from.saturating_add(offset))
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder that leaves the order unchanged",
+        ));
+    }
+
+    let last = from.saturating_add(count).saturating_sub(1);
+    let run = locate_run(document, from, last)?;
+    // Each cue's whole block, and the exact bytes between one block and the next: a blank line in an
+    // SRT or a VTT, nothing at all between two ASS events. The separators are read from the byte gap
+    // rather than assumed, so any format's spacing comes through unchanged.
+    let blocks: Vec<&str> = run
+        .iter()
+        .map(|located| document.slice(located.segment.span))
+        .collect();
+    let separators: Vec<&str> = run
+        .windows(2)
+        .map(|pair| {
+            document.slice(Span::new(
+                pair[0].segment.span.end,
+                pair[1].segment.span.start,
+            ))
+        })
+        .collect();
+
+    let mut inserted = String::new();
+    let mut cues_after = Vec::with_capacity(count);
+    for (position, at) in order.iter().enumerate() {
+        let offset = at.saturating_sub(from);
+        // The separator that structurally sits between output slot `position - 1` and `position`
+        // stays where it is while the blocks move.
+        if let Some(before) = position.checked_sub(1) {
+            inserted.push_str(separators[before]);
+        }
+        inserted.push_str(blocks[offset]);
+        let cue = run[offset].cue;
+        cues_after.push(ExpectedCue {
+            text_raw: document.slice(cue.text).to_owned(),
+            start_ms: cue.start.millis(),
+            end_ms: cue.end.millis(),
+        });
+    }
+
+    let (Some(opening), Some(closing)) = (run.first(), run.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder naming no cues",
+        ));
+    };
+    let region = Span::new(opening.segment.span.start, closing.segment.span.end);
+    let region_from = opening.segment_index;
+    let region_to = closing.segment_index;
+    let segments = region_to.saturating_sub(region_from).saturating_add(1);
+
+    Ok(Planned {
+        splice: Splice::new(region.start, document.slice(region).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::Reorder,
+            cue: from,
+        },
+        expect: Expectation {
+            from,
+            removed: count,
+            cues: cues_after,
+            segments_from: region_from,
+            segments_removed: segments,
+            // The same segments come back, reordered: the cue blocks and the separators between
+            // them, so the count is what it was.
+            segments_inserted: segments,
         },
     })
 }
