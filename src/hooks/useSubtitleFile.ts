@@ -95,6 +95,7 @@ export type SubtitleFile = {
   /** The transcription run whose cues are the open document, or null. See BACKLOG.md M3.5. */
   adoptedRunId: number | null;
   open: (path: string) => Promise<void>;
+  openWithEncoding: (path: string, label: string) => Promise<void>;
   discardAndOpen: () => Promise<void>;
   adoptTranscription: (runId: number) => Promise<void>;
   setText: (cue: number, text: string) => Promise<void>;
@@ -252,12 +253,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setOpenId((current) => current + 1);
   }, []);
 
-  const openFile = useCallback(
-    async (path: string) => {
+  const openWith = useCallback(
+    async (path: string, request: () => Promise<SubtitleOpened>) => {
       setError(null);
       setSaved(null);
       try {
-        applyOpened(await invoke<SubtitleOpened>("subtitle_open", { path }));
+        applyOpened(await request());
         setAdoptedRunId(null);
       } catch (failure) {
         const rejected = toSubtitleError(failure);
@@ -281,9 +282,27 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [applyOpened],
   );
 
+  const openFile = useCallback(
+    (path: string) => openWith(path, () => invoke<SubtitleOpened>("subtitle_open", { path })),
+    [openWith],
+  );
+
+  // Open with encoding sends the charset the user named; the backend decodes it to UTF-8 and this
+  // takes the result exactly as a plain open does. See interface-spec 9.8.
+  const openFileWithEncoding = useCallback(
+    (path: string, label: string) =>
+      openWith(path, () => invoke<SubtitleOpened>("subtitle_open_with_encoding", { path, label })),
+    [openWith],
+  );
+
   const open = useCallback(
     (path: string) => serialize(() => openFile(path)),
     [openFile, serialize],
+  );
+
+  const openWithEncoding = useCallback(
+    (path: string, label: string) => serialize(() => openFileWithEncoding(path, label)),
+    [openFileWithEncoding, serialize],
   );
 
   /** The empty document, with `discard` saying whether the work in its way may go. */
@@ -607,6 +626,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   return {
     summary,
     cues,
+    openWithEncoding,
     canUndo,
     canRedo,
     dirty,

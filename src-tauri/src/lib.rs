@@ -208,6 +208,7 @@ pub fn run() -> tauri::Result<()> {
             project::project_select_episode,
             project::project_session,
             subtitle::subtitle_open,
+            subtitle::subtitle_open_with_encoding,
             subtitle::subtitle_close,
             subtitle::subtitle_set_text,
             subtitle::subtitle_set_texts,

@@ -509,6 +509,60 @@
   font: inherit;
 }
 
+/* Open with encoding: the charset dialog raised after the file picker (9.8). */
+.openencoding {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.openencoding__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(26rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.openencoding__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.openencoding__label {
+  color: var(--ink-muted);
+}
+
+.openencoding__select {
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.openencoding__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.openencoding__open,
+.openencoding__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
 /* Shift times: the amount, the direction, which lines and which of their times (9.1). */
 .shifttimes {
   position: fixed;

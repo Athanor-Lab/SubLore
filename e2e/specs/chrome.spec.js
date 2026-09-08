@@ -280,6 +280,8 @@ describe("the menu bar and the toolbar", () => {
     pressKey("Down");
     await waitForCursor("file-open-subtitle");
     pressKey("Down");
+    await waitForCursor("file-open-encoding");
+    pressKey("Down");
     await waitForCursor("file-open-source");
     pressKey("Down");
     await waitForCursor("app-quit");
