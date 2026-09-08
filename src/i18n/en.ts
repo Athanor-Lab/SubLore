@@ -141,6 +141,9 @@ export const en = {
       delete: "Delete cues",
       split: "Split cue",
       merge: "Merge with next",
+      /** Move the selected cues one row up or down, past the neighbour above or below them. */
+      moveUp: "Move cues up",
+      moveDown: "Move cues down",
     },
     audio: {
       title: "Audio",
@@ -185,6 +188,8 @@ export const en = {
       /** The one accelerator with no modifier at all, which is why the field rule has two halves. */
       findNext: "F3",
       replace: "Ctrl+H",
+      moveCuesUp: "Alt+Up",
+      moveCuesDown: "Alt+Down",
     },
     errors: {
       quitFailed: "Sublore could not quit. Close the window instead.",

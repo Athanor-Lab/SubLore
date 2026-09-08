@@ -268,6 +268,60 @@ const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
   { id: "edit.style-strikeout", flag: "strikeout", label: en.menu.edit.strikeout },
 ];
 
+/**
+ * The new order a move up or down gives, the way the reference's `move_one` does it: each selected
+ * cue trades places with the nearest unselected cue on the side it moves toward, walked top to
+ * bottom, and a cue with nothing unselected to trade with stays put. Down is the same walk over the
+ * reversed list, which is how the reference reuses one routine for both.
+ *
+ * Returns the contiguous run that changed, its new order (a permutation of `from..from + length`),
+ * and where the selected cues landed, or null when nothing moves because the whole selection is
+ * already against the edge. See docs/reorder-tasks.md.
+ */
+function reorderForMove(
+  count: number,
+  selected: ReadonlySet<number>,
+  down: boolean,
+): { from: number; order: number[]; after: number[] } | null {
+  const arr = Array.from({ length: count }, (_, index) => index);
+  if (down) {
+    arr.reverse();
+  }
+  let prev = -1;
+  let moved = 0;
+  for (let at = 0; at < count && moved < selected.size; at += 1) {
+    if (!selected.has(arr[at])) {
+      prev = at;
+    } else if (prev !== -1) {
+      [arr[at], arr[prev]] = [arr[prev], arr[at]];
+      prev = at;
+      moved += 1;
+    }
+  }
+  if (down) {
+    arr.reverse();
+  }
+  let from = 0;
+  while (from < count && arr[from] === from) {
+    from += 1;
+  }
+  if (from === count) {
+    return null;
+  }
+  let to = count - 1;
+  while (to > from && arr[to] === to) {
+    to -= 1;
+  }
+  const order = arr.slice(from, to + 1);
+  const after: number[] = [];
+  for (let position = 0; position < count; position += 1) {
+    if (selected.has(arr[position])) {
+      after.push(position);
+    }
+  }
+  return { from, order, after };
+}
+
 export default function App() {
   // Every HTML layer registers here while it is open, and the video surface hides for as long as
   // the set is not empty (decision 1, T8).
@@ -828,6 +882,32 @@ export default function App() {
    * The clipboard's cues in before the row the cursor is on, as one undo step, and the rows that
    * land are the ones left selected. With no row to go before they go at the end.
    */
+  /**
+   * The selected cues moved one row up or down, as one undo step, with the selection following them.
+   *
+   * The whole permutation is worked out here and trimmed to the run that changed, so an SRT index
+   * rides along with its block and the backend is asked for a reorder only when one is real: a move
+   * with the selection already against the edge does nothing and adds no undo step.
+   */
+  async function moveSelection(down: boolean) {
+    await flushEditors();
+    const count = subtitle.cues.length;
+    const selected = new Set([...selection.selected].filter((row) => row < count));
+    if (selected.size === 0) {
+      return;
+    }
+    const move = reorderForMove(count, selected, down);
+    if (move === null) {
+      return;
+    }
+    landing.current = { rows: move.after };
+    try {
+      await subtitle.reorderCues(move.from, move.order);
+    } finally {
+      landing.current = null;
+    }
+  }
+
   async function pasteCues() {
     await flushEditors();
     const text = await invoke<string>("clipboard_read").catch(() => "");
@@ -2026,6 +2106,20 @@ export default function App() {
       run: () => void mergeCue(),
     },
     {
+      id: "subtitle.move-up",
+      label: en.menu.subtitles.moveUp,
+      accelerator: en.menu.keys.moveCuesUp,
+      enabled: selection.selected.size > 0,
+      run: () => void moveSelection(false),
+    },
+    {
+      id: "subtitle.move-down",
+      label: en.menu.subtitles.moveDown,
+      accelerator: en.menu.keys.moveCuesDown,
+      enabled: selection.selected.size > 0,
+      run: () => void moveSelection(true),
+    },
+    {
       id: "help.about",
       label: en.menu.help.about,
       enabled: true,
@@ -2253,6 +2347,8 @@ export default function App() {
           items: ["subtitle.join-concat", "subtitle.join-keep-first"],
         },
         "subtitle.merge",
+        "subtitle.move-up",
+        "subtitle.move-down",
       ],
     },
     {
