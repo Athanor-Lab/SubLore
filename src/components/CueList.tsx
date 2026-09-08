@@ -11,8 +11,10 @@ import {
 
 import { type CueSelection } from "../hooks/useCueSelection";
 import { en } from "../i18n/en";
+import { type CommandId, type CommandRegistry, type Separator } from "../types/chrome";
 import { type CueRow } from "../types/subtitle";
 import { CPS_LIMIT, drawnText, readingRate, timecode, type TagMode } from "./cueView";
+import RailMenu from "./RailMenu";
 
 /**
  * Fixed row height in CSS pixels. The whole windowing calculation is this number, which is why it
@@ -47,6 +49,10 @@ type CueListProps = {
   /** Told whenever an editor opens or closes: text in a field is unsaved work too (design 5.3). */
   onEditingChange: (open: boolean) => void;
   onCommit: (cue: number, text: string) => Promise<void>;
+  /** The registry both the menu bar and this grid's own context menu draw from (interface-spec 3.9). */
+  commands: CommandRegistry;
+  /** What right-clicking a row opens, as ids into `commands` with the rules that group them. */
+  contextItems: (CommandId | Separator)[];
 };
 
 /**
@@ -64,6 +70,8 @@ export default function CueList({
   flushRef,
   onEditingChange,
   onCommit,
+  commands,
+  contextItems,
 }: CueListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -72,6 +80,8 @@ export default function CueList({
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [committing, setCommitting] = useState(false);
+  /** Where the grid's context menu is, or null while none is up (interface-spec 3.9). */
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   /** Cleared the moment an edit ends, so a blur that arrives after Escape cannot commit it. */
   const editingRef = useRef<number | null>(null);
 
@@ -188,6 +198,14 @@ export default function CueList({
     if (editingRef.current !== null || count === 0 || active === null) {
       return;
     }
+    // The menu key and Shift+F10 open the context menu under the cursor row, so every command on it
+    // is reachable without a pointer (interface-spec 3.9).
+    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+      event.preventDefault();
+      const box = document.getElementById(rowId(active))?.getBoundingClientRect();
+      setMenuAt(box === undefined ? { x: 0, y: 0 } : { x: box.left, y: box.bottom });
+      return;
+    }
     // Alt is excluded from both: AltGr arrives as ctrl+alt, and it is typing, not a shortcut.
     if (event.ctrlKey && !event.altKey && event.key.toLowerCase() === "a") {
       event.preventDefault();
@@ -243,11 +261,29 @@ export default function CueList({
 
   /** Every mouse gesture on a row mirrors a key: ctrl toggles, shift extends, a plain one moves. */
   function onRowMouseDown(event: ReactMouseEvent<HTMLDivElement>, index: number) {
+    // A right-click is the context menu's, not a selection gesture: onContextMenu decides what it
+    // acts on, so a plain move here must not collapse a multi-row selection first.
+    if (event.button !== 0) {
+      return;
+    }
     if (event.ctrlKey) {
       toggle(index);
       return;
     }
     move(index, event.shiftKey ? "extend" : "plain");
+  }
+
+  /**
+   * A right-click selects the row it lands on unless that row is already in the selection, then
+   * opens the grid's context menu at the pointer (interface-spec 3.9). Leaving an existing multi-row
+   * selection alone is what lets the menu act on all of it.
+   */
+  function onRowContextMenu(event: ReactMouseEvent<HTMLDivElement>, index: number) {
+    event.preventDefault();
+    if (!selected.has(index)) {
+      move(index, "plain");
+    }
+    setMenuAt({ x: event.clientX, y: event.clientY });
   }
 
   function onEditorKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
@@ -368,6 +404,7 @@ export default function CueList({
                 title={cue.comment ? en.subtitle.cueList.comment : undefined}
                 style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
                 onMouseDown={(event) => onRowMouseDown(event, index)}
+                onContextMenu={(event) => onRowContextMenu(event, index)}
               >
                 <span className="cuelist__pos">{index + 1}</span>
                 <span className="cuelist__number">{cue.number ?? ""}</span>
@@ -413,6 +450,16 @@ export default function CueList({
         </div>
         {count === 0 && <p className="cuelist__empty">{en.subtitle.cueList.empty}</p>}
       </div>
+      {menuAt !== null && (
+        <RailMenu
+          x={menuAt.x}
+          y={menuAt.y}
+          label={en.subtitle.cueList.contextMenu}
+          items={contextItems}
+          commands={commands}
+          onClose={() => setMenuAt(null)}
+        />
+      )}
     </div>
   );
 }
