@@ -14,7 +14,7 @@ use crate::error::{snippet, ParseError, ParseErrorKind};
 use crate::span::Span;
 
 /// The UTF-8 byte-order mark. Remembered on parse and written back byte for byte.
-pub(crate) const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+pub const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// How much of the file is checked for NUL bytes before decoding.
 const NUL_SCAN_BYTES: usize = 1024;

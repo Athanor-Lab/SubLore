@@ -98,6 +98,9 @@ pub enum EditKind {
     /// caret Split, so the two never coalesce.
     SplitInTwo,
     Merge,
+    /// A run of cues reordered. Its own kind so a move or a sort never merges into the edit before
+    /// it, the reason `DeleteMany` and `Join` are their own.
+    Reorder,
 }
 
 /// Apply `splice` to `body`. Fails when the range is outside the body, cuts a character, or does

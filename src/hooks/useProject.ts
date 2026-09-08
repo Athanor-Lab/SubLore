@@ -57,6 +57,8 @@ function toProjectError(failure: unknown): ProjectError {
 export type Project = {
   busy: boolean;
   project: ProjectView | null;
+  /** Newest first, what File > Recent projects draws (interface-spec 3.1 item 5). */
+  recent: string[];
   deleted: ProjectDeletedView | null;
   error: ProjectError | null;
   /** The episode the rail is on, and what an episode command acts on. */
@@ -81,6 +83,9 @@ export function useProject(): Project {
   const [deleted, setDeleted] = useState<ProjectDeletedView | null>(null);
   const [error, setError] = useState<ProjectError | null>(null);
   const [chosenId, setChosenId] = useState<number | null>(null);
+  // What File > Recent projects draws, newest first. The backend list moves on every open, create
+  // and delete, so it is re-read after each of those (interface-spec 3.1 item 5).
+  const [recent, setRecent] = useState<string[]>([]);
   // Nothing is remembered until the last session has been read back, so the first render does not
   // overwrite the episode it is about to restore (decision 24, D5).
   const [restored, setRestored] = useState(false);
@@ -91,6 +96,15 @@ export function useProject(): Project {
   const selected: EpisodeView | null =
     episodes.find((episode) => episode.id === chosenId) ?? episodes.at(-1) ?? null;
   const selectedId = selected?.id ?? null;
+
+  /** Re-read the remembered list. Failing costs a stale menu, so it is logged and never surfaced. */
+  const refreshRecent = useCallback(async () => {
+    try {
+      setRecent((await invoke<ProjectSession>("project_session")).recent);
+    } catch (failure) {
+      console.error("the recent-projects list could not be read", failure);
+    }
+  }, []);
 
   /**
    * Every command that returns a project ends the same way, so the handling lives in one place.
@@ -111,9 +125,13 @@ export function useProject(): Project {
         setError(toProjectError(failure));
       } finally {
         setBusy(false);
+        // Opening and creating move the remembered list; an edit inside the project does not.
+        if (replacesProject) {
+          void refreshRecent();
+        }
       }
     },
-    [],
+    [refreshRecent],
   );
 
   const create = useCallback(
@@ -187,8 +205,10 @@ export function useProject(): Project {
       setError(toProjectError(failure));
     } finally {
       setBusy(false);
+      // A deleted project leaves the remembered list too (session.rs forgotten()).
+      void refreshRecent();
     }
-  }, []);
+  }, [refreshRecent]);
 
   const choosePath = useCallback(async (kind: "project-folder" | "project-file") => {
     setBusy(true);
@@ -215,6 +235,7 @@ export function useProject(): Project {
     void (async () => {
       try {
         const session = await invoke<ProjectSession>("project_session");
+        setRecent(session.recent);
         if (session.folder !== null) {
           setProject(await invoke<ProjectView>("project_open", { folder: session.folder }));
           setChosenId(session.episodeId);
@@ -243,6 +264,7 @@ export function useProject(): Project {
   return {
     busy,
     project,
+    recent,
     deleted,
     error,
     selected,
