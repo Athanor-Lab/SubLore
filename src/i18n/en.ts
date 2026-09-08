@@ -13,6 +13,9 @@ export const en = {
       openSubtitle: "Open subtitle…",
       /** Opens the same picker, then a dialog naming the file's charset instead of guessing it. */
       openEncoding: "Open with encoding…",
+      recent: "Recent projects",
+      /** The one greyed row the recent list holds while nothing has been remembered yet. */
+      recentEmpty: "Empty",
       /** The document to read from while translating. It is never written to. */
       openSource: "Open source subtitle…",
       closeSource: "Close source subtitle",

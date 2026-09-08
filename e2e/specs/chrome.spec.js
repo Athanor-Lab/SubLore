@@ -145,9 +145,14 @@ function openMenu() {
 
 /** The command the menu cursor is on, by id, or null when no item carries it. */
 function cursorCommand() {
-  return browser.execute(
-    () => document.querySelector(".menubar__item--cursor")?.id.replace("menuitem-", "") ?? null,
-  );
+  return browser.execute(() => {
+    // A cursored submenu row carries its own class, and when its list is open the keyboard is on
+    // an item inside it, which is why the item is read first.
+    const row =
+      document.querySelector(".menubar__item--cursor") ??
+      document.querySelector(".menubar__submenu--cursor");
+    return row?.id.replace("menuitem-", "") ?? null;
+  });
 }
 
 /** The class the element holding the keyboard carries, which is how focus is named here. */
@@ -281,6 +286,10 @@ describe("the menu bar and the toolbar", () => {
     await waitForCursor("file-open-subtitle");
     pressKey("Down");
     await waitForCursor("file-open-encoding");
+    pressKey("Down");
+    // The recent-projects row takes the cursor in every state: with nothing remembered it still
+    // holds its greyed placeholder, and a submenu with anything in it is a stop on the walk.
+    await waitForCursor("file-recent");
     pressKey("Down");
     await waitForCursor("file-open-source");
     pressKey("Down");
