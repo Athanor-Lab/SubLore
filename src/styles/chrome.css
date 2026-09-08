@@ -447,6 +447,75 @@
   font: inherit;
 }
 
+/* Project properties: the script's own metadata over the shell, read-only, closed like About (9.5). */
+.properties {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.properties__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: min(28rem, 90vw);
+  max-height: 90vh;
+  padding: 1rem;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.properties__heading {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.properties__empty {
+  margin: 0 0 0.4rem;
+  color: var(--ink-muted);
+}
+
+.properties__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.properties__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.properties__label {
+  flex: none;
+  width: 9rem;
+  color: var(--ink-muted);
+}
+
+.properties__value {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.properties__close {
+  align-self: flex-end;
+  margin-top: 0.5rem;
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
 /* Jump to time: one field over the shell, closed the three ways every layer is (9.7). */
 .jumpto {
   position: fixed;

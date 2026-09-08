@@ -49,6 +49,7 @@ const DECLARED = [
   "file-save-as",
   "file-export",
   "file-discard",
+  "file-properties",
   "app-quit",
   "asr-transcribe",
   "edit-undo",
@@ -188,6 +189,7 @@ const FILE_ITEMS = [
   { id: "file-save-as", disabled: true },
   { id: "file-export", disabled: true },
   { id: "file-discard", disabled: true },
+  { id: "file-properties", disabled: true },
   { id: "app-quit", disabled: false },
 ];
 
@@ -683,6 +685,8 @@ describe("the command registry", () => {
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-as", disabled: false },
+      // Project properties has a script to read once a document is open, and nothing to read before.
+      { route: "menu", id: "file-properties", disabled: false },
       // Export writes a copy of the document, so it wakes with one the way Save as does.
       { route: "menu", id: "file-export", disabled: false },
       // A document opens on its first row, so a row is selected and the four that act on a
