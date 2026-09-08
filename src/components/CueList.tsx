@@ -208,7 +208,9 @@ export default function CueList({
       return;
     }
     const last = count - 1;
-    const page = Math.max(1, Math.floor(viewport / ROW_HEIGHT));
+    // A page keeps two rows of context: it moves the visible-row count less two, the way the
+    // reference pages the grid (interface-spec 7.3), never fewer than one row.
+    const page = Math.max(1, Math.floor(viewport / ROW_HEIGHT) - 2);
     let next = active;
     switch (event.key) {
       case "ArrowDown":
