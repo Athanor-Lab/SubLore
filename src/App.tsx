@@ -51,6 +51,7 @@ import { requestQuit } from "./quit";
 import { replaceOne, type Match, type Query } from "./search";
 import {
   runCommand,
+  SEPARATOR,
   type Command,
   type CommandId,
   type CommandRegistry,
@@ -2183,15 +2184,20 @@ export default function App() {
     {
       id: "file",
       title: en.menu.file.title,
+      // Grouped the way the reference groups File: opening, then saving, then quit
+      // (interface-spec 3.1 separators 6, 10 and 14). The properties and font groups it puts
+      // between are not built, so their rules fold into the one before Quit.
       items: [
         "file.new",
         "file.open-subtitle",
         "file.open-source",
         "file.close-source",
         "file.new-translation",
+        SEPARATOR,
         "file.save",
         "file.save-as",
         "file.discard",
+        SEPARATOR,
         "app.quit",
       ],
     },
@@ -2200,25 +2206,34 @@ export default function App() {
     {
       id: "edit",
       title: en.menu.edit.title,
+      // The reference groups Edit undo/redo, clipboard, find (interface-spec 3.2 separators 3, 8,
+      // 12). Sublore's own line commands (revert, clear, insert-original) and the inline-styling
+      // set have no reference home, so they take groups of their own by what they do; transcribe
+      // trails alone until it moves to an Audio title of its own.
       items: [
         "edit.undo",
         "edit.redo",
+        SEPARATOR,
         "edit.cut",
         "edit.copy",
         "edit.paste",
         "edit.paste-over",
+        SEPARATOR,
         "edit.select-all",
         "edit.revert",
         "edit.clear",
         "edit.clear-text",
         "edit.insert-original",
+        SEPARATOR,
         "edit.style-bold",
         "edit.style-italic",
         "edit.style-underline",
         "edit.style-strikeout",
+        SEPARATOR,
         "edit.find",
         "edit.find-next",
         "edit.replace",
+        SEPARATOR,
         "asr.transcribe",
       ],
     },
@@ -2245,6 +2260,9 @@ export default function App() {
         "subtitle.duplicate",
         "subtitle.delete",
         "subtitle.split",
+        // The reference rules off the insert-and-split family before the join family
+        // (interface-spec 3.3 separator 7). Its move and sort groups are not on this branch yet.
+        SEPARATOR,
         // The two ways of joining lines sit in a list of their own, which is where the interface
         // puts them (interface-spec 3.3 item 8).
         {
@@ -2260,9 +2278,13 @@ export default function App() {
       title: en.menu.timing.title,
       // The order the panel's own strip runs in, so a translator who learns one has learned the
       // other (owner ruling 2026-09-05). The four nudges keep the end, where they have always been.
+      // Runs in the panel strip's order, so the rules mark its functional blocks rather than the
+      // reference's own Timing groups (interface-spec 3.4), which this strip reorders: cue
+      // navigation, then setting times, then playing them back, then the fine adjustments.
       items: [
         "time.prev-cue",
         "time.next-cue",
+        SEPARATOR,
         "time.start-to-playhead",
         "time.end-to-playhead",
         "time.shift",
@@ -2277,6 +2299,7 @@ export default function App() {
         "video.to-cue-start",
         "video.to-cue-end",
         "edit.select-at-playhead",
+        SEPARATOR,
         "wave.play-selection",
         "time.play-line",
         "wave.stop",
@@ -2285,6 +2308,7 @@ export default function App() {
         "wave.play-first",
         "wave.play-last",
         "time.play-to-end",
+        SEPARATOR,
         "time.lead-in",
         "time.lead-out",
         "time.start-earlier",
@@ -2302,10 +2326,15 @@ export default function App() {
         "video.open",
         "video.close",
         "video.details",
+        // The reference groups Video into the file, transport, jump and overlay blocks
+        // (interface-spec 3.5 separators 6, 11, 15). Sublore's frame-step and boundary navigation
+        // ride with the jump block, where the rest of the picture's navigation belongs.
+        SEPARATOR,
         "video.play",
         "video.play-cue",
         "video.stop",
         "video.toggle-follow-selection",
+        SEPARATOR,
         "video.jump-to",
         "video.jump-cue-start",
         "video.jump-cue-end",
@@ -2318,6 +2347,7 @@ export default function App() {
         "video.jump-forward",
         "video.prev-boundary",
         "video.next-boundary",
+        SEPARATOR,
         "video.toggle-subtitle-overlay",
         "video.show-source-on-video",
       ],
@@ -2332,17 +2362,23 @@ export default function App() {
     {
       id: "view",
       title: en.menu.view.title,
+      // The reference rules off the layout radios from the tag radios (interface-spec 3.7
+      // separators 5 and 9). Sublore's own waveform toggles and interface-scale radios take the
+      // groups after, where the reference keeps the toolbar toggle and the preferences.
       items: [
         "view.layout-grid-only",
         "view.layout-video-grid",
         "view.layout-waveform-grid",
         "view.layout-full",
+        SEPARATOR,
         "view.tags-show",
         "view.tags-simplify",
         "view.tags-hide",
+        SEPARATOR,
         "view.waveform-panel",
         "wave.center-on-cue",
         "wave.toggle-autoscroll",
+        SEPARATOR,
         ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
       ],
     },

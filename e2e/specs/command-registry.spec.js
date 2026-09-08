@@ -356,18 +356,22 @@ function itemsIn(selector) {
  */
 async function itemsOfOpenMenu(toplevel) {
   const rows = await browser.execute(() =>
-    Array.from(document.querySelector(".menubar__menu")?.children ?? []).map((row) => {
-      const opener = row.querySelector(".menubar__submenu");
-      return opener === null
-        ? {
-            item: {
-              id: row.id.replace("menuitem-", ""),
-              label: row.querySelector(".menubar__label")?.textContent ?? null,
-              disabled: row.disabled,
-            },
-          }
-        : { submenu: opener.id.replace("menuitem-", "") };
-    }),
+    Array.from(document.querySelector(".menubar__menu")?.children ?? [])
+      // A rule between two groups is drawn but is not a command, so it is skipped the way a
+      // submenu's opener is not counted: this stays a reading of the registry, not of the shape.
+      .filter((row) => !row.classList.contains("menubar__separator"))
+      .map((row) => {
+        const opener = row.querySelector(".menubar__submenu");
+        return opener === null
+          ? {
+              item: {
+                id: row.id.replace("menuitem-", ""),
+                label: row.querySelector(".menubar__label")?.textContent ?? null,
+                disabled: row.disabled,
+              },
+            }
+          : { submenu: opener.id.replace("menuitem-", "") };
+      }),
   );
 
   const items = [];

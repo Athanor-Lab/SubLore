@@ -61,6 +61,13 @@
   outline: none;
 }
 
+/* A rule between two groups of a menu. Drawn, not walked: it carries no cursor, hover or command. */
+.menubar__separator {
+  height: 0;
+  margin: 0.25rem 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
 .menubar__item {
   display: flex;
   gap: 2rem;

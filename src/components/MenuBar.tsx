@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLayer } from "../hooks/useLayers";
 import {
   commandToken,
+  isSeparator,
   runCommand,
   type Command,
   type CommandId,
@@ -16,35 +17,63 @@ type MenuBarProps = {
 };
 
 /**
- * One row of an open dropdown: a command the registry holds, or a submenu that opens a list of its
- * own. A submenu is not a command and never runs; what it holds are commands like any other.
+ * One row of an open dropdown: a command the registry holds, a submenu that opens a list of its
+ * own, or a rule that groups the rows around it. A submenu is not a command and never runs; a rule
+ * is neither and the cursor never lands on it.
  */
 type Row =
   | { kind: "command"; command: Command }
-  | { kind: "submenu"; id: string; label: string; items: Command[] };
+  | { kind: "submenu"; id: string; label: string; items: Command[] }
+  | { kind: "separator" };
+
+/**
+ * Drop the rules that would draw at an edge or beside another: a group needs items on both sides of
+ * its divider, so a leading, trailing or doubled rule is not drawn and never enters the walk.
+ */
+function collapseSeparators(rows: Row[]): Row[] {
+  return rows.filter((row, index) => {
+    if (row.kind !== "separator") {
+      return true;
+    }
+    const before = rows[index - 1];
+    const after = rows.slice(index + 1).find((next) => next.kind !== "separator");
+    return before !== undefined && before.kind !== "separator" && after !== undefined;
+  });
+}
 
 /** A menu's entries resolved from ids to the registry's records (T3 C1). */
 function resolve(menu: Menu, commands: CommandRegistry): Row[] {
-  return menu.items.map((entry) =>
+  const rows = menu.items.map((entry): Row =>
     typeof entry === "string"
       ? { kind: "command", command: commands[entry] }
-      : {
-          kind: "submenu",
-          id: entry.id,
-          label: entry.label,
-          items: entry.items.map((id) => commands[id]),
-        },
+      : isSeparator(entry)
+        ? { kind: "separator" }
+        : {
+            kind: "submenu",
+            id: entry.id,
+            label: entry.label,
+            items: entry.items.map((id) => commands[id]),
+          },
   );
+  return collapseSeparators(rows);
 }
 
 /** Whether the cursor may sit on a row. A submenu is usable while it has anything to open. */
 function usable(row: Row): boolean {
-  return row.kind === "command" ? row.command.enabled : row.items.length > 0;
+  return row.kind === "command"
+    ? row.command.enabled
+    : row.kind === "submenu"
+      ? row.items.length > 0
+      : false;
 }
 
 /** The row's own id, which is a command's token or the submenu's own name. */
 function rowToken(row: Row): string {
-  return row.kind === "command" ? commandToken(row.command.id) : row.id;
+  return row.kind === "command"
+    ? commandToken(row.command.id)
+    : row.kind === "submenu"
+      ? row.id
+      : "";
 }
 
 /** What the open dropdown says the keyboard is on, which is inside the submenu whenever one is. */
@@ -301,6 +330,10 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
           }
           break;
         }
+        // A rule is not a row the cursor reaches, but the type admits one here; step past it.
+        if (row.kind !== "command") {
+          break;
+        }
         if (row.command.enabled) {
           activate(state.commands, row.command.id);
         }
@@ -400,8 +433,18 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
                 aria-label={menu.title}
                 aria-activedescendant={activeItem(rows, cursor, subOpen, subCursor)}
               >
-                {rows.map((row, position) =>
-                  row.kind === "command" ? (
+                {rows.map((row, position) => {
+                  // A rule is drawn but reaches nothing: no id, no role a menuitem walk would count.
+                  if (row.kind === "separator") {
+                    return (
+                      <div
+                        className="menubar__separator"
+                        role="separator"
+                        key={`separator-${position}`}
+                      />
+                    );
+                  }
+                  return row.kind === "command" ? (
                     <Item
                       key={row.command.id}
                       command={row.command}
@@ -464,8 +507,8 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
                         </div>
                       )}
                     </div>
-                  ),
-                )}
+                  );
+                })}
               </div>
             )}
           </div>
