@@ -96,6 +96,10 @@ export const en = {
       playFirst: "Play first 500 ms of line",
       playLast: "Play last 500 ms of line",
       playToEnd: "Play from line start to the end",
+      /** The three commits and the two toggles that decide what a commit does (interface-spec 5). */
+      commit: "Commit timing",
+      commitNext: "Commit and go to next",
+      commitStay: "Commit and stay",
       leadIn: "Add lead-in",
       leadOut: "Add lead-out",
       startEarlier: "Start 10 ms earlier",
@@ -112,6 +116,9 @@ export const en = {
       waveform: "Waveform",
       centreOnCue: "Centre the waveform on the current line",
       followCue: "Follow the current line",
+      /** The two toggles that decide what a commit does, beside their sibling above (5). */
+      autoCommit: "Commit as the markers move",
+      autoNext: "Go to next after a commit",
       subtitles: "Subtitles on video",
       /** The three ways the grid draws override tags, a radio set (interface-spec 3.5). */
       tagsShow: "Show tags",

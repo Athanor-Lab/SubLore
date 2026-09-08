@@ -131,6 +131,8 @@ const DECLARED = [
   "view-waveform-panel",
   "wave-center-on-cue",
   "wave-toggle-autoscroll",
+  "wave-toggle-autocommit",
+  "wave-toggle-autonext",
   "view-interface-scale-90",
   "view-interface-scale-100",
   "view-interface-scale-110",
