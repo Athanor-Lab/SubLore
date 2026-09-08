@@ -576,6 +576,8 @@ export const en = {
       cps: "CPS",
       /** Marks an ASS Comment: event, which a player does not draw. */
       comment: "Comment",
+      /** Named for a reader reaching the grid's context menu without seeing it (interface-spec 3.9). */
+      contextMenu: "Cue actions",
     },
     /** The box in the tools column that edits whichever line the cursor is on (T5). */
     currentLine: {
