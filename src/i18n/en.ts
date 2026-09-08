@@ -119,6 +119,8 @@ export const en = {
       tagsShow: "Show tags",
       tagsSimplify: "Simplify tags",
       tagsHide: "Hide tags",
+      /** The one button that steps the three above, on the toolbar and nowhere else (interface-spec 4.1). */
+      tagsCycle: "Cycle tag display",
       /** Draws the document being read on the frame instead of the one being written. See S3. */
       sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
@@ -143,6 +145,14 @@ export const en = {
       delete: "Delete cues",
       split: "Split cue",
       merge: "Merge with next",
+      /** Move the selected cues one row up or down, past the neighbour above or below them. */
+      moveUp: "Move cues up",
+      moveDown: "Move cues down",
+      /** The two sort submenus and the two keys each offers (interface-spec 3.3 items 16, 17). */
+      sortAll: "Sort all cues",
+      sortSelected: "Sort selected cues",
+      byStart: "By start time",
+      byEnd: "By end time",
     },
     audio: {
       title: "Audio",
@@ -187,6 +197,8 @@ export const en = {
       /** The one accelerator with no modifier at all, which is why the field rule has two halves. */
       findNext: "F3",
       replace: "Ctrl+H",
+      moveCuesUp: "Alt+Up",
+      moveCuesDown: "Alt+Down",
     },
     errors: {
       quitFailed: "Sublore could not quit. Close the window instead.",
@@ -265,6 +277,15 @@ export const en = {
     prompt: "Choose charset code:",
     open: "Open",
     cancel: "Cancel",
+  },
+  /** What a command reports on the status bar's timed slot (interface-spec 1.5). */
+  notices: {
+    /** Keyed by TagMode, worded as the reference words them. */
+    tagMode: {
+      show: "ASS Override Tag mode set to show full tags.",
+      simplify: "ASS Override Tag mode set to simplify tags.",
+      hide: "ASS Override Tag mode set to hide tags.",
+    },
   },
   /** The draggable edges between the panels (D1). Read aloud where a separator is announced. */
   shell: {
@@ -564,6 +585,8 @@ export const en = {
       cps: "CPS",
       /** Marks an ASS Comment: event, which a player does not draw. */
       comment: "Comment",
+      /** Named for a reader reaching the grid's context menu without seeing it (interface-spec 3.9). */
+      contextMenu: "Cue actions",
     },
     /** The box in the tools column that edits whichever line the cursor is on (T5). */
     currentLine: {

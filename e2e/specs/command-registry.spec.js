@@ -104,6 +104,12 @@ const DECLARED = [
   "subtitle-join-concat",
   "subtitle-join-keep-first",
   "subtitle-merge",
+  "subtitle-move-up",
+  "subtitle-move-down",
+  "subtitle-sort-all-start",
+  "subtitle-sort-all-end",
+  "subtitle-sort-selected-start",
+  "subtitle-sort-selected-end",
   "help-about",
   "video-toggle-subtitle-overlay",
   "video-show-source-on-video",
@@ -208,6 +214,12 @@ const SUBTITLE_ITEMS = [
   { id: "subtitle-join-concat", disabled: true },
   { id: "subtitle-join-keep-first", disabled: true },
   { id: "subtitle-merge", disabled: true },
+  { id: "subtitle-move-up", disabled: true },
+  { id: "subtitle-move-down", disabled: true },
+  { id: "subtitle-sort-all-start", disabled: true },
+  { id: "subtitle-sort-all-end", disabled: true },
+  { id: "subtitle-sort-selected-start", disabled: true },
+  { id: "subtitle-sort-selected-end", disabled: true },
 ];
 
 /** Every button the toolbar will ever draw, drawn with nothing open (C2). */
@@ -219,7 +231,15 @@ const TOOLBAR = [
   { id: "file-discard", disabled: true },
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
+  { id: "view-tags-cycle", disabled: false },
 ];
+
+/**
+ * The commands the reference draws on the toolbar and in no menu (interface-spec 4.1). They are
+ * registry commands like any other, so the toolbar draws them, but the menu-vs-toolbar agreement
+ * below has no menu record to hold them to.
+ */
+const TOOLBAR_ONLY = ["view-tags-cycle"];
 
 const NO_FILE_STATUS = "No subtitle file open.";
 
@@ -358,18 +378,22 @@ function itemsIn(selector) {
  */
 async function itemsOfOpenMenu(toplevel) {
   const rows = await browser.execute(() =>
-    Array.from(document.querySelector(".menubar__menu")?.children ?? []).map((row) => {
-      const opener = row.querySelector(".menubar__submenu");
-      return opener === null
-        ? {
-            item: {
-              id: row.id.replace("menuitem-", ""),
-              label: row.querySelector(".menubar__label")?.textContent ?? null,
-              disabled: row.disabled,
-            },
-          }
-        : { submenu: opener.id.replace("menuitem-", "") };
-    }),
+    Array.from(document.querySelector(".menubar__menu")?.children ?? [])
+      // A rule between two groups is drawn but is not a command, so it is skipped the way a
+      // submenu's opener is not counted: this stays a reading of the registry, not of the shape.
+      .filter((row) => !row.classList.contains("menubar__separator"))
+      .map((row) => {
+        const opener = row.querySelector(".menubar__submenu");
+        return opener === null
+          ? {
+              item: {
+                id: row.id.replace("menuitem-", ""),
+                label: row.querySelector(".menubar__label")?.textContent ?? null,
+                disabled: row.disabled,
+              },
+            }
+          : { submenu: opener.id.replace("menuitem-", "") };
+      }),
   );
 
   const items = [];
@@ -488,13 +512,19 @@ describe("the command registry", () => {
     // The two sets agree: nothing drawn without an entry, and no entry drawn nowhere (C1).
     expect(ids.slice().sort()).toEqual(DECLARED.slice().sort());
 
+    // Every toolbar button is a menu command too, except the few the reference keeps to the
+    // toolbar alone (interface-spec 4.1): those are still registry commands, just with no menu twin.
     const onToolbar = empty.toolbar.map((button) => button.id);
-    expect(onToolbar.filter((id) => !ids.includes(id))).toEqual([]);
+    expect(onToolbar.filter((id) => !ids.includes(id) && !TOOLBAR_ONLY.includes(id))).toEqual([]);
 
     // The same record on both routes: a label or a greying that differed between them would mean
-    // the two routes are reading two lists again.
+    // the two routes are reading two lists again. A toolbar-only command has no menu twin to check.
     for (const button of empty.toolbar) {
       const item = everyMenuItem(empty).find((candidate) => candidate.id === button.id);
+      if (item === undefined) {
+        expect(TOOLBAR_ONLY).toContain(button.id);
+        continue;
+      }
       expect({ id: button.id, label: button.label, disabled: button.disabled }).toEqual({
         id: button.id,
         label: item.label,
@@ -648,6 +678,14 @@ describe("the command registry", () => {
       { route: "menu", id: "subtitle-duplicate", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },
+      // A document opens on a selected row, so the two moves wake with it; a move at the edge is
+      // enabled and does nothing rather than greying, which is what the reference does (§3.3 12-13).
+      { route: "menu", id: "subtitle-move-up", disabled: false },
+      { route: "menu", id: "subtitle-move-down", disabled: false },
+      // A document open is one selected row: sort all wakes (it needs only a document), sort
+      // selected stays greyed until two or more are selected.
+      { route: "menu", id: "subtitle-sort-all-start", disabled: false },
+      { route: "menu", id: "subtitle-sort-all-end", disabled: false },
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous
       // line stays greyed because the cursor opens on row 0 and there is nothing above it.
       { route: "menu", id: "time-next-cue", disabled: false },
