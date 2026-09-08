@@ -645,6 +645,111 @@ fn a_duplicate_refuses_cues_out_of_their_order_or_named_twice() {
 }
 
 #[test]
+fn a_reorder_writes_the_run_in_the_order_given_and_the_times_travel() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+    let before: Vec<(String, u32, u32)> = session
+        .views()
+        .iter()
+        .map(|row| (row.text.clone(), row.start_ms, row.end_ms))
+        .collect();
+
+    // Swap the last two cues: the run 1..=2 comes back as [2, 1].
+    session
+        .apply(
+            &Edit::Reorder {
+                from: 1,
+                order: vec![2, 1],
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the last two swap");
+
+    let after: Vec<(String, u32, u32)> = session
+        .views()
+        .iter()
+        .map(|row| (row.text.clone(), row.start_ms, row.end_ms))
+        .collect();
+    assert_eq!(
+        after,
+        vec![before[0].clone(), before[2].clone(), before[1].clone()],
+        "the first stays; the last two trade places, each with its own times"
+    );
+
+    session.undo().expect("undo").expect("a step");
+    assert_eq!(session.to_bytes(), original, "one undo puts the order back");
+}
+
+#[test]
+fn a_reorder_that_leaves_the_order_unchanged_is_refused_and_adds_no_step() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+
+    let refused = session
+        .apply(
+            &Edit::Reorder {
+                from: 0,
+                order: vec![0, 1, 2],
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect_err("a reorder that changes nothing is refused");
+    assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    assert!(
+        session.undo().expect("undo").is_none(),
+        "no undo step was added"
+    );
+    assert_eq!(session.to_bytes(), original, "and nothing was written");
+}
+
+#[test]
+fn a_reorder_refuses_an_order_that_is_not_a_permutation_of_one_run() {
+    // Not a run of from..from+len (0,2), a repeat (0,0), out of the document (1,2,3), and empty.
+    for order in [vec![0usize, 2], vec![0, 0], vec![1, 2, 3], Vec::new()] {
+        let mut session = session("srt/clean/basic-lf.srt");
+        let refused = session
+            .apply(&Edit::Reorder { from: 0, order }, Run::New, Instant::now())
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+}
+
+#[test]
+fn a_reordered_ass_event_carries_the_fields_the_line_declares() {
+    let mut session = session("ass/clean/speakers.ass");
+    let before: Vec<(String, String, String)> = session
+        .views()
+        .iter()
+        .map(|row| (row.text.clone(), row.style.clone(), row.actor.clone()))
+        .collect();
+
+    // Reverse the first two events: the run 0..=1 comes back as [1, 0].
+    session
+        .apply(
+            &Edit::Reorder {
+                from: 0,
+                order: vec![1, 0],
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the first two swap");
+
+    let after: Vec<(String, String, String)> = session
+        .views()
+        .iter()
+        .map(|row| (row.text.clone(), row.style.clone(), row.actor.clone()))
+        .collect();
+    assert_eq!(
+        after[0], before[1],
+        "the second event is now first, with its own style and speaker"
+    );
+    assert_eq!(after[1], before[0], "and the first is now second");
+}
+
+#[test]
 fn a_paste_puts_the_lines_in_before_the_row_it_names() {
     let mut session = session("srt/clean/basic-lf.srt");
     let original = session.to_bytes();
