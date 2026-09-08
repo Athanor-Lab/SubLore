@@ -1914,12 +1914,14 @@ export default function App() {
     {
       id: "time.lead-in",
       label: en.menu.timing.leadIn,
+      accelerator: en.menu.keys.leadIn,
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void nudge("start", -LEAD_IN_MS),
     },
     {
       id: "time.lead-out",
       label: en.menu.timing.leadOut,
+      accelerator: en.menu.keys.leadOut,
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void nudge("end", LEAD_OUT_MS),
     },
