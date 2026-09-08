@@ -481,7 +481,12 @@ describe("the command registry", () => {
   });
 
   it("draws one item per registry entry, and both routes draw the same record", async () => {
-    const ids = everyMenuItem(empty).map((item) => item.id);
+    const ids = everyMenuItem(empty)
+      .map((item) => item.id)
+      // The recent-project rows are one per remembered folder plus the placeholder, generated like
+      // the audio tracks, so they are data and not part of the static declared set; a project made
+      // earlier in the run may have left some behind.
+      .filter((id) => !id.startsWith("file-recent-"));
     // One entry, one item: an id drawn twice would be two records, or one record drawn from two
     // hand-written lists, which is the shape the registry replaced.
     expect(ids.length).toBe(new Set(ids).size);
@@ -508,7 +513,11 @@ describe("the command registry", () => {
 
     // Every title is on the bar. Audio has no tracks behind it and is greyed, not dropped.
     expect(empty.titles).toEqual(TITLES);
-    expect(greying(empty, "file")).toEqual(FILE_ITEMS);
+    // The recent rows move with what earlier specs remembered, so the static list is compared
+    // without them; their own behaviour is file-recents.spec.js's subject.
+    expect(greying(empty, "file").filter(({ id }) => !id.startsWith("file-recent-"))).toEqual(
+      FILE_ITEMS,
+    );
     expect(greying(empty, "edit")).toEqual(EDIT_ITEMS);
     expect(greying(empty, "subtitle")).toEqual(SUBTITLE_ITEMS);
     expect(empty.toolbar.map(({ id, disabled }) => ({ id, disabled }))).toEqual(TOOLBAR);

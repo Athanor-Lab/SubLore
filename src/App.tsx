@@ -39,7 +39,7 @@ import { useModules, refusalLine } from "./hooks/useModules";
 import { useSearch, type SearchOutcome } from "./hooks/useSearch";
 import { useFonts } from "./hooks/useFonts";
 import { useSourceFile } from "./hooks/useSourceFile";
-import { useProject } from "./hooks/useProject";
+import { fileName, useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
 import { useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
 import { useTranscription } from "./hooks/useTranscription";
@@ -1484,6 +1484,23 @@ export default function App() {
       enabled: !choosing,
       run: () => void pick("subtitle", undefined, (path) => setEncodingPath(path)),
     },
+    // One row per remembered project, newest first, numbered the way the reference numbers them
+    // (3.1 item 5). Data like the audio tracks; with none remembered, one greyed placeholder row.
+    ...(project.recent.length === 0
+      ? [
+          {
+            id: "file.recent.empty" as CommandId,
+            label: en.menu.file.recentEmpty,
+            enabled: false,
+            run: () => undefined,
+          },
+        ]
+      : project.recent.map((folder, index): Command => ({
+          id: `file.recent.${index}`,
+          label: `${index + 1} ${fileName(folder)}`,
+          enabled: true,
+          run: () => void project.open(folder),
+        }))),
     {
       id: "file.open-source",
       label: en.menu.file.openSource,
@@ -2199,6 +2216,16 @@ export default function App() {
         "file.new",
         "file.open-subtitle",
         "file.open-encoding",
+        {
+          // The remembered projects, after the opens (3.1 item 5). Its rows are generated; with
+          // none remembered it holds the one greyed placeholder instead of greying itself.
+          id: "file-recent",
+          label: en.menu.file.recent,
+          items:
+            project.recent.length === 0
+              ? ["file.recent.empty" as CommandId]
+              : project.recent.map((_, index): CommandId => `file.recent.${index}`),
+        },
         "file.open-source",
         "file.close-source",
         "file.new-translation",
