@@ -2650,6 +2650,8 @@ export default function App() {
         "file.save-as",
         "file.export",
         "file.discard",
+        // Properties is a group of its own between the saves and quit (3.1 separators 10 and 14).
+        SEPARATOR,
         "file.properties",
         SEPARATOR,
         "app.quit",

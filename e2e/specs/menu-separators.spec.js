@@ -56,6 +56,15 @@ function rowsOfOpenMenu() {
       if (row.classList.contains("menubar__separator")) {
         return { kind: "separator", role: row.getAttribute("role") };
       }
+      // A row that opens a list of its own: its button carries the id and the greying.
+      const opener = row.querySelector(".menubar__submenu");
+      if (opener !== null) {
+        return {
+          kind: "item",
+          token: opener.id.replace("menuitem-", ""),
+          disabled: opener.disabled === true,
+        };
+      }
       return {
         kind: "item",
         token: row.id.replace("menuitem-", ""),

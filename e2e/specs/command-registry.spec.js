@@ -409,7 +409,7 @@ async function itemsOfOpenMenu(toplevel) {
                 disabled: row.disabled,
               },
             }
-          : { submenu: opener.id.replace("menuitem-", "") };
+          : { submenu: opener.id.replace("menuitem-", ""), disabled: opener.disabled };
       }),
   );
 
@@ -417,6 +417,11 @@ async function itemsOfOpenMenu(toplevel) {
   for (const row of rows) {
     if (row.item !== undefined) {
       items.push(row.item);
+      continue;
+    }
+    // A greyed opener holds a generated list with nothing in it: nothing behind it to collect,
+    // and neither a hover nor a click opens it (3.5).
+    if (row.disabled) {
       continue;
     }
     await clickElement(toplevel, `.menubar__submenu--${row.submenu}`);
