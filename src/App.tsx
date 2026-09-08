@@ -778,6 +778,9 @@ export default function App() {
   // The file the user picked for Open with encoding, waiting on the charset dialog. Null when no
   // such open is in flight. See interface-spec 9.8.
   const [encodingPath, setEncodingPath] = useState<string | null>(null);
+  // Whether the export charset dialog is up; the reference's order is dialog first, then the
+  // destination chooser (interface-spec 3.1 item 9).
+  const [exportOpen, setExportOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
@@ -1696,6 +1699,13 @@ export default function App() {
       run: () => void saveAs(),
     },
     {
+      id: "file.export",
+      label: en.menu.file.export,
+      // A copy in a charset the user names: nothing to write without a document (3.1 item 9).
+      enabled: subtitle.summary !== null && !choosing,
+      run: () => setExportOpen(true),
+    },
+    {
       id: "file.discard",
       label: en.menu.file.discard,
       // Drawn always, usable only while an open was refused for unsaved edits: there is nothing to
@@ -2465,6 +2475,7 @@ export default function App() {
         SEPARATOR,
         "file.save",
         "file.save-as",
+        "file.export",
         "file.discard",
         SEPARATOR,
         "app.quit",
@@ -3038,6 +3049,21 @@ export default function App() {
               void subtitle.openWithEncoding(path, label);
             }}
             onClose={() => setEncodingPath(null)}
+          />
+        )}
+        {exportOpen && (
+          <OpenEncoding
+            writable
+            confirm={en.menu.file.export}
+            onChoose={(label) => {
+              setExportOpen(false);
+              void pick(
+                "subtitle-save",
+                subtitle.summary?.path ?? undefined,
+                (path) => void subtitle.exportCopy(path, label),
+              );
+            }}
+            onClose={() => setExportOpen(false)}
           />
         )}
         {shiftOpen && (

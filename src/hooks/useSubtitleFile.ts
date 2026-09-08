@@ -162,6 +162,7 @@ export type SubtitleFile = {
   redo: () => Promise<void>;
   save: () => Promise<void>;
   saveAs: (destination: string) => Promise<void>;
+  exportCopy: (destination: string, label: string) => Promise<void>;
 };
 
 /** Told after every patch that changed the row count, so the cursor and the selection follow. */
@@ -623,6 +624,31 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [serialize, summary],
   );
 
+  // Export writes a copy in the charset the user named and adopts nothing: the document keeps its
+  // file, its dirty state and its history (interface-spec 3.1 item 9).
+  const exportCopy = useCallback(
+    (destination: string, label: string) =>
+      serialize(async () => {
+        if (summary === null) {
+          return;
+        }
+        setError(null);
+        try {
+          const written = await invoke<SubtitleSaved>("subtitle_export", {
+            revision: revision.current,
+            destination,
+            label,
+          });
+          setSaved(written);
+          setSavedInPlace(false);
+        } catch (failure) {
+          setSaved(null);
+          setError(toSubtitleError(failure));
+        }
+      }),
+    [serialize, summary],
+  );
+
   return {
     summary,
     cues,
@@ -667,6 +693,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     redo,
     save,
     saveAs,
+    exportCopy,
     invokeModule,
   };
 }

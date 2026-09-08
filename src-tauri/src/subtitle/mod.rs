@@ -983,6 +983,22 @@ pub async fn subtitle_save_as(
     blocking(move || save_as(&slot, revision, &destination, backups)).await
 }
 
+/// Write a copy of the open document at `destination`, encoded as the charset `label` names
+/// (interface-spec 3.1 item 9). The document on screen adopts nothing: its file, its dirty state
+/// and its undo history stay exactly as they were, the way Save a copy leaves them.
+#[tauri::command]
+pub async fn subtitle_export(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    destination: String,
+    label: String,
+) -> Result<SubtitleSaved, SubtitleError> {
+    let slot = state.slot();
+    let backups = backup_root(&app)?;
+    blocking(move || export_copy(&slot, revision, &destination, &label, backups)).await
+}
+
 /// Make the cues a finished transcription produced the open document.
 ///
 /// Nothing is written to disk here: the result lives in the session until the user saves it, and
@@ -1528,6 +1544,84 @@ pub fn save_as(
     save_as_locked(session, destination, backup_root)
 }
 
+/// The export write: the same atomic machinery as Save as, the bytes encoded first, and nothing
+/// adopted. The revision gate holds here too, so an export cannot write a list that has moved.
+pub fn export_copy(
+    slot: &SessionSlot,
+    revision: u64,
+    destination: &str,
+    label: &str,
+    backup_root: PathBuf,
+) -> Result<SubtitleSaved, SubtitleError> {
+    let mut guard = lock(slot)?;
+    let session = current(&mut guard)?;
+    check_revision(session, revision)?;
+    if destination.is_empty() {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::InvalidPath,
+            "the destination path is empty",
+        ));
+    }
+
+    let bytes = encode_for_export(&session.to_bytes(), label)?;
+    let outcome = save_with_backup(
+        Path::new(destination),
+        &bytes,
+        &BackupStore::new(backup_root),
+    )
+    .map_err(SubtitleError::from_io)?;
+    crate::log::info!(
+        "subtitle: exported a copy to {} as {label}",
+        outcome.destination.display(),
+    );
+    // A copy adopts nothing, so the dirty state going back is the one the document already had.
+    Ok(saved(outcome, session.dirty()))
+}
+
+/// Encode a document's UTF-8 bytes as the charset `label` names. UTF-8 passes through untouched,
+/// BOM and all. A legacy code page has no byte-order mark, so the UTF-8 one is stripped first; a
+/// character the charset cannot hold refuses the whole export, never a substitution (CLAUDE.md §3
+/// over the reference's lenient write, the same one-point departure the open-side decode took).
+fn encode_for_export(bytes: &[u8], label: &str) -> Result<Vec<u8>, SubtitleError> {
+    let encoding = encoding_rs::Encoding::for_label(label.as_bytes()).ok_or_else(|| {
+        SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("unknown text encoding {label:?}"),
+        )
+    })?;
+    if encoding == encoding_rs::UTF_8 {
+        return Ok(bytes.to_vec());
+    }
+    // UTF-16 labels encode as UTF-8 on the WHATWG path, which would write a file that lies about
+    // itself. Only Sublore's own dialog names the label, so this is a bug, never the user's choice.
+    if encoding.output_encoding() != encoding {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("{} is not writable", encoding.name()),
+        ));
+    }
+    let rest = bytes
+        .strip_prefix(&sublore_formats::text::UTF8_BOM)
+        .unwrap_or(bytes);
+    let text = std::str::from_utf8(rest).map_err(|error| {
+        SubtitleError::new(
+            SubtitleErrorCode::CommandFailed,
+            format!("the session bytes are not UTF-8: {error}"),
+        )
+    })?;
+    let (encoded, _actual, had_unmappable) = encoding.encode(text);
+    if had_unmappable {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnencodableCharacter,
+            format!(
+                "the document holds a character {} cannot write",
+                encoding.name()
+            ),
+        ));
+    }
+    Ok(encoded.into_owned())
+}
+
 /// The write to a named destination, under a lock the caller already holds.
 fn save_as_locked(
     session: &mut EditSession,
@@ -1939,10 +2033,52 @@ fn newline_str(newline: Newline) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        decode_with_label, new_document, rows, AssField, AssFieldDto, SessionSlot,
-        SubtitleErrorCode,
+        decode_with_label, encode_for_export, new_document, rows, AssField, AssFieldDto,
+        SessionSlot, SubtitleErrorCode,
     };
     use sublore_edit::diff::CueView;
+
+    /// Pure ASCII is the same bytes in UTF-8 and in any single-byte code page, so an export that
+    /// changes them would be an export that rewrote the document (export-tasks E1).
+    #[test]
+    fn ascii_exports_byte_identically_in_a_single_byte_charset() {
+        let bytes = b"1\n00:00:01,000 --> 00:00:02,000\nplain words\n";
+        let encoded = encode_for_export(bytes, "windows-1252").expect("ascii");
+        assert_eq!(encoded, bytes);
+    }
+
+    /// UTF-8 passes through untouched, byte-order mark included: the export is then a byte copy.
+    #[test]
+    fn utf8_export_is_a_byte_copy_bom_included() {
+        let bytes = b"\xef\xbb\xbfCaf\xc3\xa9";
+        assert_eq!(encode_for_export(bytes, "utf-8").expect("utf-8"), bytes);
+    }
+
+    /// An é encodes to the one byte Windows-1252 spells it with, and the UTF-8 byte-order mark is
+    /// stripped on the way: a legacy code page has no byte-order mark to carry (E2).
+    #[test]
+    fn accents_encode_to_the_legacy_byte_and_the_bom_is_stripped() {
+        let encoded =
+            encode_for_export(b"\xef\xbb\xbfCaf\xc3\xa9", "windows-1252").expect("cp1252");
+        assert_eq!(encoded, b"Caf\xe9");
+    }
+
+    /// A character the charset cannot hold refuses the export outright: no substitution byte is
+    /// ever produced, because a silent substitution is data loss (E3, CLAUDE.md §3).
+    #[test]
+    fn a_character_the_charset_cannot_hold_refuses_the_export() {
+        let error =
+            encode_for_export("a \u{2192} b".as_bytes(), "windows-1252").expect_err("refused");
+        assert_eq!(error.code, SubtitleErrorCode::UnencodableCharacter);
+    }
+
+    /// UTF-16 encodes as UTF-8 on the WHATWG path, which would write a file that lies about itself,
+    /// so the label is refused as Sublore's own bug: only its dialog ever names one.
+    #[test]
+    fn a_utf16_export_label_is_a_command_failure() {
+        let error = encode_for_export(b"anything", "utf-16le").expect_err("refused");
+        assert_eq!(error.code, SubtitleErrorCode::CommandFailed);
+    }
 
     /// The common single-byte case: every accented letter is one byte and maps straight across, so
     /// the é a Windows-1252 file spells `0xE9` comes back as é (interface-spec 9.8, O1/O3).

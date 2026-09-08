@@ -6,6 +6,11 @@ import { en } from "../i18n/en";
 type OpenEncodingProps = {
   onChoose: (label: string) => void;
   onClose: () => void;
+  /** The confirm button's text; the open flow's word by default. */
+  confirm?: string;
+  /** Offer only charsets Sublore can write: UTF-16 is decode-only on the WHATWG encode path, so
+   *  the export flow drops those rows while the open flow keeps them. */
+  writable?: boolean;
 };
 
 /**
@@ -48,9 +53,17 @@ const ENCODINGS: readonly { label: string; name: string }[] = [
   { label: "euc-kr", name: "EUC-KR (Korean)" },
 ];
 
-export default function OpenEncoding({ onChoose, onClose }: OpenEncodingProps) {
+export default function OpenEncoding({
+  onChoose,
+  onClose,
+  confirm,
+  writable = false,
+}: OpenEncodingProps) {
   const selectRef = useRef<HTMLSelectElement>(null);
-  const [label, setLabel] = useState(ENCODINGS[0].label);
+  const encodings = writable
+    ? ENCODINGS.filter((encoding) => !encoding.label.startsWith("utf-16"))
+    : ENCODINGS;
+  const [label, setLabel] = useState(encodings[0].label);
   // Mounted only while the panel is open, so the video surface hides for exactly that long (T8).
   useLayer(true);
 
@@ -95,7 +108,7 @@ export default function OpenEncoding({ onChoose, onClose }: OpenEncodingProps) {
               }
             }}
           >
-            {ENCODINGS.map((encoding) => (
+            {encodings.map((encoding) => (
               <option key={encoding.label} value={encoding.label}>
                 {encoding.name}
               </option>
@@ -104,7 +117,7 @@ export default function OpenEncoding({ onChoose, onClose }: OpenEncodingProps) {
         </label>
         <div className="openencoding__buttons">
           <button type="button" className="openencoding__open" onClick={() => onChoose(label)}>
-            {words.open}
+            {confirm ?? words.open}
           </button>
           <button type="button" className="openencoding__cancel" onClick={onClose}>
             {words.cancel}

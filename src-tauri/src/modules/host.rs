@@ -1001,6 +1001,7 @@ fn refusal_of(error: &SubtitleError) -> i32 {
         | SubtitleErrorCode::UnsavedChanges
         | SubtitleErrorCode::NoPath
         | SubtitleErrorCode::TranscriptionGone
+        | SubtitleErrorCode::UnencodableCharacter
         | SubtitleErrorCode::CommandFailed => SUBLORE_ERR_DENIED,
     }
 }
