@@ -117,6 +117,8 @@ export const en = {
       tagsShow: "Show tags",
       tagsSimplify: "Simplify tags",
       tagsHide: "Hide tags",
+      /** The one button that steps the three above, on the toolbar and nowhere else (interface-spec 4.1). */
+      tagsCycle: "Cycle tag display",
       /** Draws the document being read on the frame instead of the one being written. See S3. */
       sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
@@ -261,6 +263,15 @@ export const en = {
     version: "Version {version}",
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
+  },
+  /** What a command reports on the status bar's timed slot (interface-spec 1.5). */
+  notices: {
+    /** Keyed by TagMode, worded as the reference words them. */
+    tagMode: {
+      show: "ASS Override Tag mode set to show full tags.",
+      simplify: "ASS Override Tag mode set to simplify tags.",
+      hide: "ASS Override Tag mode set to hide tags.",
+    },
   },
   /** The draggable edges between the panels (D1). Read aloud where a separator is announced. */
   shell: {

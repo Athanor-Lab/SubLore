@@ -221,7 +221,15 @@ const TOOLBAR = [
   { id: "file-discard", disabled: true },
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
+  { id: "view-tags-cycle", disabled: false },
 ];
+
+/**
+ * The commands the reference draws on the toolbar and in no menu (interface-spec 4.1). They are
+ * registry commands like any other, so the toolbar draws them, but the menu-vs-toolbar agreement
+ * below has no menu record to hold them to.
+ */
+const TOOLBAR_ONLY = ["view-tags-cycle"];
 
 const NO_FILE_STATUS = "No subtitle file open.";
 
@@ -490,13 +498,19 @@ describe("the command registry", () => {
     // The two sets agree: nothing drawn without an entry, and no entry drawn nowhere (C1).
     expect(ids.slice().sort()).toEqual(DECLARED.slice().sort());
 
+    // Every toolbar button is a menu command too, except the few the reference keeps to the
+    // toolbar alone (interface-spec 4.1): those are still registry commands, just with no menu twin.
     const onToolbar = empty.toolbar.map((button) => button.id);
-    expect(onToolbar.filter((id) => !ids.includes(id))).toEqual([]);
+    expect(onToolbar.filter((id) => !ids.includes(id) && !TOOLBAR_ONLY.includes(id))).toEqual([]);
 
     // The same record on both routes: a label or a greying that differed between them would mean
-    // the two routes are reading two lists again.
+    // the two routes are reading two lists again. A toolbar-only command has no menu twin to check.
     for (const button of empty.toolbar) {
       const item = everyMenuItem(empty).find((candidate) => candidate.id === button.id);
+      if (item === undefined) {
+        expect(TOOLBAR_ONLY).toContain(button.id);
+        continue;
+      }
       expect({ id: button.id, label: button.label, disabled: button.disabled }).toEqual({
         id: button.id,
         label: item.label,

@@ -41,6 +41,7 @@ import { useSourceFile } from "./hooks/useSourceFile";
 import { useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
 import { useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
+import { useTimedMessage } from "./hooks/useTimedMessage";
 import { useTranscription } from "./hooks/useTranscription";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { en } from "./i18n/en";
@@ -718,6 +719,8 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   /** How the grid draws override tags. Shown as the file spells them until told otherwise. */
   const [tagMode, setTagMode] = useState<TagMode>("show");
+  // The status bar's timed slot: a sentence a command pushes, cleared by its own clock (1.5).
+  const [notice, say] = useTimedMessage();
   /** Which declared style the editor is open over, or null while it is closed. See B10. */
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
   /** What Video details is showing, and nothing on screen while it is null. */
@@ -2202,6 +2205,21 @@ export default function App() {
       enabled: true,
       run: () => setTagMode(mode),
     })),
+    // One button that steps the three modes above, which the reference draws on the toolbar and
+    // gives no menu of its own (interface-spec 4.1). A registry command like any other, not a fourth
+    // face of the setting.
+    {
+      id: "view.tags-cycle",
+      label: en.menu.view.tagsCycle,
+      enabled: true,
+      run: () => {
+        const order = TAG_MODES.map((each) => each.mode);
+        const next = order[(order.indexOf(tagMode) + 1) % order.length];
+        setTagMode(next);
+        // The reference reports the cycle's landing on the status bar for ten seconds (1.5).
+        say(en.notices.tagMode[next]);
+      },
+    },
     // Radio items, drawn the way the Audio menu draws its track list.
     ...interfaceScales.map(({ percent, scale }): Command => ({
       id: `view.interface-scale-${percent}`,
@@ -2461,6 +2479,8 @@ export default function App() {
   const toolbar: CommandId[][] = [
     ["file.open-subtitle", "video.open", "file.save", "file.save-as", "file.discard"],
     ["edit.undo", "edit.redo"],
+    // The tag-cycle button, which the reference keeps on the toolbar and nowhere else (4.1).
+    ["view.tags-cycle"],
   ];
 
   /*
@@ -2798,6 +2818,7 @@ export default function App() {
           projectError={project.error}
           chromeError={quitError ?? (windowFloor.failed ? en.shell.errors.windowFloor : null)}
           waveformFailed={peaks.error !== null}
+          notice={notice}
           previewFailed={preview.failed}
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
