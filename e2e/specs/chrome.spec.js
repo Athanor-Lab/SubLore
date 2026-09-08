@@ -55,6 +55,9 @@ const FROM_THE_BARS = [
   "edit-redo",
 ];
 
+/** The commands the reference keeps on the toolbar and in no menu (interface-spec 4.1). */
+const TOOLBAR_ONLY = ["view-tags-cycle"];
+
 const NO_FILE_STATUS = "No subtitle file open.";
 
 /** What ctrl+s writes into the first cue of the copy the menu opens. */
@@ -244,9 +247,11 @@ describe("the menu bar and the toolbar", () => {
       ),
     );
 
-    // Nothing on the toolbar is missing from the menus, and every command the bars carried is on
-    // both routes. Quit and About are menu-only, which is what a toolbar is for.
-    expect(inToolbar.filter((id) => !inMenus.includes(id))).toEqual([]);
+    // Nothing on the toolbar is missing from the menus, bar the few the reference keeps to the
+    // toolbar alone (interface-spec 4.1). Quit and About are menu-only, which is what a toolbar is for.
+    expect(inToolbar.filter((id) => !inMenus.includes(id) && !TOOLBAR_ONLY.includes(id))).toEqual(
+      [],
+    );
     for (const id of FROM_THE_BARS) {
       expect({ id, menu: inMenus.includes(id), toolbar: inToolbar.includes(id) }).toEqual({
         id,
