@@ -2108,6 +2108,18 @@ export default function App() {
       enabled: true,
       run: () => setTagMode(mode),
     })),
+    // One button that steps the three modes above, which the reference draws on the toolbar and
+    // gives no menu of its own (interface-spec 4.1). A registry command like any other, not a fourth
+    // face of the setting.
+    {
+      id: "view.tags-cycle",
+      label: en.menu.view.tagsCycle,
+      enabled: true,
+      run: () => {
+        const order = TAG_MODES.map((each) => each.mode);
+        setTagMode(order[(order.indexOf(tagMode) + 1) % order.length]);
+      },
+    },
     // Radio items, drawn the way the Audio menu draws its track list.
     ...interfaceScales.map(({ percent, scale }): Command => ({
       id: `view.interface-scale-${percent}`,
@@ -2365,6 +2377,8 @@ export default function App() {
   const toolbar: CommandId[][] = [
     ["file.open-subtitle", "video.open", "file.save", "file.save-as", "file.discard"],
     ["edit.undo", "edit.redo"],
+    // The tag-cycle button, which the reference keeps on the toolbar and nowhere else (4.1).
+    ["view.tags-cycle"],
   ];
 
   /*

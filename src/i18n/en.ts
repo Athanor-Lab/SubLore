@@ -117,6 +117,8 @@ export const en = {
       tagsShow: "Show tags",
       tagsSimplify: "Simplify tags",
       tagsHide: "Hide tags",
+      /** The one button that steps the three above, on the toolbar and nowhere else (interface-spec 4.1). */
+      tagsCycle: "Cycle tag display",
       /** Draws the document being read on the frame instead of the one being written. See S3. */
       sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
