@@ -752,6 +752,20 @@ export default function App() {
   );
   const activeCue: CueRow | null =
     selection.active === null ? null : (subtitle.cues[selection.active] ?? null);
+  /**
+   * Marker changes a hand has made and no commit has written yet (interface-spec 5). Null with
+   * auto-commit on, where the drag writes as it lands, and null again the moment a commit or a
+   * line change writes it.
+   */
+  const [pending, setPending] = useState<{ cue: number; startMs: number; endMs: number } | null>(
+    null,
+  );
+  // What the wave draws: the document's line, with the uncommitted markers over it. Only the wave
+  // sees them; the grid and the current line show what the document holds until a commit.
+  const waveCue: CueRow | null =
+    activeCue === null || pending === null || pending.cue !== selection.active
+      ? activeCue
+      : { ...activeCue, startMs: pending.startMs, endMs: pending.endMs };
   // Saving writes the document, so it has to include the text sitting in either editor, and text
   // in an editor is unsaved work whether or not it has reached the document yet.
   const flushGrid = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -1596,8 +1610,50 @@ export default function App() {
    * whole drag is a single history entry. See docs/waveform-timing-tasks.md.
    */
   async function dragTimes(cue: number, startMs: number, endMs: number) {
+    // Auto-commit writes where the hand let go; otherwise the pair waits for a commit (5).
+    if (!waveAutocommit) {
+      setPending({ cue, startMs, endMs });
+      return;
+    }
     await flushEditors();
     await subtitle.setTimes(cue, startMs, endMs);
+  }
+
+  /**
+   * Write the markers a hand has left and go where the variant says: `auto` follows auto-advance,
+   * `always` moves on whatever it says, `never` stays. With nothing pending the write is skipped
+   * and the move still happens, which is how a translator walks a file committing as they go.
+   */
+  async function commitTimes(advance: "auto" | "always" | "never") {
+    const at = selection.active;
+    if (at === null) {
+      return;
+    }
+    const held = pending !== null && pending.cue === at ? pending : null;
+    if (held !== null) {
+      setPending(null);
+      await flushEditors();
+      await subtitle.setTimes(held.cue, held.startMs, held.endMs);
+    }
+    if (advance === "never" || (advance === "auto" && !waveAutonext)) {
+      return;
+    }
+    const last = subtitle.cues.length - 1;
+    if (at < last) {
+      selection.move(at + 1, "plain");
+      return;
+    }
+    // On the last line the reference makes one to move on to (5, time.commit-next). The cursor
+    // follows it through the same landing the insert commands use.
+    if (advance === "always" && subtitle.summary !== null) {
+      const end = subtitle.cues[last]?.endMs ?? 0;
+      landing.current = "inserted";
+      try {
+        await subtitle.insertCue(subtitle.cues.length, end, end + NEW_CUE_MS, "");
+      } finally {
+        landing.current = null;
+      }
+    }
   }
 
   /** The video goes to one of the cursor's cue's boundaries. */
@@ -1641,6 +1697,22 @@ export default function App() {
     }
   }
 
+  /**
+   * The line changed with markers still uncommitted: they are written, as a commit, one undo step.
+   *
+   * The reference discards them outright here (question 29). CLAUDE.md §3 forbids losing a user's
+   * work in silence, so this commits instead: the same narrow departure the charset decode and the
+   * export take, identical to the reference everywhere except where it destroys work.
+   */
+  useEffect(() => {
+    if (pending === null || pending.cue === selection.active) {
+      return;
+    }
+    const held = pending;
+    setPending(null);
+    void subtitle.setTimes(held.cue, held.startMs, held.endMs);
+  }, [pending, selection.active, subtitle]);
+
   /** Whether the open media has audio to draw, which is what two of the four layouts need. */
   const hasAudio = audio.tracks.length > 0;
   const dirty = subtitle.dirty || editorOpen || lineEdited;
@@ -1648,6 +1720,9 @@ export default function App() {
   // Whatever the stored layout says, and following until it says otherwise: the panel is decoration
   // on any file longer than its own window if it does not follow the line.
   const waveAutoscroll = layout?.waveAutoscroll ?? true;
+  // The reference's own defaults: markers wait for a commit, and a commit moves on (5).
+  const waveAutocommit = layout?.waveAutocommit ?? false;
+  const waveAutonext = layout?.waveAutonext ?? true;
   // The same default the reference opens at: the picture goes where the cursor goes (3.5, item 10).
   const videoFollowSelection = layout?.videoFollowSelection ?? true;
   // Which row the picture was last taken to, so an edit on the row the cursor is already on does
@@ -1989,6 +2064,33 @@ export default function App() {
       label: en.menu.timing.playToEnd,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("to-end"),
+    },
+    {
+      id: "time.commit",
+      label: en.menu.timing.commit,
+      // The key the reference binds it to in the audio context. Its two variants carry none there
+      // either, and they are reached from the panel's own strip.
+      accelerator: "G",
+      // Nothing to commit into without a line; the markers belong to the cursor's cue (5).
+      enabled: subtitle.summary !== null && selection.active !== null,
+      run: () => void commitTimes("auto"),
+    },
+    {
+      id: "time.commit-next",
+      label: en.menu.timing.commitNext,
+      // The reference draws neither variant anywhere: they are keyboard commands, as its own
+      // toolbar and menu files show. Shift+G and Ctrl+G here, beside plain G.
+      accelerator: "Shift+G",
+      enabled: subtitle.summary !== null && selection.active !== null,
+      run: () => void commitTimes("always"),
+    },
+    {
+      id: "time.commit-stay",
+      label: en.menu.timing.commitStay,
+      // Not Ctrl+G: that is Jump to time (9.7). Alt+G, beside plain G and Shift+G.
+      accelerator: "Alt+G",
+      enabled: subtitle.summary !== null && selection.active !== null,
+      run: () => void commitTimes("never"),
     },
     {
       id: "time.lead-in",
@@ -2465,6 +2567,22 @@ export default function App() {
       run: () => scrollWave.current(WAVE_SCROLL_PX),
     },
     {
+      id: "wave.toggle-autocommit",
+      label: en.menu.view.autoCommit,
+      checked: waveAutocommit,
+      // Usable with no audio, like the other two wave toggles: a command that greys itself when
+      // there is nothing to show reads as a command that is gone.
+      enabled: true,
+      run: () => storeLayout({ waveAutocommit: !waveAutocommit }),
+    },
+    {
+      id: "wave.toggle-autonext",
+      label: en.menu.view.autoNext,
+      checked: waveAutonext,
+      enabled: true,
+      run: () => storeLayout({ waveAutonext: !waveAutonext }),
+    },
+    {
       id: "wave.toggle-autoscroll",
       label: en.menu.view.followCue,
       checked: waveAutoscroll,
@@ -2860,6 +2978,8 @@ export default function App() {
         "view.waveform-panel",
         "wave.center-on-cue",
         "wave.toggle-autoscroll",
+        "wave.toggle-autocommit",
+        "wave.toggle-autonext",
         SEPARATOR,
         ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
         "view.language",
@@ -3048,7 +3168,7 @@ export default function App() {
                     scale={scale}
                     paused={state.paused}
                     cueIndex={selection.active}
-                    cue={activeCue}
+                    cue={waveCue}
                     cues={subtitle.cues}
                     selected={selection.selected}
                     autoscroll={waveAutoscroll}

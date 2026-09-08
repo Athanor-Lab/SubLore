@@ -256,6 +256,25 @@ async function cursorToSecondRow(toplevel) {
   });
 }
 
+/**
+ * Turn on "commit as the markers move" from the panel's own strip, where the reference keeps it.
+ * This file is about the mechanics of grabbing a boundary and pulling it, and under the shipped
+ * default a drag waits for a commit (interface-spec 5); with the toggle on the drag writes as it
+ * lands, which is what every check below reads. The pending model has its own spec.
+ */
+async function turnAutoCommitOn(toplevel) {
+  await clickElement(toplevel, ".menubar__title--view");
+  await waitFor(() => present(".menubar__item--wave-toggle-autocommit"), {
+    timeout: 15000,
+    message: "the View menu to open on its auto-commit toggle",
+  });
+  await clickElement(toplevel, ".menubar__item--wave-toggle-autocommit");
+  await waitFor(async () => ((await present(".menubar__menu")) ? null : 1), {
+    timeout: 15000,
+    message: "the menu to close on the toggle",
+  });
+}
+
 describe("dragging a cue boundary on the waveform", () => {
   let toplevel = null;
   let copy = null;
@@ -310,6 +329,7 @@ describe("dragging a cue boundary on the waveform", () => {
       message: "the waveform panel to appear",
     });
 
+    await turnAutoCommitOn(toplevel);
     await cursorToSecondRow(toplevel);
     // The cursor takes the picture to that line's start, so the playhead would be drawn over the
     // start marker and the scan below would find the marker's colour a column or two late. Moved

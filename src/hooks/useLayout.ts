@@ -11,6 +11,10 @@ export type Layout = {
   interfaceScale: number;
   /** Whether the waveform brings the cursor's line into view whenever its range changes. */
   waveAutoscroll: boolean;
+  /** Whether a marker drag is written when the hand lets go, rather than held for a commit. */
+  waveAutocommit: boolean;
+  /** Whether a plain commit moves on to the next line after writing. */
+  waveAutonext: boolean;
   /** Whether moving the cursor takes the picture to that line's start. */
   videoFollowSelection: boolean;
   /** Which panels the window draws, as the View menu's four radios name them. */

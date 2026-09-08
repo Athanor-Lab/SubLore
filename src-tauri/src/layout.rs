@@ -76,6 +76,9 @@ const MAX_INTERFACE_SCALE: f64 = 1.5;
 /// Whether the waveform follows the cursor's line. On, because a panel that does not follow the
 /// line shows the wrong part of the media on any file longer than its own window.
 const DEFAULT_WAVE_AUTOSCROLL: bool = true;
+/// The reference ships auto-commit off and auto-advance on (interface-spec 5).
+const DEFAULT_WAVE_AUTOCOMMIT: bool = false;
+const DEFAULT_WAVE_AUTONEXT: bool = true;
 
 /// Whether moving the cursor takes the picture to the line's start. On, which is what the reference
 /// opens at: a translator who moves down the grid expects the frame to move with them.
@@ -111,6 +114,12 @@ pub struct Layout {
     pub top_height: f64,
     pub interface_scale: f64,
     pub wave_autoscroll: bool,
+    /// Whether a marker drag is written the moment the hand lets go, rather than held until a
+    /// commit. Off, as the reference ships it (interface-spec 5).
+    pub wave_autocommit: bool,
+    /// Whether a plain commit moves on to the next line after writing. On, as the reference ships
+    /// it: its only effect is what `time.commit` does after committing.
+    pub wave_autonext: bool,
     pub video_follow_selection: bool,
     pub panels: PanelLayout,
 }
@@ -123,6 +132,8 @@ impl Default for Layout {
             top_height: DEFAULT_TOP_HEIGHT,
             interface_scale: DEFAULT_INTERFACE_SCALE,
             wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
+            wave_autocommit: DEFAULT_WAVE_AUTOCOMMIT,
+            wave_autonext: DEFAULT_WAVE_AUTONEXT,
             video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
             panels: PanelLayout::Full,
         }
@@ -177,6 +188,8 @@ impl Layout {
             // A boolean has no range to fall outside of, so there is nothing to clamp and nothing
             // to warn about: it is either in the file or it is the default.
             wave_autoscroll: self.wave_autoscroll,
+            wave_autocommit: self.wave_autocommit,
+            wave_autonext: self.wave_autonext,
             video_follow_selection: self.video_follow_selection,
             // A closed list has nothing to clamp, and an unknown name has already become `Full`
             // where it was read.
@@ -380,6 +393,8 @@ mod tests {
             top_height: 305.0,
             interface_scale: 1.25,
             wave_autoscroll: false,
+            wave_autocommit: false,
+            wave_autonext: true,
             video_follow_selection: false,
             panels: PanelLayout::GridOnly,
         };
@@ -474,6 +489,8 @@ mod tests {
                 top_height: 260.0,
                 interface_scale: 1.25,
                 wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
+                wave_autocommit: false,
+                wave_autonext: true,
                 video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
                 panels: PanelLayout::Full,
             }
@@ -491,6 +508,8 @@ mod tests {
                 &path,
                 Layout {
                     wave_autoscroll: wanted,
+                    wave_autocommit: false,
+                    wave_autonext: true,
                     ..Layout::default()
                 },
             )
@@ -604,6 +623,8 @@ mod tests {
                     top_height: broken,
                     interface_scale: broken,
                     wave_autoscroll: DEFAULT_WAVE_AUTOSCROLL,
+                    wave_autocommit: false,
+                    wave_autonext: true,
                     video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
                     panels: PanelLayout::Full,
                 }
@@ -651,6 +672,8 @@ mod tests {
             top_height: 260.0,
             interface_scale: 1.25,
             wave_autoscroll: false,
+            wave_autocommit: false,
+            wave_autonext: true,
             video_follow_selection: false,
             panels: PanelLayout::GridOnly,
         };
