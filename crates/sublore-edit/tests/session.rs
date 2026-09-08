@@ -645,6 +645,100 @@ fn a_duplicate_refuses_cues_out_of_their_order_or_named_twice() {
 }
 
 #[test]
+fn a_playhead_split_keeps_the_whole_text_in_both_halves_and_one_undo_restores_it() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+    let (start, end, text) = {
+        let row = &session.views()[0];
+        (row.start_ms, row.end_ms, row.text.clone())
+    };
+    let third = (end - start) / 3;
+
+    session
+        .apply(
+            &Edit::SplitInTwo {
+                cue: 0,
+                first_end_ms: start + third,
+                second_start_ms: start + third,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the cue splits in two");
+
+    let rows = session.views();
+    assert_eq!(rows.len(), 4, "one cue became two, the other two untouched");
+    assert_eq!(rows[0].text, text);
+    assert_eq!(rows[1].text, text);
+    assert_eq!((rows[0].start_ms, rows[0].end_ms), (start, start + third));
+    assert_eq!((rows[1].start_ms, rows[1].end_ms), (start + third, end));
+
+    session.undo().expect("undo").expect("a step");
+    assert_eq!(
+        session.to_bytes(),
+        original,
+        "one undo puts the single cue back"
+    );
+}
+
+#[test]
+fn a_playhead_split_may_leave_a_frame_edge_gap_between_the_halves() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let (start, end) = {
+        let row = &session.views()[0];
+        (row.start_ms, row.end_ms)
+    };
+    let (first_end, second_start) = (start + (end - start) / 3, start + 2 * (end - start) / 3);
+
+    session
+        .apply(
+            &Edit::SplitInTwo {
+                cue: 0,
+                first_end_ms: first_end,
+                second_start_ms: second_start,
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("the cue splits with a gap");
+
+    let rows = session.views();
+    assert_eq!((rows[0].start_ms, rows[0].end_ms), (start, first_end));
+    assert_eq!(
+        (rows[1].start_ms, rows[1].end_ms),
+        (second_start, end),
+        "the second half starts past the first's end, with the frame edge between them"
+    );
+}
+
+#[test]
+fn a_playhead_split_refuses_a_boundary_outside_the_cue_or_a_crossed_pair() {
+    let mut session = session("srt/clean/basic-lf.srt");
+    let original = session.to_bytes();
+    let (start, end) = {
+        let row = &session.views()[0];
+        (row.start_ms, row.end_ms)
+    };
+    let mid = (start + end) / 2;
+
+    for (first_end_ms, second_start_ms) in [(end + 1, end + 1), (start, end + 1), (mid + 5, mid)] {
+        let refused = session
+            .apply(
+                &Edit::SplitInTwo {
+                    cue: 0,
+                    first_end_ms,
+                    second_start_ms,
+                },
+                Run::New,
+                Instant::now(),
+            )
+            .expect_err("a refusal");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    }
+    assert_eq!(session.to_bytes(), original, "a refusal writes nothing");
+}
+
+#[test]
 fn a_paste_puts_the_lines_in_before_the_row_it_names() {
     let mut session = session("srt/clean/basic-lf.srt");
     let original = session.to_bytes();

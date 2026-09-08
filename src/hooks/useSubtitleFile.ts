@@ -136,6 +136,15 @@ export type SubtitleFile = {
   joinCues: (cues: number[], keepFirstText: boolean) => Promise<void>;
   /** `textOffset` counts UTF-8 bytes into the cue's text, which is what the backend splits on. */
   splitCue: (cue: number, textOffset: number, atMs: number) => Promise<void>;
+  /** Split a cue in two at the playhead's frame, the whole text kept in both halves. */
+  splitAtPlayhead: (
+    cue: number,
+    startMs: number,
+    endMs: number,
+    playheadMs: number,
+    fps: number,
+    before: boolean,
+  ) => Promise<void>;
   /** Joins `cue` with the one after it, so the last row has nothing to merge with. */
   mergeCue: (cue: number) => Promise<void>;
   /**
@@ -537,6 +546,22 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const splitAtPlayhead = useCallback(
+    (
+      cue: number,
+      startMs: number,
+      endMs: number,
+      playheadMs: number,
+      fps: number,
+      before: boolean,
+    ) =>
+      command("subtitle_split_at_playhead", {
+        cue,
+        split: { startMs, endMs, playheadMs, fps, before },
+      }),
+    [command],
+  );
+
   const mergeCue = useCallback((cue: number) => command("subtitle_merge", { cue }), [command]);
 
   const undo = useCallback(() => command("subtitle_undo", {}), [command]);
@@ -633,6 +658,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     duplicateCues,
     joinCues,
     splitCue,
+    splitAtPlayhead,
     mergeCue,
     undo,
     redo,

@@ -94,6 +94,9 @@ pub enum EditKind {
     /// merge before it.
     Join,
     Split,
+    /// A cue cut in two at a frame boundary, the text kept in both halves. Its own kind, not the
+    /// caret Split, so the two never coalesce.
+    SplitInTwo,
     Merge,
 }
 

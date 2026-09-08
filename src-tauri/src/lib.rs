@@ -8,6 +8,7 @@ pub mod clipboard;
 pub mod crash;
 pub mod dialog;
 pub mod fonts;
+pub mod frames;
 pub mod layout;
 mod modules;
 pub mod preview;
@@ -234,6 +235,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_duplicate,
             subtitle::subtitle_join,
             subtitle::subtitle_split,
+            subtitle::subtitle_split_at_playhead,
             subtitle::subtitle_merge,
             subtitle::subtitle_undo,
             subtitle::subtitle_redo,

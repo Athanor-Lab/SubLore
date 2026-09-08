@@ -897,6 +897,58 @@ pub async fn subtitle_split(
     .await
 }
 
+/// Split the cue in two at the playhead's frame, the whole text kept in both halves. `before` cuts on
+/// the near edge of the current frame, otherwise on the far edge. The caller passes the cue's own
+/// times and the playhead so the frame math has what it needs; when the playhead is not inside the
+/// cue at frame level the split falls back to the playhead millisecond, which the caller has already
+/// checked is inside. See docs/split-at-playhead-tasks.md.
+/// The frame geometry a playhead split needs, bundled so the command stays under seven arguments.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayheadSplit {
+    start_ms: u32,
+    end_ms: u32,
+    playhead_ms: u32,
+    fps: f64,
+    before: bool,
+}
+
+#[tauri::command]
+pub async fn subtitle_split_at_playhead(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    cue: usize,
+    split: PlayheadSplit,
+) -> Result<CuePatchDto, SubtitleError> {
+    let (first_end_ms, second_start_ms) = match crate::frames::split_at_playhead(
+        split.start_ms,
+        split.end_ms,
+        split.playhead_ms,
+        split.fps,
+        split.before,
+    ) {
+        crate::frames::SplitAt::Between {
+            first_end_ms,
+            second_start_ms,
+        } => (first_end_ms, second_start_ms),
+        // The frame check put the playhead outside the cue, which the caller's own millisecond
+        // check said was inside: split on the playhead itself rather than refuse.
+        crate::frames::SplitAt::Degenerate { .. } => (split.playhead_ms, split.playhead_ms),
+    };
+    edited(
+        &app,
+        state.slot(),
+        revision,
+        Edit::SplitInTwo {
+            cue,
+            first_end_ms,
+            second_start_ms,
+        },
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn subtitle_merge(
     app: AppHandle,

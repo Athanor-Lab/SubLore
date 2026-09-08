@@ -140,6 +140,9 @@ export const en = {
       joinKeepFirst: "Keep first",
       delete: "Delete cues",
       split: "Split cue",
+      /** Frame-accurate split at the video playhead, before or after the current frame (§3.9). */
+      splitBeforePlayhead: "Split before the playhead",
+      splitAfterPlayhead: "Split after the playhead",
       merge: "Merge with next",
     },
     audio: {
