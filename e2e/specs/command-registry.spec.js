@@ -510,6 +510,10 @@ describe("the command registry", () => {
   it("draws one item per registry entry, and both routes draw the same record", async () => {
     const ids = everyMenuItem(empty)
       .map((item) => item.id)
+      // The recent-video items are one per remembered file, generated like the audio tracks, so
+      // they are data and not part of the static declared set; a video opened earlier in the run
+      // may have left some behind.
+      .filter((id) => !id.startsWith("video-recent-"))
       // The recent-project rows are one per remembered folder plus the placeholder, generated like
       // the audio tracks, so they are data and not part of the static declared set; a project made
       // earlier in the run may have left some behind.

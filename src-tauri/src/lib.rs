@@ -13,6 +13,7 @@ pub mod layout;
 mod modules;
 pub mod preview;
 pub mod project;
+pub mod recent;
 pub mod strings;
 pub mod subtitle;
 pub mod video;
@@ -210,6 +211,8 @@ pub fn run() -> tauri::Result<()> {
             project::project_rename_episode,
             project::project_select_episode,
             project::project_session,
+            recent::recent_read,
+            recent::recent_remember,
             subtitle::subtitle_open,
             subtitle::subtitle_open_with_encoding,
             subtitle::subtitle_close,
