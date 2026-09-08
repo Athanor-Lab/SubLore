@@ -361,7 +361,18 @@ describe("the menu bar and the toolbar", () => {
       pressKey("Right");
     }
     await waitForOpenMenu("Help");
-    await waitForCursor("help-about");
+    // About is the last Help item now, and the cursor lands on the first enabled one; walk down to
+    // it. The three greyed items are skipped by the cursor, so this is two presses.
+    await waitFor(
+      async () => {
+        if ((await cursorCommand()) === "help-about") {
+          return true;
+        }
+        pressKey("Down");
+        return null;
+      },
+      { timeout: 15000, message: "the cursor to walk down to About" },
+    );
 
     pressKey("Return");
     await waitFor(() => present(".about"), {

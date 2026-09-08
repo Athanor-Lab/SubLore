@@ -172,6 +172,11 @@ export const en = {
     },
     help: {
       title: "Help",
+      contents: "Help contents",
+      website: "Project website",
+      reportBug: "Report a bug",
+      checkUpdates: "Check for updates",
+      eventLog: "Event log",
       about: "About Sublore",
     },
     /** Drawn beside a menu item. Each key is handled by whichever component owns that command. */

@@ -8,6 +8,7 @@ pub mod clipboard;
 pub mod crash;
 pub mod dialog;
 pub mod fonts;
+pub mod help;
 pub mod language;
 pub mod layout;
 mod modules;
@@ -175,6 +176,9 @@ pub fn run() -> tauri::Result<()> {
         // First in the chain, so anything logged during setup already lands in the file.
         .plugin(log_plugin())
         .plugin(tauri_plugin_dialog::init())
+        // Reached from Rust only, through help::open_help_link; the webview is granted no opener
+        // permission, so the plugin's JS open-url API stays closed to it.
+        .plugin(tauri_plugin_opener::init())
         .manage(project::ProjectState::default())
         // Before the window exists, so the report is ready the first time it is asked for.
         .manage(if no_modules {
@@ -266,6 +270,7 @@ pub fn run() -> tauri::Result<()> {
             modules::module_invoke,
             modules::module_report,
             startup_files_command,
+            help::open_help_link,
             quit
         ])
         .setup(move |app| {
