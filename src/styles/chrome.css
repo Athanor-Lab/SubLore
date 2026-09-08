@@ -563,6 +563,60 @@
   font: inherit;
 }
 
+/* Language: one interface language chosen and remembered (3.7 item 12). */
+.languagedialog {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.languagedialog__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(22rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.languagedialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.languagedialog__label {
+  color: var(--ink-muted);
+}
+
+.languagedialog__select {
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.languagedialog__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.languagedialog__ok,
+.languagedialog__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
 /* Shift times: the amount, the direction, which lines and which of their times (9.1). */
 .shifttimes {
   position: fixed;

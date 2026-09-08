@@ -21,6 +21,7 @@ import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
 import VideoDetailsPanel from "./components/VideoDetails";
 import JumpToTime from "./components/JumpToTime";
+import LanguageDialog from "./components/LanguageDialog";
 import OpenEncoding from "./components/OpenEncoding";
 import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
@@ -781,6 +782,8 @@ export default function App() {
   // Whether the export charset dialog is up; the reference's order is dialog first, then the
   // destination chooser (interface-spec 3.1 item 9).
   const [exportOpen, setExportOpen] = useState(false);
+  // Whether the Language dialog is up (interface-spec 3.7 item 12).
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
@@ -2360,6 +2363,13 @@ export default function App() {
       enabled: true,
       run: () => storeLayout({ interfaceScale: scale }),
     })),
+    {
+      id: "view.language",
+      label: en.menu.view.language,
+      // The interface language, chosen and remembered; drawn always (3.7 item 12).
+      enabled: true,
+      run: () => setLanguageOpen(true),
+    },
     ...audio.tracks.map((track, index): Command => ({
       id: `audio.track.${track.id}`,
       label: track.title ?? track.lang ?? `${en.menu.audio.track} ${index + 1}`,
@@ -2674,6 +2684,7 @@ export default function App() {
         "wave.toggle-autoscroll",
         SEPARATOR,
         ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
+        "view.language",
       ],
     },
     { id: "help", title: en.menu.help.title, items: ["help.about"] },
@@ -3051,6 +3062,7 @@ export default function App() {
             onClose={() => setEncodingPath(null)}
           />
         )}
+        {languageOpen && <LanguageDialog onClose={() => setLanguageOpen(false)} />}
         {exportOpen && (
           <OpenEncoding
             writable

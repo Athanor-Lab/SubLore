@@ -129,6 +129,7 @@ export const en = {
       sourceOnVideo: "Source on video",
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
       scale: "{percent}%",
+      language: "Language…",
     },
     /** The four cue structure edits, interface-spec section 3 order (M2.7 E2, T3 C2). */
     subtitles: {
@@ -274,6 +275,13 @@ export const en = {
     version: "Version {version}",
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
+  },
+  /** The Language dialog (interface-spec 3.7 item 12). One language today, English. */
+  language: {
+    title: "Language",
+    prompt: "Please choose a language:",
+    ok: "OK",
+    cancel: "Cancel",
   },
   /** The charset dialog Open with encoding raises after the file picker (interface-spec 9.8). */
   openEncoding: {
