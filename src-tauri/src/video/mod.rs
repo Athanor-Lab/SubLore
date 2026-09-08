@@ -224,7 +224,9 @@ pub async fn video_open(
             log::error!("video: could not hide the surface after a failed open: {error:?}");
         }
     }
-    opened
+    // Through the same log every other video refusal takes: N40 was a failed open with no line
+    // anywhere, and a week of reruns to find it.
+    refused("video_open", opened)
 }
 
 /// A refusal the interface is about to draw is one a person is about to read, so it goes in the log

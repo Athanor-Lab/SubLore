@@ -1,14 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLayer } from "../hooks/useLayers";
-import { runCommand, type Command, type CommandId, type CommandRegistry } from "../types/chrome";
+import {
+  isSeparator,
+  runCommand,
+  type Command,
+  type CommandId,
+  type CommandRegistry,
+  type Separator,
+} from "../types/chrome";
 
 type RailMenuProps = {
   x: number;
   y: number;
   label: string;
-  /** What this menu draws, as ids into `commands`, the way MenuBar takes its own (T3 C1). */
-  items: CommandId[];
+  /**
+   * What this menu draws, as ids into `commands`, the way MenuBar takes its own, with the rules
+   * that group them where a menu asks for one (interface-spec 3.9, T3 C1).
+   */
+  items: (CommandId | Separator)[];
   commands: CommandRegistry;
   onClose: () => void;
 };
@@ -18,9 +28,9 @@ function itemToken(id: CommandId): string {
   return id.slice(id.indexOf(".") + 1);
 }
 
-/** This menu's items resolved from ids to the registry's records, as MenuBar resolves its own. */
-function resolve(items: CommandId[], commands: CommandRegistry): Command[] {
-  return items.map((id) => commands[id]);
+/** The commands in order, which are the buttons: a rule is not one, so the keyboard skips it. */
+function commandsOf(items: (CommandId | Separator)[], commands: CommandRegistry): Command[] {
+  return items.filter((entry) => !isSeparator(entry)).map((id) => commands[id as CommandId]);
 }
 
 /**
@@ -33,8 +43,9 @@ function resolve(items: CommandId[], commands: CommandRegistry): Command[] {
 export default function RailMenu({ x, y, label, items, commands, onClose }: RailMenuProps) {
   const list = useRef<HTMLUListElement>(null);
   const [at, setAt] = useState({ x, y });
-  const drawn = resolve(items, commands);
-  const first = drawn.findIndex((command) => command.enabled);
+  // The buttons, in order: the focus target below is an index into these, which a rule is not one
+  // of, so it never shifts the count.
+  const first = commandsOf(items, commands).findIndex((command) => command.enabled);
 
   // Mounted only while it is up, so the video surface hides for exactly that long (decision 1, T8).
   useLayer(true);
@@ -98,21 +109,26 @@ export default function RailMenu({ x, y, label, items, commands, onClose }: Rail
         style={{ left: `${at.x}px`, top: `${at.y}px` }}
         onKeyDown={walk}
       >
-        {drawn.map((command) => (
-          <li key={command.id} role="none">
-            <button
-              className={`railmenu__item railmenu__item--${itemToken(command.id)}`}
-              type="button"
-              role="menuitem"
-              // Greyed rather than disabled, so the click reaches the gate above instead of
-              // stopping at the DOM (BACKLOG.md N18).
-              aria-disabled={!command.enabled}
-              onClick={() => activate(command)}
-            >
-              {command.label}
-            </button>
-          </li>
-        ))}
+        {items.map((entry, position) =>
+          isSeparator(entry) ? (
+            // A rule between two groups: drawn, not focusable, so the button walk steps over it.
+            <li key={`separator-${position}`} className="railmenu__separator" role="separator" />
+          ) : (
+            <li key={entry} role="none">
+              <button
+                className={`railmenu__item railmenu__item--${itemToken(entry)}`}
+                type="button"
+                role="menuitem"
+                // Greyed rather than disabled, so the click reaches the gate above instead of
+                // stopping at the DOM (BACKLOG.md N18).
+                aria-disabled={!commands[entry].enabled}
+                onClick={() => activate(commands[entry])}
+              >
+                {commands[entry].label}
+              </button>
+            </li>
+          ),
+        )}
       </ul>
     </>
   );

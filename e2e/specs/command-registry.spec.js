@@ -40,12 +40,14 @@ import { findToplevel } from "../lib/x11.js";
 const DECLARED = [
   "file-new",
   "file-open-subtitle",
+  "file-open-encoding",
   "file-open-source",
   "file-close-source",
   "file-new-translation",
   "video-open",
   "file-save",
   "file-save-as",
+  "file-export",
   "file-discard",
   "app-quit",
   "asr-transcribe",
@@ -103,6 +105,12 @@ const DECLARED = [
   "subtitle-join-concat",
   "subtitle-join-keep-first",
   "subtitle-merge",
+  "subtitle-move-up",
+  "subtitle-move-down",
+  "subtitle-sort-all-start",
+  "subtitle-sort-all-end",
+  "subtitle-sort-selected-start",
+  "subtitle-sort-selected-end",
   "help-about",
   "video-toggle-subtitle-overlay",
   "video-show-source-on-video",
@@ -136,6 +144,7 @@ const DECLARED = [
   "view-interface-scale-110",
   "view-interface-scale-125",
   "view-interface-scale-150",
+  "view-language",
 ];
 
 /**
@@ -161,11 +170,13 @@ const TITLES = [
 const FILE_ITEMS = [
   { id: "file-new", disabled: false },
   { id: "file-open-subtitle", disabled: false },
+  { id: "file-open-encoding", disabled: false },
   { id: "file-open-source", disabled: false },
   { id: "file-close-source", disabled: true },
   { id: "file-new-translation", disabled: true },
   { id: "file-save", disabled: true },
   { id: "file-save-as", disabled: true },
+  { id: "file-export", disabled: true },
   { id: "file-discard", disabled: true },
   { id: "app-quit", disabled: false },
 ];
@@ -206,6 +217,12 @@ const SUBTITLE_ITEMS = [
   { id: "subtitle-join-concat", disabled: true },
   { id: "subtitle-join-keep-first", disabled: true },
   { id: "subtitle-merge", disabled: true },
+  { id: "subtitle-move-up", disabled: true },
+  { id: "subtitle-move-down", disabled: true },
+  { id: "subtitle-sort-all-start", disabled: true },
+  { id: "subtitle-sort-all-end", disabled: true },
+  { id: "subtitle-sort-selected-start", disabled: true },
+  { id: "subtitle-sort-selected-end", disabled: true },
 ];
 
 /** Every button the toolbar will ever draw, drawn with nothing open (C2). */
@@ -217,7 +234,15 @@ const TOOLBAR = [
   { id: "file-discard", disabled: true },
   { id: "edit-undo", disabled: true },
   { id: "edit-redo", disabled: true },
+  { id: "view-tags-cycle", disabled: false },
 ];
+
+/**
+ * The commands the reference draws on the toolbar and in no menu (interface-spec 4.1). They are
+ * registry commands like any other, so the toolbar draws them, but the menu-vs-toolbar agreement
+ * below has no menu record to hold them to.
+ */
+const TOOLBAR_ONLY = ["view-tags-cycle"];
 
 const NO_FILE_STATUS = "No subtitle file open.";
 
@@ -356,18 +381,22 @@ function itemsIn(selector) {
  */
 async function itemsOfOpenMenu(toplevel) {
   const rows = await browser.execute(() =>
-    Array.from(document.querySelector(".menubar__menu")?.children ?? []).map((row) => {
-      const opener = row.querySelector(".menubar__submenu");
-      return opener === null
-        ? {
-            item: {
-              id: row.id.replace("menuitem-", ""),
-              label: row.querySelector(".menubar__label")?.textContent ?? null,
-              disabled: row.disabled,
-            },
-          }
-        : { submenu: opener.id.replace("menuitem-", "") };
-    }),
+    Array.from(document.querySelector(".menubar__menu")?.children ?? [])
+      // A rule between two groups is drawn but is not a command, so it is skipped the way a
+      // submenu's opener is not counted: this stays a reading of the registry, not of the shape.
+      .filter((row) => !row.classList.contains("menubar__separator"))
+      .map((row) => {
+        const opener = row.querySelector(".menubar__submenu");
+        return opener === null
+          ? {
+              item: {
+                id: row.id.replace("menuitem-", ""),
+                label: row.querySelector(".menubar__label")?.textContent ?? null,
+                disabled: row.disabled,
+              },
+            }
+          : { submenu: opener.id.replace("menuitem-", "") };
+      }),
   );
 
   const items = [];
@@ -484,20 +513,30 @@ describe("the command registry", () => {
       // The recent-video items are one per remembered file, generated like the audio tracks, so
       // they are data and not part of the static declared set; a video opened earlier in the run
       // may have left some behind.
-      .filter((id) => !id.startsWith("video-recent-"));
+      .filter((id) => !id.startsWith("video-recent-"))
+      // The recent-project rows are one per remembered folder plus the placeholder, generated like
+      // the audio tracks, so they are data and not part of the static declared set; a project made
+      // earlier in the run may have left some behind.
+      .filter((id) => !id.startsWith("file-recent-"));
     // One entry, one item: an id drawn twice would be two records, or one record drawn from two
     // hand-written lists, which is the shape the registry replaced.
     expect(ids.length).toBe(new Set(ids).size);
     // The two sets agree: nothing drawn without an entry, and no entry drawn nowhere (C1).
     expect(ids.slice().sort()).toEqual(DECLARED.slice().sort());
 
+    // Every toolbar button is a menu command too, except the few the reference keeps to the
+    // toolbar alone (interface-spec 4.1): those are still registry commands, just with no menu twin.
     const onToolbar = empty.toolbar.map((button) => button.id);
-    expect(onToolbar.filter((id) => !ids.includes(id))).toEqual([]);
+    expect(onToolbar.filter((id) => !ids.includes(id) && !TOOLBAR_ONLY.includes(id))).toEqual([]);
 
     // The same record on both routes: a label or a greying that differed between them would mean
-    // the two routes are reading two lists again.
+    // the two routes are reading two lists again. A toolbar-only command has no menu twin to check.
     for (const button of empty.toolbar) {
       const item = everyMenuItem(empty).find((candidate) => candidate.id === button.id);
+      if (item === undefined) {
+        expect(TOOLBAR_ONLY).toContain(button.id);
+        continue;
+      }
       expect({ id: button.id, label: button.label, disabled: button.disabled }).toEqual({
         id: button.id,
         label: item.label,
@@ -511,7 +550,11 @@ describe("the command registry", () => {
 
     // Every title is on the bar. Audio has no tracks behind it and is greyed, not dropped.
     expect(empty.titles).toEqual(TITLES);
-    expect(greying(empty, "file")).toEqual(FILE_ITEMS);
+    // The recent rows move with what earlier specs remembered, so the static list is compared
+    // without them; their own behaviour is file-recents.spec.js's subject.
+    expect(greying(empty, "file").filter(({ id }) => !id.startsWith("file-recent-"))).toEqual(
+      FILE_ITEMS,
+    );
     expect(greying(empty, "edit")).toEqual(EDIT_ITEMS);
     expect(greying(empty, "subtitle")).toEqual(SUBTITLE_ITEMS);
     expect(empty.toolbar.map(({ id, disabled }) => ({ id, disabled }))).toEqual(TOOLBAR);
@@ -628,6 +671,8 @@ describe("the command registry", () => {
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-as", disabled: false },
+      // Export writes a copy of the document, so it wakes with one the way Save as does.
+      { route: "menu", id: "file-export", disabled: false },
       // A document opens on its first row, so a row is selected and the four that act on a
       // selection wake with it. Paste over asks the clipboard nothing until it is chosen.
       { route: "menu", id: "edit-cut", disabled: false },
@@ -651,6 +696,14 @@ describe("the command registry", () => {
       { route: "menu", id: "subtitle-duplicate", disabled: false },
       { route: "menu", id: "subtitle-delete", disabled: false },
       { route: "menu", id: "subtitle-merge", disabled: false },
+      // A document opens on a selected row, so the two moves wake with it; a move at the edge is
+      // enabled and does nothing rather than greying, which is what the reference does (§3.3 12-13).
+      { route: "menu", id: "subtitle-move-up", disabled: false },
+      { route: "menu", id: "subtitle-move-down", disabled: false },
+      // A document open is one selected row: sort all wakes (it needs only a document), sort
+      // selected stays greyed until two or more are selected.
+      { route: "menu", id: "subtitle-sort-all-start", disabled: false },
+      { route: "menu", id: "subtitle-sort-all-end", disabled: false },
       // Next line needs a row after the cursor's, which the fixture's three cues give it; Previous
       // line stays greyed because the cursor opens on row 0 and there is nothing above it.
       { route: "menu", id: "time-next-cue", disabled: false },
