@@ -107,11 +107,15 @@ export default function CueList({
     if (list === null) {
       return;
     }
-    const top = index * ROW_HEIGHT;
-    if (top < list.scrollTop) {
-      list.scrollTop = top;
-    } else if (top + ROW_HEIGHT > list.scrollTop + list.clientHeight) {
-      list.scrollTop = top + ROW_HEIGHT - list.clientHeight;
+    // The cursor is brought into view with a row of context above it and three below, the way the
+    // reference scrolls a row in (interface-spec 7.3): a move never lands the cursor hard against an
+    // edge with nothing beyond it. The browser clamps scrollTop at the file's own ends.
+    const visible = Math.floor(list.clientHeight / ROW_HEIGHT);
+    const firstVisible = Math.floor(list.scrollTop / ROW_HEIGHT);
+    if (index < firstVisible + 1) {
+      list.scrollTop = Math.max(0, (index - 1) * ROW_HEIGHT);
+    } else if (index > firstVisible + visible - 3) {
+      list.scrollTop = (index - visible + 3) * ROW_HEIGHT;
     }
   }, []);
 
