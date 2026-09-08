@@ -268,6 +268,13 @@ const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
   { id: "edit.style-strikeout", flag: "strikeout", label: en.menu.edit.strikeout },
 ];
 
+/** What a recent-video row shows: the file's own name, which is what a person recognises. A path
+ * with no separator is its own name. */
+function recentLabel(path: string): string {
+  const parts = path.split(/[/\\]/);
+  return parts[parts.length - 1] || path;
+}
+
 export default function App() {
   // Every HTML layer registers here while it is open, and the video surface hides for as long as
   // the set is not empty (decision 1, T8).
@@ -347,6 +354,20 @@ export default function App() {
     setRegion,
   } = useVideoPlayer(layers.covered);
   const audio = useAudioTracks(state.path, state.status === "ready");
+  // The videos opened lately: read once, drawn as the Video menu's recent list, and remembered on
+  // every open however it happens, so the list is right whether a video came from the chooser, the
+  // command line or the list itself. See recent.rs and interface-spec 3.5 item 3.
+  const [recents, setRecents] = useState<string[]>([]);
+  useEffect(() => {
+    void invoke<{ videos: string[] }>("recent_read").then((recent) => setRecents(recent.videos));
+  }, []);
+  useEffect(() => {
+    if (state.status === "ready" && state.path !== null) {
+      void invoke<{ videos: string[] }>("recent_remember", { path: state.path }).then((recent) =>
+        setRecents(recent.videos),
+      );
+    }
+  }, [state.status, state.path]);
   // The two states the grid indexes by row live below, so the patch that moves rows reaches them
   // through a box rather than directly: the document is read before the selection exists.
   const rowsMovedRef = useRef<RowsMoved>(() => {});
@@ -2117,6 +2138,13 @@ export default function App() {
       enabled: true,
       run: () => storeLayout({ interfaceScale: scale }),
     })),
+    ...recents.map((path, index): Command => ({
+      // Drawn always (interface-spec 3.5): an empty list greys its own submenu by having no items.
+      id: `video.recent.${index}`,
+      label: recentLabel(path),
+      enabled: true,
+      run: () => void open(path),
+    })),
     ...audio.tracks.map((track, index): Command => ({
       id: `audio.track.${track.id}`,
       label: track.title ?? track.lang ?? `${en.menu.audio.track} ${index + 1}`,
@@ -2301,6 +2329,13 @@ export default function App() {
       items: [
         "video.open",
         "video.close",
+        {
+          // The recent-videos list, where the reference puts it: after Close, before Details
+          // (interface-spec 3.5 item 3). Its items are generated; with none it greys itself.
+          id: "video-recent",
+          label: en.menu.video.recent,
+          items: recents.map((_, index): CommandId => `video.recent.${index}`),
+        },
         "video.details",
         "video.play",
         "video.play-cue",

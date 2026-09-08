@@ -54,6 +54,8 @@ export const en = {
      */
     video: {
       title: "Video",
+      /** The recent-videos submenu (interface-spec 3.5 item 3). */
+      recent: "Recent videos",
       close: "Close video",
       details: "Video details",
       jumpTo: "Jump to time",

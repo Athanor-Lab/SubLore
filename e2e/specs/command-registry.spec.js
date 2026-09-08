@@ -479,7 +479,12 @@ describe("the command registry", () => {
   });
 
   it("draws one item per registry entry, and both routes draw the same record", async () => {
-    const ids = everyMenuItem(empty).map((item) => item.id);
+    const ids = everyMenuItem(empty)
+      .map((item) => item.id)
+      // The recent-video items are one per remembered file, generated like the audio tracks, so
+      // they are data and not part of the static declared set; a video opened earlier in the run
+      // may have left some behind.
+      .filter((id) => !id.startsWith("video-recent-"));
     // One entry, one item: an id drawn twice would be two records, or one record drawn from two
     // hand-written lists, which is the shape the registry replaced.
     expect(ids.length).toBe(new Set(ids).size);
