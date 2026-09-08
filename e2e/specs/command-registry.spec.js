@@ -105,6 +105,7 @@ const DECLARED = [
   "subtitle-join-concat",
   "subtitle-join-keep-first",
   "subtitle-merge",
+  "audio-use-video-track",
   "subtitle-move-up",
   "subtitle-move-down",
   "subtitle-sort-all-start",
@@ -157,7 +158,9 @@ const TITLES = [
   { id: "subtitle", label: "Subtitles", disabled: false },
   { id: "timing", label: "Timing", disabled: false },
   { id: "video", label: "Video", disabled: false },
-  { id: "audio", label: "Audio", disabled: true },
+  // Openable since the Use-the-video's-audio row exists: a title with a drawn greyed item is a
+  // title with something behind it, which is the ruling's own geometry (3.6 item 1).
+  { id: "audio", label: "Audio", disabled: false },
   { id: "view", label: "View", disabled: false },
   { id: "help", label: "Help", disabled: false },
 ];

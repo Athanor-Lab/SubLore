@@ -34,7 +34,9 @@ const TITLES = [
   { id: "subtitle", label: "Subtitles", disabled: false },
   { id: "timing", label: "Timing", disabled: false },
   { id: "video", label: "Video", disabled: false },
-  { id: "audio", label: "Audio", disabled: true },
+  // Openable since the Use-the-video's-audio row exists: a title with a drawn greyed item is a
+  // title with something behind it, which is the ruling's own geometry (3.6 item 1).
+  { id: "audio", label: "Audio", disabled: false },
   { id: "view", label: "View", disabled: false },
   { id: "help", label: "Help", disabled: false },
 ];
@@ -318,10 +320,12 @@ describe("the menu bar and the toolbar", () => {
     });
     pressKey("Right");
     await waitForOpenMenu("Timing");
-    // Video is next and Audio after it, and Audio has nothing behind it with no media open, so
-    // the walk steps over it exactly as it steps over a greyed item inside a dropdown.
     pressKey("Right");
     await waitForOpenMenu("Video");
+    // Audio opens too now: the Use-the-video's-audio row stands behind it, greyed, and a title
+    // with a drawn item is a stop on the walk (3.6 item 1).
+    pressKey("Right");
+    await waitForOpenMenu("Audio");
     pressKey("Right");
     await waitForOpenMenu("View");
     pressKey("Right");
@@ -350,10 +354,10 @@ describe("the menu bar and the toolbar", () => {
   it("activates the item under the cursor on Enter", async () => {
     pressKey("alt");
     await waitForOpenMenu("File");
-    // File, Edit, Subtitles, Timing, Video, View, Help: the walk the test above asserts, taken
-    // here to reach About. Audio is skipped because with nothing open it has no track to list, and
+    // File, Edit, Subtitles, Timing, Video, Audio, View, Help: the walk the test above asserts,
+    // taken here to reach About. Audio is a stop now that a drawn row stands behind it, and
     // Subtitles costs a press of its own, into the list its first row holds.
-    for (let step = 0; step < 7; step += 1) {
+    for (let step = 0; step < 8; step += 1) {
       pressKey("Right");
     }
     await waitForOpenMenu("Help");

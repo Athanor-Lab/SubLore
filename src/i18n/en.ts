@@ -119,6 +119,9 @@ export const en = {
       title: "View",
       waveform: "Waveform",
       centreOnCue: "Centre the waveform on the current line",
+      /** The keyboard-only pan pair, named for the accelerator table even with no menu row. */
+      scrollLeft: "Scroll the waveform left",
+      scrollRight: "Scroll the waveform right",
       followCue: "Follow the current line",
       subtitles: "Subtitles on video",
       /** The three ways the grid draws override tags, a radio set (interface-spec 3.5). */
@@ -164,6 +167,7 @@ export const en = {
     audio: {
       title: "Audio",
       /** For a track the file gives neither a title nor a language, numbered as the file lists them. */
+      useVideoTrack: "Use the video's audio",
       track: "Track",
     },
     help: {
