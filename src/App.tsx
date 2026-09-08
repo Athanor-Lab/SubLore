@@ -125,6 +125,9 @@ const MIN_WAVEFORM_HEIGHT = 64;
  */
 const MIN_CURRENT_LINE = 72;
 
+/** The pan the two scroll commands make: 128 device px whatever the zoom (interface-spec 5). */
+const WAVE_SCROLL_PX = 128;
+
 /**
  * How many lines of its own type the current line's text box asks for. A translator writes one or
  * two and reads a third; past that the box is taking height nothing in it uses. Fixed here for the
@@ -328,6 +331,8 @@ export default function App() {
   });
   /** The panel's own centring, filled in by the panel: only it knows where its window is. */
   const centreOnCue = useRef<() => void>(() => {});
+  /** The waveform's own pan, filled by the panel, for the two scroll commands (A and F). */
+  const scrollWave = useRef<(pixels: number) => void>(() => {});
   /** The pair a hand is holding on the panel, so playing the selection plays where it is now. */
   const liveTimes = useRef<LiveTimes>(null);
   const {
@@ -2090,6 +2095,22 @@ export default function App() {
       enabled: audioPanelShown && activeCue !== null,
       run: () => centreOnCue.current(),
     },
+    // The pan pair, 128 device px whatever the zoom, keys A and F. Keyboard-only like the
+    // reference keeps them: no menu row and no button, just the registry and its accelerators.
+    {
+      id: "wave.scroll-left",
+      label: en.menu.view.scrollLeft,
+      accelerator: "A",
+      enabled: audioPanelShown,
+      run: () => scrollWave.current(-WAVE_SCROLL_PX),
+    },
+    {
+      id: "wave.scroll-right",
+      label: en.menu.view.scrollRight,
+      accelerator: "F",
+      enabled: audioPanelShown,
+      run: () => scrollWave.current(WAVE_SCROLL_PX),
+    },
     {
       id: "wave.toggle-autoscroll",
       label: en.menu.view.followCue,
@@ -2117,6 +2138,19 @@ export default function App() {
       enabled: true,
       run: () => storeLayout({ interfaceScale: scale }),
     })),
+    {
+      id: "audio.use-video-track",
+      label: en.menu.audio.useVideoTrack,
+      // Back to the video's own default: the first track in file order, which is what the
+      // container opens on (interface-spec 3.6 item 1).
+      enabled: ready && audio.tracks.length > 0,
+      run: () => {
+        const first = audio.tracks[0];
+        if (first !== undefined) {
+          void audio.switchTo(first.id);
+        }
+      },
+    },
     ...audio.tracks.map((track, index): Command => ({
       id: `audio.track.${track.id}`,
       label: track.title ?? track.lang ?? `${en.menu.audio.track} ${index + 1}`,
@@ -2327,7 +2361,10 @@ export default function App() {
     {
       id: "audio",
       title: en.menu.audio.title,
-      items: audio.tracks.map((track): CommandId => `audio.track.${track.id}`),
+      items: [
+        "audio.use-video-track",
+        ...audio.tracks.map((track): CommandId => `audio.track.${track.id}`),
+      ],
     },
     {
       id: "view",
@@ -2519,6 +2556,7 @@ export default function App() {
                     selected={selection.selected}
                     autoscroll={waveAutoscroll}
                     centreRef={centreOnCue}
+                    scrollRef={scrollWave}
                     liveRef={liveTimes}
                     onDragTimes={(cue, startMs, endMs) => void dragTimes(cue, startMs, endMs)}
                     onSeek={(target) => void seek(target)}

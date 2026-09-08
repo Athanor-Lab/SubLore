@@ -1,0 +1,7 @@
+1
+00:00:30,000 --> 00:00:33,000
+Half the reel is behind us.
+
+2
+00:00:40,000 --> 00:00:43,000
+And a stretch of it ahead.

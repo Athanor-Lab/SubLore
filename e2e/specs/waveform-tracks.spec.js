@@ -230,11 +230,16 @@ describe("the Audio menu and the track that is drawn", () => {
   it("lists both tracks and marks the one being drawn", async () => {
     const items = await audioItems(toplevel);
     await closeMenu();
-    expect(items).toHaveLength(2);
-    expect(items.map((item) => item.label)).toEqual(["Japanese original", "English dub"]);
-    expect(items.map((item) => item.checked)).toEqual([true, false]);
+    // Row one is Use the video's audio (3.6 item 1); the tracks follow it.
+    expect(items).toHaveLength(3);
+    expect(items[0].id).toBe("menuitem-audio-use-video-track");
+    expect(items[0].role).toBe("menuitem");
+    expect(items[0].enabled).toBe(true);
+    const tracks = items.slice(1);
+    expect(tracks.map((item) => item.label)).toEqual(["Japanese original", "English dub"]);
+    expect(tracks.map((item) => item.checked)).toEqual([true, false]);
     // One track of a set, so each is a radio option and not a toggle of its own.
-    expect(items.map((item) => item.role)).toEqual(["menuitemradio", "menuitemradio"]);
+    expect(tracks.map((item) => item.role)).toEqual(["menuitemradio", "menuitemradio"]);
   });
 
   it("draws the quarter-scale track after switching to it, and the full one on the way back", async () => {
@@ -261,6 +266,7 @@ describe("the Audio menu and the track that is drawn", () => {
     // The label as well as the flag: `checked` on its own cannot tell a mark left on the old track
     // from a list that came back in the other order.
     expect(items.map((item) => ({ label: item.label, checked: item.checked }))).toEqual([
+      { label: "Use the video's audio", checked: false },
       { label: "Japanese original", checked: false },
       { label: "English dub", checked: true },
     ]);
@@ -342,8 +348,10 @@ describe("the Audio menu and the track that is drawn", () => {
 
     const items = await audioItems(toplevel);
     await closeMenu();
-    expect(items).toHaveLength(1);
-    expect(items[0].checked).toBe(true);
-    expect(items[0].enabled).toBe(false);
+    // The command row leads even here; the one track under it cannot be switched away from.
+    expect(items).toHaveLength(2);
+    expect(items[0].id).toBe("menuitem-audio-use-video-track");
+    expect(items[1].checked).toBe(true);
+    expect(items[1].enabled).toBe(false);
   });
 });
