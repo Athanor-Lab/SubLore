@@ -56,6 +56,7 @@ import {
   type CommandId,
   type CommandRegistry,
   type Menu,
+  type Separator,
 } from "./types/chrome";
 import { type EpisodeFileView } from "./types/project";
 import { type CueRow, type StyleFlagName } from "./types/subtitle";
@@ -2176,6 +2177,32 @@ export default function App() {
     [...declared, ...contributedCommands].map((command) => [command.id, command]),
   );
 
+  // What right-clicking a grid row opens, drawn from the same registry as the menu bar and grouped
+  // with the reference's own rules (interface-spec 3.9). Split before and after playhead are not
+  // built yet, so the split slot holds the one split command that is.
+  const gridContextItems: (CommandId | Separator)[] = [
+    "subtitle.insert-before",
+    "subtitle.insert-after",
+    "subtitle.insert-before-at-playhead",
+    "subtitle.insert-after-at-playhead",
+    SEPARATOR,
+    "subtitle.duplicate",
+    "subtitle.split",
+    SEPARATOR,
+    "subtitle.join-concat",
+    "subtitle.join-keep-first",
+    SEPARATOR,
+    "time.continuous-start",
+    "time.continuous-end",
+    SEPARATOR,
+    "edit.cut",
+    "edit.copy",
+    "edit.paste",
+    "edit.paste-over",
+    SEPARATOR,
+    "subtitle.delete",
+  ];
+
   /*
    * The layout lists: ids only, one per route, and neither list changes with the state. What the
    * state moves is the greying inside the records above (CLAUDE.md, owner ruling 2026-09-03).
@@ -2647,6 +2674,8 @@ export default function App() {
             flushRef={flushGrid}
             onEditingChange={setEditorOpen}
             onCommit={subtitle.setText}
+            commands={commands}
+            contextItems={gridContextItems}
           />
         </section>
         {/* Under the grid, which is the one region that gives up space when it opens, so the top
