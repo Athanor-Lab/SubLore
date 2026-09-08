@@ -32,6 +32,10 @@ real-media = []
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# Decodes a subtitle file the user opens with an explicit charset (interface-spec 9.8). The WHATWG
+# encoding set, Apache-2.0/MIT, the decoder Firefox and Servo ship; std reads only UTF-8 and the
+# point of the feature is legacy code pages. sublore-formats stays UTF-8-only and never sees it.
+encoding_rs = "0.8"
 libc = "0.2"
 libmpv2 = { version = "6.0.0", default-features = false }
 serde = { version = "1", features = ["derive"] }

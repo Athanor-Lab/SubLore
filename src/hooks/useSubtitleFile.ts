@@ -95,6 +95,7 @@ export type SubtitleFile = {
   /** The transcription run whose cues are the open document, or null. See BACKLOG.md M3.5. */
   adoptedRunId: number | null;
   open: (path: string) => Promise<void>;
+  openWithEncoding: (path: string, label: string) => Promise<void>;
   discardAndOpen: () => Promise<void>;
   adoptTranscription: (runId: number) => Promise<void>;
   setText: (cue: number, text: string) => Promise<void>;
@@ -134,6 +135,9 @@ export type SubtitleFile = {
   duplicateCues: (cues: number[]) => Promise<void>;
   /** Two or more cues joined into the first of them, as one undo step. */
   joinCues: (cues: number[], keepFirstText: boolean) => Promise<void>;
+  /** A contiguous run put back in a new order, as one undo step. `order` permutes
+   * `from..from + order.length`. */
+  reorderCues: (from: number, order: number[]) => Promise<void>;
   /** `textOffset` counts UTF-8 bytes into the cue's text, which is what the backend splits on. */
   splitCue: (cue: number, textOffset: number, atMs: number) => Promise<void>;
   /** Joins `cue` with the one after it, so the last row has nothing to merge with. */
@@ -158,6 +162,7 @@ export type SubtitleFile = {
   redo: () => Promise<void>;
   save: () => Promise<void>;
   saveAs: (destination: string) => Promise<void>;
+  exportCopy: (destination: string, label: string) => Promise<void>;
 };
 
 /** Told after every patch that changed the row count, so the cursor and the selection follow. */
@@ -249,12 +254,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setOpenId((current) => current + 1);
   }, []);
 
-  const openFile = useCallback(
-    async (path: string) => {
+  const openWith = useCallback(
+    async (path: string, request: () => Promise<SubtitleOpened>) => {
       setError(null);
       setSaved(null);
       try {
-        applyOpened(await invoke<SubtitleOpened>("subtitle_open", { path }));
+        applyOpened(await request());
         setAdoptedRunId(null);
       } catch (failure) {
         const rejected = toSubtitleError(failure);
@@ -278,9 +283,27 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [applyOpened],
   );
 
+  const openFile = useCallback(
+    (path: string) => openWith(path, () => invoke<SubtitleOpened>("subtitle_open", { path })),
+    [openWith],
+  );
+
+  // Open with encoding sends the charset the user named; the backend decodes it to UTF-8 and this
+  // takes the result exactly as a plain open does. See interface-spec 9.8.
+  const openFileWithEncoding = useCallback(
+    (path: string, label: string) =>
+      openWith(path, () => invoke<SubtitleOpened>("subtitle_open_with_encoding", { path, label })),
+    [openWith],
+  );
+
   const open = useCallback(
     (path: string) => serialize(() => openFile(path)),
     [openFile, serialize],
+  );
+
+  const openWithEncoding = useCallback(
+    (path: string, label: string) => serialize(() => openFileWithEncoding(path, label)),
+    [openFileWithEncoding, serialize],
   );
 
   /** The empty document, with `discard` saying whether the work in its way may go. */
@@ -531,6 +554,11 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const reorderCues = useCallback(
+    (from: number, order: number[]) => command("subtitle_reorder", { from, order }),
+    [command],
+  );
+
   const splitCue = useCallback(
     (cue: number, textOffset: number, atMs: number) =>
       command("subtitle_split", { cue, textOffset, atMs }),
@@ -596,9 +624,35 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [serialize, summary],
   );
 
+  // Export writes a copy in the charset the user named and adopts nothing: the document keeps its
+  // file, its dirty state and its history (interface-spec 3.1 item 9).
+  const exportCopy = useCallback(
+    (destination: string, label: string) =>
+      serialize(async () => {
+        if (summary === null) {
+          return;
+        }
+        setError(null);
+        try {
+          const written = await invoke<SubtitleSaved>("subtitle_export", {
+            revision: revision.current,
+            destination,
+            label,
+          });
+          setSaved(written);
+          setSavedInPlace(false);
+        } catch (failure) {
+          setSaved(null);
+          setError(toSubtitleError(failure));
+        }
+      }),
+    [serialize, summary],
+  );
+
   return {
     summary,
     cues,
+    openWithEncoding,
     canUndo,
     canRedo,
     dirty,
@@ -632,12 +686,14 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     pasteCues,
     duplicateCues,
     joinCues,
+    reorderCues,
     splitCue,
     mergeCue,
     undo,
     redo,
     save,
     saveAs,
+    exportCopy,
     invokeModule,
   };
 }

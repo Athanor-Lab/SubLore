@@ -23,10 +23,11 @@ report() {
 # ---------------------------------------------------------------------------------------------
 # Class 1: product vocabulary (sublore-meta docs/module-abi.md §7).
 #
-# Tracked files minus the three roadmap docs (root-level only: a nested README.md documents
-# open-core code and stays in scope), the two lockfiles, and this script itself.
+# Tracked and untracked-but-not-ignored files (so a new file leaks nothing before it is added),
+# minus the three roadmap docs (root-level only: a nested README.md documents open-core code and
+# stays in scope), the two lockfiles, and this script itself.
 class1_files() {
-  git ls-files -z -- \
+  git ls-files -z --cached --others --exclude-standard -- \
     ':!BACKLOG.md' ':!CONTRIBUTING.md' ':!README.md' \
     ':!pnpm-lock.yaml' ':!Cargo.lock' \
     ":!$self"
@@ -67,13 +68,14 @@ class1_files | xargs -0 -r grep -InE '\btranslation[ _]?memory\b' 2>/dev/null |
 
 # ---------------------------------------------------------------------------------------------
 # Class 2: the reference editor's name never appears here, including in this script: decoded at
-# run time from base64 so grepping this file for the name itself still finds nothing.
+# run time from base64 so grepping this file for the name itself still finds nothing. Tracked and
+# untracked-but-not-ignored files are both scanned, so a new file is caught before it is committed.
 name=$(printf 'QWVnaXN1Yg==' | base64 -d) || { echo "check-vocabulary: base64 decode failed" >&2; exit 1; }
 [ -n "$name" ] || { echo "check-vocabulary: decoded name is empty" >&2; exit 1; }
 
 # The two fixtures that keep it: real bytes that editor produces, kept to prove Sublore
 # round-trips an unknown ASS section losslessly.
-git ls-files -z | xargs -0 -r grep -InFi -- "$name" 2>/dev/null |
+git ls-files -z --cached --others --exclude-standard | xargs -0 -r grep -InFi -- "$name" 2>/dev/null |
   grep -vE '^fixtures/subtitles/ass/clean/(basic|unknown-sections)\.ass:' |
   report "reference editor's name:"
 

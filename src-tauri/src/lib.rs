@@ -8,10 +8,12 @@ pub mod clipboard;
 pub mod crash;
 pub mod dialog;
 pub mod fonts;
+pub mod language;
 pub mod layout;
 mod modules;
 pub mod preview;
 pub mod project;
+pub mod recent;
 pub mod strings;
 pub mod subtitle;
 pub mod video;
@@ -128,8 +130,8 @@ fn quit(app: AppHandle) {
 /// Start every loaded module and collect what it contributes.
 ///
 /// A configuration directory of the module's own, which is where a licence file would live and
-/// which the core names without knowing what goes in it. The locale is the app's only one today:
-/// `src/i18n/en.ts` is the whole of it, and this is where a real one arrives when there is a second.
+/// which the core names without knowing what goes in it. The locale is the stored choice from
+/// View > Language, which today can only be "en": `src/i18n/en.ts` is the whole catalogue.
 fn start_modules(app: &tauri::App) {
     let state = app.state::<modules::ModuleState>();
     let directory = match app.path().app_config_dir() {
@@ -149,9 +151,11 @@ fn start_modules(app: &tauri::App) {
             );
         }
     }
+    // The stored choice, which is "en" until a second language ships (interface-spec 3.7 item 12).
+    let language = language::stored(app.handle());
     state.start(
         &directory,
-        "en",
+        &language,
         &app.state::<subtitle::SubtitleState>().slot(),
     );
 }
@@ -207,7 +211,10 @@ pub fn run() -> tauri::Result<()> {
             project::project_rename_episode,
             project::project_select_episode,
             project::project_session,
+            recent::recent_read,
+            recent::recent_remember,
             subtitle::subtitle_open,
+            subtitle::subtitle_open_with_encoding,
             subtitle::subtitle_close,
             subtitle::subtitle_set_text,
             subtitle::subtitle_set_texts,
@@ -232,6 +239,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_delete_many,
             subtitle::subtitle_paste,
             subtitle::subtitle_duplicate,
+            subtitle::subtitle_reorder,
             subtitle::subtitle_join,
             subtitle::subtitle_split,
             subtitle::subtitle_merge,
@@ -239,6 +247,9 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_redo,
             subtitle::subtitle_save,
             subtitle::subtitle_save_as,
+            subtitle::subtitle_export,
+            language::language_read,
+            language::language_set,
             subtitle::subtitle_adopt_transcription,
             video::video_open,
             video::video_close,
