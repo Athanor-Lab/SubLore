@@ -1220,6 +1220,36 @@ export default function App() {
     );
   }
 
+  /**
+   * Split the selected cue in two at the playhead's frame, the whole text kept in both halves, and
+   * the two halves left selected. `before` cuts on the near edge of the current frame, otherwise the
+   * far edge. With the playhead outside the cue nothing happens: the reference duplicates to a
+   * one-frame cue there and this does not copy that quirk. See docs/split-at-playhead-tasks.md.
+   */
+  async function splitAtPlayhead(before: boolean) {
+    await flushEditors();
+    const at = selection.active;
+    const cue = at === null ? null : (subtitle.cues[at] ?? null);
+    if (at === null || cue === null || !ready) {
+      return;
+    }
+    const playheadMs = Math.round(position * 1000);
+    if (playheadMs < cue.startMs || playheadMs > cue.endMs) {
+      return;
+    }
+    const details = await readVideoDetails();
+    const fps = details?.fps ?? null;
+    if (fps === null || fps <= 0) {
+      return;
+    }
+    landing.current = { rows: [at, at + 1] };
+    try {
+      await subtitle.splitAtPlayhead(at, cue.startMs, cue.endMs, playheadMs, fps, before);
+    } finally {
+      landing.current = null;
+    }
+  }
+
   async function mergeCue() {
     await flushEditors();
     const at = selection.active;
@@ -2229,6 +2259,18 @@ export default function App() {
       run: () => void splitCue(),
     },
     {
+      id: "subtitle.split-before-playhead",
+      label: en.menu.subtitles.splitBeforePlayhead,
+      enabled: ready && activeCue !== null,
+      run: () => void splitAtPlayhead(true),
+    },
+    {
+      id: "subtitle.split-after-playhead",
+      label: en.menu.subtitles.splitAfterPlayhead,
+      enabled: ready && activeCue !== null,
+      run: () => void splitAtPlayhead(false),
+    },
+    {
       id: "subtitle.join-concat",
       label: en.menu.subtitles.joinConcat,
       enabled: selection.selected.size > 1,
@@ -2649,6 +2691,8 @@ export default function App() {
         "subtitle.duplicate",
         "subtitle.delete",
         "subtitle.split",
+        "subtitle.split-before-playhead",
+        "subtitle.split-after-playhead",
         // The reference rules off the insert-and-split family before the join family
         // (interface-spec 3.3 separator 7). Its move and sort groups are not on this branch yet.
         SEPARATOR,

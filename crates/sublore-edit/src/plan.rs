@@ -140,6 +140,16 @@ pub enum Edit {
         text_offset: usize,
         at_ms: u32,
     },
+    /// A cue cut in two at a frame boundary, the whole text kept in both halves rather than divided.
+    /// The first cue becomes `[start, first_end_ms]`, the second `[second_start_ms, end]`; the two
+    /// boundaries need not be the same millisecond, because a frame edge sits between them. This is
+    /// what the playhead split writes; the text caret split above is the other one. See
+    /// docs/split-at-playhead-tasks.md.
+    SplitInTwo {
+        cue: usize,
+        first_end_ms: u32,
+        second_start_ms: u32,
+    },
     /// Merges `cue` and `cue + 1`.
     Merge {
         cue: usize,
@@ -243,6 +253,11 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             text_offset,
             at_ms,
         } => plan_split(document, *cue, *text_offset, *at_ms),
+        Edit::SplitInTwo {
+            cue,
+            first_end_ms,
+            second_start_ms,
+        } => plan_split_in_two(document, *cue, *first_end_ms, *second_start_ms),
         Edit::Merge { cue } => plan_merge(document, *cue),
         Edit::Reorder { from, order } => plan_reorder(document, *from, order),
     }
@@ -3135,6 +3150,125 @@ fn plan_split(
         splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
         label: EditLabel {
             kind: EditKind::Split,
+            cue: index,
+        },
+        expect: Expectation {
+            from: index,
+            removed: 1,
+            cues,
+            segments_from: located.segment_index,
+            segments_removed: 1,
+            segments_inserted,
+        },
+    })
+}
+
+fn plan_split_in_two(
+    document: &SubtitleDocument,
+    index: usize,
+    first_end_ms: u32,
+    second_start_ms: u32,
+) -> Result<Planned, EditError> {
+    let located = locate(document, index)?;
+    let cue = located.cue;
+    let format = document.format();
+    // The whole text rides into both halves, unlike the caret split which divides it.
+    let text = diff::normalize(document.slice(cue.text));
+    let text = text.trim_matches('\n');
+    if text.is_empty() {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a split of a cue with no text",
+        ));
+    }
+    validate_text(format, text)?;
+
+    let (low, high) = (
+        cue.start.millis().min(cue.end.millis()),
+        cue.start.millis().max(cue.end.millis()),
+    );
+    // Both boundaries inside the cue, and the first half may not end after the second begins. A
+    // frame edge is allowed to sit between them, so equality and a gap are both fine.
+    if first_end_ms < low || first_end_ms > high || second_start_ms < low || second_start_ms > high
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!("a split boundary is outside the cue's {low}..{high} ms"),
+        ));
+    }
+    if first_end_ms > second_start_ms {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the first half would end after the second begins",
+        ));
+    }
+
+    let span = located.segment.span;
+    let terminated = terminator_len(document.slice(span)) > 0;
+    let (start_ms, end_ms) = (cue.start.millis(), cue.end.millis());
+
+    let (inserted, expected, segments_inserted) = match format {
+        SubtitleFormat::Ass => {
+            let head = ass_line(
+                document,
+                &located,
+                start_ms,
+                first_end_ms,
+                text,
+                false,
+                true,
+            )?;
+            let tail = ass_line(
+                document,
+                &located,
+                second_start_ms,
+                end_ms,
+                text,
+                false,
+                terminated,
+            )?;
+            (
+                format!("{head}{tail}"),
+                vec![text.to_owned(), text.to_owned()],
+                2,
+            )
+        }
+        SubtitleFormat::Srt | SubtitleFormat::Vtt => {
+            let block = block_of(document, &located)?;
+            let newline = block.newline;
+            let head = block.render(format, start_ms, first_end_ms, text, true)?;
+            let tail_block = Block {
+                number: block.number.map(|number| number.saturating_add(1)),
+                id: None,
+                ..block
+            };
+            let tail = tail_block.render(format, second_start_ms, end_ms, text, terminated)?;
+            (
+                format!("{head}{newline}{tail}"),
+                vec![render_text(text, newline), render_text(text, newline)],
+                3,
+            )
+        }
+    };
+
+    let mut cues = Vec::with_capacity(2);
+    for (offset, text_raw) in expected.into_iter().enumerate() {
+        let (from_ms, to_ms) = if offset == 0 {
+            (start_ms, first_end_ms)
+        } else {
+            (second_start_ms, end_ms)
+        };
+        cues.push(ExpectedCue {
+            text_raw,
+            start_ms: from_ms,
+            end_ms: to_ms,
+        });
+    }
+
+    Ok(Planned {
+        splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::SplitInTwo,
             cue: index,
         },
         expect: Expectation {

@@ -94,6 +94,9 @@ pub enum EditKind {
     /// merge before it.
     Join,
     Split,
+    /// A cue cut in two at a frame boundary, the text kept in both halves. Its own kind, not the
+    /// caret Split, so the two never coalesce.
+    SplitInTwo,
     Merge,
     /// A run of cues reordered. Its own kind so a move or a sort never merges into the edit before
     /// it, the reason `DeleteMany` and `Join` are their own.
