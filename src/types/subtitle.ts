@@ -187,6 +187,7 @@ export type SubtitleErrorCode =
   | "staleRevision"
   | "invalidCue"
   | "unwritableText"
+  | "unencodableCharacter"
   | "editRefused"
   | "unsavedChanges"
   | "noPath"
@@ -229,6 +230,7 @@ const ERROR_CODES: ReadonlySet<string> = new Set<SubtitleErrorCode>([
   "staleRevision",
   "invalidCue",
   "unwritableText",
+  "unencodableCharacter",
   "editRefused",
   "unsavedChanges",
   "noPath",

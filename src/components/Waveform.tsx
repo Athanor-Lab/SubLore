@@ -86,6 +86,8 @@ type WaveformProps = {
   autoscroll: boolean;
   /** Filled with this panel's own centring, so the command in the chrome can run it. */
   centreRef: RefObject<() => void>;
+  /** Filled with the panel's own pan, in device pixels, for the two scroll commands (A and F). */
+  scrollRef: RefObject<(pixels: number) => void>;
   /** Filled with the pair a hand is holding, so playing the selection plays where it is now. */
   liveRef: RefObject<LiveTimes>;
   /** The end of a drag: the pair the cue takes. Not called for a drag that is refused (M2.5 G4). */
@@ -162,6 +164,7 @@ export default function Waveform({
   selected,
   autoscroll,
   centreRef,
+  scrollRef,
   liveRef,
   onDragTimes,
   onSeek,
@@ -284,6 +287,10 @@ export default function Waveform({
       if (cue !== null) {
         showRange(cue.startMs, cue.endMs);
       }
+    };
+    // The two scroll commands pan by device pixels whatever the zoom, which is scrollBy's unit.
+    scrollRef.current = (pixels: number) => {
+      scrollBy(pixels);
     };
   });
 
@@ -703,8 +710,9 @@ export default function Waveform({
     return () => {
       liveRef.current = null;
       centreRef.current = () => {};
+      scrollRef.current = () => {};
     };
-  }, [liveRef, centreRef]);
+  }, [liveRef, centreRef, scrollRef]);
 
   // Dragging the ruler pans the window one for one with the hand (`src/audio_display.cpp:380-400`).
   useEffect(() => {

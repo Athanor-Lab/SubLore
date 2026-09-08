@@ -140,9 +140,28 @@ pub enum Edit {
         text_offset: usize,
         at_ms: u32,
     },
+    /// A cue cut in two at a frame boundary, the whole text kept in both halves rather than divided.
+    /// The first cue becomes `[start, first_end_ms]`, the second `[second_start_ms, end]`; the two
+    /// boundaries need not be the same millisecond, because a frame edge sits between them. This is
+    /// what the playhead split writes; the text caret split above is the other one. See
+    /// docs/split-at-playhead-tasks.md.
+    SplitInTwo {
+        cue: usize,
+        first_end_ms: u32,
+        second_start_ms: u32,
+    },
     /// Merges `cue` and `cue + 1`.
     Merge {
         cue: usize,
+    },
+    /// A contiguous run of cues put back in a new order, as one undo step. `order` is a permutation
+    /// of `from..from + order.len()`: the same cues, rearranged. Move up and down are a rotation of
+    /// the run; a sort is the order a key gives. Nothing is renumbered and no cue's bytes change,
+    /// only their sequence, so an SRT index rides along with its block exactly as an insert leaves
+    /// it. See docs/reorder-tasks.md.
+    Reorder {
+        from: usize,
+        order: Vec<usize>,
     },
 }
 
@@ -234,7 +253,13 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             text_offset,
             at_ms,
         } => plan_split(document, *cue, *text_offset, *at_ms),
+        Edit::SplitInTwo {
+            cue,
+            first_end_ms,
+            second_start_ms,
+        } => plan_split_in_two(document, *cue, *first_end_ms, *second_start_ms),
         Edit::Merge { cue } => plan_merge(document, *cue),
+        Edit::Reorder { from, order } => plan_reorder(document, *from, order),
     }
 }
 
@@ -2887,6 +2912,116 @@ fn plan_delete_many(document: &SubtitleDocument, cues: &[usize]) -> Result<Plann
     })
 }
 
+/// A contiguous run of cues written back in `order`, a permutation of `from..from + order.len()`.
+///
+/// The cue blocks move whole and the separators between them keep their positions, so an SRT index
+/// rides along with its block and nothing is renumbered, the rule an insert already follows. A run
+/// already in `order` is refused with `NotApplicable`, so a move at a boundary or a sort of an
+/// already-sorted run adds no undo step; the caller is not meant to ask, and this is the safety net.
+fn plan_reorder(
+    document: &SubtitleDocument,
+    from: usize,
+    order: &[usize],
+) -> Result<Planned, EditError> {
+    let count = order.len();
+    if count == 0 {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder naming no cues",
+        ));
+    }
+    // A permutation of exactly `from..from + count`, each index named once.
+    let mut sorted = order.to_vec();
+    sorted.sort_unstable();
+    if sorted
+        .iter()
+        .enumerate()
+        .any(|(offset, at)| *at != from.saturating_add(offset))
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder must name each cue of one run once",
+        ));
+    }
+    // Already in this order: nothing to write, no undo step.
+    if order
+        .iter()
+        .enumerate()
+        .all(|(offset, at)| *at == from.saturating_add(offset))
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder that leaves the order unchanged",
+        ));
+    }
+
+    let last = from.saturating_add(count).saturating_sub(1);
+    let run = locate_run(document, from, last)?;
+    // Each cue's whole block, and the exact bytes between one block and the next: a blank line in an
+    // SRT or a VTT, nothing at all between two ASS events. The separators are read from the byte gap
+    // rather than assumed, so any format's spacing comes through unchanged.
+    let blocks: Vec<&str> = run
+        .iter()
+        .map(|located| document.slice(located.segment.span))
+        .collect();
+    let separators: Vec<&str> = run
+        .windows(2)
+        .map(|pair| {
+            document.slice(Span::new(
+                pair[0].segment.span.end,
+                pair[1].segment.span.start,
+            ))
+        })
+        .collect();
+
+    let mut inserted = String::new();
+    let mut cues_after = Vec::with_capacity(count);
+    for (position, at) in order.iter().enumerate() {
+        let offset = at.saturating_sub(from);
+        // The separator that structurally sits between output slot `position - 1` and `position`
+        // stays where it is while the blocks move.
+        if let Some(before) = position.checked_sub(1) {
+            inserted.push_str(separators[before]);
+        }
+        inserted.push_str(blocks[offset]);
+        let cue = run[offset].cue;
+        cues_after.push(ExpectedCue {
+            text_raw: document.slice(cue.text).to_owned(),
+            start_ms: cue.start.millis(),
+            end_ms: cue.end.millis(),
+        });
+    }
+
+    let (Some(opening), Some(closing)) = (run.first(), run.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a reorder naming no cues",
+        ));
+    };
+    let region = Span::new(opening.segment.span.start, closing.segment.span.end);
+    let region_from = opening.segment_index;
+    let region_to = closing.segment_index;
+    let segments = region_to.saturating_sub(region_from).saturating_add(1);
+
+    Ok(Planned {
+        splice: Splice::new(region.start, document.slice(region).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::Reorder,
+            cue: from,
+        },
+        expect: Expectation {
+            from,
+            removed: count,
+            cues: cues_after,
+            segments_from: region_from,
+            segments_removed: segments,
+            // The same segments come back, reordered: the cue blocks and the separators between
+            // them, so the count is what it was.
+            segments_inserted: segments,
+        },
+    })
+}
+
 fn plan_delete(document: &SubtitleDocument, index: usize) -> Result<Planned, EditError> {
     let located = locate(document, index)?;
     let segments = document.segments();
@@ -3015,6 +3150,125 @@ fn plan_split(
         splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
         label: EditLabel {
             kind: EditKind::Split,
+            cue: index,
+        },
+        expect: Expectation {
+            from: index,
+            removed: 1,
+            cues,
+            segments_from: located.segment_index,
+            segments_removed: 1,
+            segments_inserted,
+        },
+    })
+}
+
+fn plan_split_in_two(
+    document: &SubtitleDocument,
+    index: usize,
+    first_end_ms: u32,
+    second_start_ms: u32,
+) -> Result<Planned, EditError> {
+    let located = locate(document, index)?;
+    let cue = located.cue;
+    let format = document.format();
+    // The whole text rides into both halves, unlike the caret split which divides it.
+    let text = diff::normalize(document.slice(cue.text));
+    let text = text.trim_matches('\n');
+    if text.is_empty() {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a split of a cue with no text",
+        ));
+    }
+    validate_text(format, text)?;
+
+    let (low, high) = (
+        cue.start.millis().min(cue.end.millis()),
+        cue.start.millis().max(cue.end.millis()),
+    );
+    // Both boundaries inside the cue, and the first half may not end after the second begins. A
+    // frame edge is allowed to sit between them, so equality and a gap are both fine.
+    if first_end_ms < low || first_end_ms > high || second_start_ms < low || second_start_ms > high
+    {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            format!("a split boundary is outside the cue's {low}..{high} ms"),
+        ));
+    }
+    if first_end_ms > second_start_ms {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the first half would end after the second begins",
+        ));
+    }
+
+    let span = located.segment.span;
+    let terminated = terminator_len(document.slice(span)) > 0;
+    let (start_ms, end_ms) = (cue.start.millis(), cue.end.millis());
+
+    let (inserted, expected, segments_inserted) = match format {
+        SubtitleFormat::Ass => {
+            let head = ass_line(
+                document,
+                &located,
+                start_ms,
+                first_end_ms,
+                text,
+                false,
+                true,
+            )?;
+            let tail = ass_line(
+                document,
+                &located,
+                second_start_ms,
+                end_ms,
+                text,
+                false,
+                terminated,
+            )?;
+            (
+                format!("{head}{tail}"),
+                vec![text.to_owned(), text.to_owned()],
+                2,
+            )
+        }
+        SubtitleFormat::Srt | SubtitleFormat::Vtt => {
+            let block = block_of(document, &located)?;
+            let newline = block.newline;
+            let head = block.render(format, start_ms, first_end_ms, text, true)?;
+            let tail_block = Block {
+                number: block.number.map(|number| number.saturating_add(1)),
+                id: None,
+                ..block
+            };
+            let tail = tail_block.render(format, second_start_ms, end_ms, text, terminated)?;
+            (
+                format!("{head}{newline}{tail}"),
+                vec![render_text(text, newline), render_text(text, newline)],
+                3,
+            )
+        }
+    };
+
+    let mut cues = Vec::with_capacity(2);
+    for (offset, text_raw) in expected.into_iter().enumerate() {
+        let (from_ms, to_ms) = if offset == 0 {
+            (start_ms, first_end_ms)
+        } else {
+            (second_start_ms, end_ms)
+        };
+        cues.push(ExpectedCue {
+            text_raw,
+            start_ms: from_ms,
+            end_ms: to_ms,
+        });
+    }
+
+    Ok(Planned {
+        splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::SplitInTwo,
             cue: index,
         },
         expect: Expectation {
