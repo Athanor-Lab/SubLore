@@ -219,6 +219,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_clear_text,
             subtitle::subtitle_set_style_field,
             subtitle::subtitle_copy_cues,
+            subtitle::subtitle_script_info,
             subtitle::subtitle_paste_over,
             clipboard::clipboard_write,
             clipboard::clipboard_read,

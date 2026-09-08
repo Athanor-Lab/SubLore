@@ -20,6 +20,7 @@ import Waveform, { type LiveTimes } from "./components/Waveform";
 import TranscribePanel from "./components/TranscribePanel";
 import VideoControls, { transportReadings } from "./components/VideoControls";
 import VideoDetailsPanel from "./components/VideoDetails";
+import ScriptProperties from "./components/ScriptProperties";
 import JumpToTime from "./components/JumpToTime";
 import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
@@ -57,7 +58,7 @@ import {
   type Menu,
 } from "./types/chrome";
 import { type EpisodeFileView } from "./types/project";
-import { type CueRow, type StyleFlagName } from "./types/subtitle";
+import { type CueRow, type ScriptInfoView, type StyleFlagName } from "./types/subtitle";
 import "./App.css";
 
 /**
@@ -668,6 +669,8 @@ export default function App() {
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
   /** What Video details is showing, and nothing on screen while it is null. */
   const [videoDetails, setVideoDetails] = useState<VideoDetails | null>(null);
+  /** What Project properties is showing, and nothing on screen while it is null (interface-spec 9.5). */
+  const [scriptInfo, setScriptInfo] = useState<ScriptInfoView | null>(null);
   const [jumpToOpen, setJumpToOpen] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
@@ -1402,6 +1405,12 @@ export default function App() {
     }
   }
 
+  /** The open document's script-level metadata, or null when there is nothing to read it off. The
+   * command that opens the dialog only runs with a document, so the null is a defensive one. */
+  async function readScriptInfo(): Promise<ScriptInfoView | null> {
+    return invoke<ScriptInfoView>("subtitle_script_info").catch(() => null);
+  }
+
   /** Quit through the one route the close gate guards, with the open editor flushed into the
    * document first so the gate is asked about it. See BACKLOG.md N6. */
   async function quit() {
@@ -1522,6 +1531,19 @@ export default function App() {
       // discard the rest of the time, and `discardAndOpen` no-ops then anyway.
       enabled: blocked,
       run: () => void subtitle.discardAndOpen(),
+    },
+    {
+      id: "file.properties",
+      label: en.menu.file.properties,
+      // The reference marks it always usable because a document is always open there; Sublore greys
+      // it with none, so it is never a clickable item that opens on nothing (interface-spec 3.1, 3.4).
+      enabled: subtitle.summary !== null,
+      run: () =>
+        void readScriptInfo().then((info) => {
+          if (info !== null) {
+            setScriptInfo(info);
+          }
+        }),
     },
     {
       id: "app.quit",
@@ -2192,6 +2214,7 @@ export default function App() {
         "file.save",
         "file.save-as",
         "file.discard",
+        "file.properties",
         "app.quit",
       ],
     },
@@ -2734,6 +2757,9 @@ export default function App() {
         )}
         {videoDetails !== null && (
           <VideoDetailsPanel details={videoDetails} onClose={() => setVideoDetails(null)} />
+        )}
+        {scriptInfo !== null && (
+          <ScriptProperties info={scriptInfo} onClose={() => setScriptInfo(null)} />
         )}
         {/* The style the editor was opened over may go with an undo or a reopen, so the panel is
           drawn only while the document still declares one at that place. */}

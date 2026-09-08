@@ -5,6 +5,17 @@ export type SubtitleFormatName = "srt" | "vtt" | "ass";
 export type SubtitleNewline = "lf" | "crlf" | "mixed" | "none";
 
 /**
+ * The script-level metadata the Properties dialog shows, each as the file spells it or null when the
+ * open format carries no such field (interface-spec 9.5). Mirrors `ScriptInfoDto` in the backend.
+ */
+export type ScriptInfoView = {
+  title: string | null;
+  playResX: string | null;
+  playResY: string | null;
+  wrapStyle: string | null;
+};
+
+/**
  * One declared style as an editor reads it: every value the file's own spelling, and the four flags
  * as booleans because that is what a line's own override tags start from.
  */

@@ -20,6 +20,8 @@ export const en = {
       save: "Save",
       saveAs: "Save as…",
       discard: "Discard changes",
+      /** Opens the script's own metadata, read-only in v1 (interface-spec 3.1 item 11, 9.5). */
+      properties: "Project properties",
       quit: "Quit",
     },
     edit: {
@@ -426,6 +428,18 @@ export const en = {
   },
 
   subtitle: {
+    /** The Project properties dialog: the script's own metadata, read-only in v1 (interface-spec 9.5). */
+    properties: {
+      title: "Project properties",
+      scriptTitle: "Title",
+      resolution: "Script resolution",
+      wrapStyle: "Wrap style",
+      /** Shown when the open format carries no script-level metadata, as SRT and VTT do not. */
+      empty: "This format carries no script metadata.",
+      /** A field the open file does not name. */
+      unset: "not set",
+      close: "Close",
+    },
     /** Appended to the status line while the document differs from the file on disk. */
     dirty: "Unsaved changes",
     /** Shown once the undo bound has dropped its oldest entries. */

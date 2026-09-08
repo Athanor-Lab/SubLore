@@ -43,7 +43,7 @@ const TITLES = [
 const OPENING = TITLES.filter((title) => !title.disabled);
 
 /** The File commands nothing open leaves usable. Each is drawn greyed rather than left out. */
-const GREYED_IN_FILE = ["file-save", "file-save-as", "file-discard"];
+const GREYED_IN_FILE = ["file-save", "file-save-as", "file-discard", "file-properties"];
 
 /** Every command the bars T3 removed used to offer. Each has to reach both routes. */
 const FROM_THE_BARS = [

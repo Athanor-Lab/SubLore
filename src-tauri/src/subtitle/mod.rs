@@ -18,7 +18,7 @@ use sublore_edit::plan::{self, AssStyleField, Edit};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{
-    parse, AssField, Newline, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
+    parse, AssField, Newline, ScriptInfo, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
 };
 use sublore_io::atomic::save_with_backup;
 use sublore_io::backup::BackupStore;
@@ -211,6 +211,28 @@ pub struct SubtitleSaved {
     /// a file-backed document unsaved and an untitled one saved, so the write reports it rather
     /// than the UI guessing. See BACKLOG.md M3.5.
     pub dirty: bool,
+}
+
+/// The script-level metadata a Properties dialog shows (interface-spec 9.5). Every field is absent
+/// for a format that carries no `[Script Info]`, which is what the dialog then says of it.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptInfoDto {
+    pub title: Option<String>,
+    pub play_res_x: Option<String>,
+    pub play_res_y: Option<String>,
+    pub wrap_style: Option<String>,
+}
+
+impl From<ScriptInfo> for ScriptInfoDto {
+    fn from(info: ScriptInfo) -> Self {
+        Self {
+            title: info.title,
+            play_res_x: info.play_res_x,
+            play_res_y: info.play_res_y,
+            wrap_style: info.wrap_style,
+        }
+    }
 }
 
 /// The bytes the open document would write, and what they are. What the video preview draws from,
@@ -501,6 +523,21 @@ pub async fn subtitle_toggle_style(
             to,
         },
     )
+    .await
+}
+
+/// The open document's script-level metadata, for the Properties dialog (interface-spec 9.5). A
+/// read, so no revision and no patch: it never changes the document.
+#[tauri::command]
+pub async fn subtitle_script_info(
+    state: State<'_, SubtitleState>,
+) -> Result<ScriptInfoDto, SubtitleError> {
+    let slot = state.slot();
+    blocking(move || {
+        let guard = lock(&slot)?;
+        let session = current_ref(&guard)?;
+        Ok(ScriptInfoDto::from(session.document().script_info()))
+    })
     .await
 }
 

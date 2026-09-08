@@ -21,8 +21,8 @@ pub mod vtt;
 
 pub use cue::{AssEvent, AssEventKind, AssField, Cue, CueDetail, SrtCue, VttCue};
 pub use document::{
-    AssEventFormat, AssStyle, CoverageViolation, Segment, SegmentKind, SubtitleDocument,
-    SubtitleFormat,
+    AssEventFormat, AssStyle, CoverageViolation, ScriptInfo, Segment, SegmentKind,
+    SubtitleDocument, SubtitleFormat,
 };
 pub use error::{ParseError, ParseErrorKind};
 pub use span::Span;
