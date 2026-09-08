@@ -105,13 +105,18 @@ describe("the rules that group a menu", () => {
     expect(rows.map((row) => (row.kind === "separator" ? "---" : row.token))).toEqual([
       "file-new",
       "file-open-subtitle",
+      "file-open-encoding",
+      "file-recent",
       "file-open-source",
       "file-close-source",
       "file-new-translation",
       "---",
       "file-save",
       "file-save-as",
+      "file-export",
       "file-discard",
+      "---",
+      "file-properties",
       "---",
       "app-quit",
     ]);

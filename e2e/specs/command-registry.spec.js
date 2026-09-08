@@ -690,10 +690,10 @@ describe("the command registry", () => {
       // Neither source item moves with a target: opening one never needed a target, and closing
       // and translating both wait for a source, which this open is not (S1, S2).
       { route: "menu", id: "file-save-as", disabled: false },
-      // Project properties has a script to read once a document is open, and nothing to read before.
-      { route: "menu", id: "file-properties", disabled: false },
-      // Export writes a copy of the document, so it wakes with one the way Save as does.
+      // The order is the menu's own: Export writes a copy of the document, so it wakes with one the
+      // way Save as does, and Project properties has a script to read once a document is open.
       { route: "menu", id: "file-export", disabled: false },
+      { route: "menu", id: "file-properties", disabled: false },
       // A document opens on its first row, so a row is selected and the four that act on a
       // selection wake with it. Paste over asks the clipboard nothing until it is chosen.
       { route: "menu", id: "edit-cut", disabled: false },
