@@ -134,6 +134,9 @@ export type SubtitleFile = {
   duplicateCues: (cues: number[]) => Promise<void>;
   /** Two or more cues joined into the first of them, as one undo step. */
   joinCues: (cues: number[], keepFirstText: boolean) => Promise<void>;
+  /** A contiguous run put back in a new order, as one undo step. `order` permutes
+   * `from..from + order.length`. */
+  reorderCues: (from: number, order: number[]) => Promise<void>;
   /** `textOffset` counts UTF-8 bytes into the cue's text, which is what the backend splits on. */
   splitCue: (cue: number, textOffset: number, atMs: number) => Promise<void>;
   /** Joins `cue` with the one after it, so the last row has nothing to merge with. */
@@ -531,6 +534,11 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [command],
   );
 
+  const reorderCues = useCallback(
+    (from: number, order: number[]) => command("subtitle_reorder", { from, order }),
+    [command],
+  );
+
   const splitCue = useCallback(
     (cue: number, textOffset: number, atMs: number) =>
       command("subtitle_split", { cue, textOffset, atMs }),
@@ -632,6 +640,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     pasteCues,
     duplicateCues,
     joinCues,
+    reorderCues,
     splitCue,
     mergeCue,
     undo,
