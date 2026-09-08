@@ -182,9 +182,13 @@ export const en = {
       shift: "Ctrl+I",
       shiftToPlayhead: "Ctrl+6",
       find: "Ctrl+F",
-      /** The one accelerator with no modifier at all, which is why the field rule has two halves. */
+      /** A function key, and the two leads below, are the accelerators with no modifier at all,
+          which is why the field rule has two halves (interface-spec 3.4, 3.2). */
       findNext: "F3",
       replace: "Ctrl+H",
+      /** Bare letters, run only outside a text field where they are not a character. */
+      leadIn: "C",
+      leadOut: "V",
     },
     errors: {
       quitFailed: "Sublore could not quit. Close the window instead.",
