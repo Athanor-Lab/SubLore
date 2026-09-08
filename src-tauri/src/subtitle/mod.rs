@@ -891,6 +891,19 @@ pub async fn subtitle_delete_many(
     edited(&app, state.slot(), revision, Edit::DeleteMany { cues }).await
 }
 
+/// A contiguous run of cues put back in a new order, as one undo step. `order` is a permutation of
+/// `from..from + order.len()`: the same cues rearranged, nothing renumbered. See reorder-tasks.md.
+#[tauri::command]
+pub async fn subtitle_reorder(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    revision: u64,
+    from: usize,
+    order: Vec<usize>,
+) -> Result<CuePatchDto, SubtitleError> {
+    edited(&app, state.slot(), revision, Edit::Reorder { from, order }).await
+}
+
 #[tauri::command]
 pub async fn subtitle_split(
     app: AppHandle,

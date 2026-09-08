@@ -26,6 +26,8 @@ type StatusBarProps = {
   projectError: ProjectError | null;
   /** What a command from the menu or the toolbar could not do. See T3. */
   chromeError: string | null;
+  /** A command's own report, pushed with a clock and cleared by it (interface-spec 1.5). */
+  notice: string | null;
   /** Set when a peak job failed for a reason the user can act on. A cancel is never one. See W5. */
   waveformFailed: boolean;
   /** Set while the open document could not be put on the video frame (decision 7). */
@@ -54,6 +56,7 @@ export default function StatusBar({
   waveformFailed,
   previewFailed,
   moduleRefusals,
+  notice,
 }: StatusBarProps) {
   const detail = subtitleError === null ? null : subtitleErrorDetail(subtitleError);
 
@@ -69,6 +72,7 @@ export default function StatusBar({
         )}
       </p>
       <div className="statusbar__messages">
+        {notice !== null && <span className="statusbar__notice">{notice}</span>}
         {truncated && <span className="statusbar__truncated">{en.subtitle.truncated}</span>}
         {projectDeleted !== null && (
           <span className="statusbar__project-message">{projectDeletedLine(projectDeleted)}</span>

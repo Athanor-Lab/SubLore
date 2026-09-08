@@ -236,6 +236,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_delete_many,
             subtitle::subtitle_paste,
             subtitle::subtitle_duplicate,
+            subtitle::subtitle_reorder,
             subtitle::subtitle_join,
             subtitle::subtitle_split,
             subtitle::subtitle_merge,
