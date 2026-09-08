@@ -24,6 +24,7 @@ export const en = {
       openVideo: "Open video…",
       save: "Save",
       saveAs: "Save as…",
+      export: "Export…",
       discard: "Discard changes",
       quit: "Quit",
     },
@@ -478,6 +479,8 @@ export const en = {
       staleRevision:
         "Sublore and this list no longer agree about the file. Open it again before editing.",
       invalidCue: "That line is not in this file any more.",
+      unencodableCharacter:
+        "The document holds a character the chosen charset cannot write. Nothing was exported.",
       unwritableText:
         "This format cannot hold that text. Remove the blank line or the line break and try again.",
       editRefused: "Sublore did not make that change, so the file is exactly as it was.",

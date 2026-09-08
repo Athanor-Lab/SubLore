@@ -39,6 +39,9 @@ pub enum SubtitleErrorCode {
     InvalidCue,
     /// The text cannot be written in this format without changing the file's structure.
     UnwritableText,
+    /// An export was refused because the document holds a character the chosen charset cannot
+    /// write. Nothing was written: a silent substitution would be data loss (CLAUDE.md §3).
+    UnencodableCharacter,
     /// Sublore's own guard refused the edit and nothing was changed. Six internal kinds collapse
     /// here because the user's next move is the same for all of them; `detail` keeps the
     /// difference for the log.
