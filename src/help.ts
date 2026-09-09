@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /** Which Help link to open. The backend holds the URL; the webview only ever names the place. */
-export type HelpLink = "website" | "bugs";
+export type HelpLink = "website" | "bugs" | "manual";
 
 /**
  * Open one of the Help links in the user's default browser. The backend maps the key to a constant

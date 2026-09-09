@@ -208,6 +208,8 @@ export const en = {
       undo: "Ctrl+Z",
       redo: "Ctrl+Y",
       quit: "Ctrl+Q",
+      /** Help contents, the one accelerator a text field never keeps (keyboard-tasks F5). */
+      manual: "F1",
       preferences: "Alt+O",
       videoJumpTo: "Ctrl+G",
       videoPlay: "Ctrl+P",

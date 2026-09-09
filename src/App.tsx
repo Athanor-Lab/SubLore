@@ -2408,12 +2408,11 @@ export default function App() {
       run: () => void mergeCue(),
     },
     {
-      // Greyed until the manual exists, which is the slice that also brings the F1 accelerator.
-      // Drawn now, not absent (2026-09-03 ruling); see help-menu-tasks.md.
       id: "help.contents",
       label: en.menu.help.contents,
-      enabled: false,
-      run: () => {},
+      accelerator: en.menu.keys.manual,
+      enabled: true,
+      run: () => void openHelpLink("manual"),
     },
     {
       id: "help.website",
