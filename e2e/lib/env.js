@@ -35,6 +35,12 @@ export function appEnv(overrides = {}) {
     ...overrides,
   };
   delete env.WAYLAND_DISPLAY;
+  // The session bus goes nowhere. Xvfb contains a display, not a desktop: an app under test that
+  // asks the session bus reaches the developer's own portals, and the eyedropper proved it by
+  // asking the real one to read the real screen and getting a colour back. Pointed at a socket that
+  // does not exist, the app meets a desktop with no portal, which is a state a user can be in and
+  // the one this harness can honestly test. Same lesson as `browserstub.js`. See BACKLOG.md N54.
+  env.DBUS_SESSION_BUS_ADDRESS = "unix:path=/nonexistent/sublore-e2e-has-no-session-bus";
   // The peaks cache follows the data home it belongs to, so a run never writes into the developer's
   // own cache and two harnesses never share one. Only when there is a data home to follow: the
   // docstring above says a launcher needs a base environment, and that stays true.

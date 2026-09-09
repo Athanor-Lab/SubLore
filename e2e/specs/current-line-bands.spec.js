@@ -1462,6 +1462,61 @@ describe("the current line's bands", () => {
     });
   });
 
+  it("offers the eyedropper, and says so where no portal answers", async () => {
+    const caretBefore = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+
+    if (await present(".currentline__picker")) {
+      pressKey("Escape");
+      await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+        timeout: 15000,
+        message: "a picker left open by an earlier test to close",
+      });
+    }
+    await caretBefore("harbour");
+    await clickElement(toplevel, ".currentline__colour-primary");
+    await waitFor(() => present(".currentline__picker"), {
+      timeout: 15000,
+      message: "the picker to open",
+    });
+
+    // Offered, not greyed: asking and being told no is an outcome, not a reason to withhold it.
+    expect(await present(".currentline__dropper")).toBe(true);
+    const before = await browser.execute(
+      () => document.querySelector(".currentline__ass dd")?.textContent,
+    );
+
+    // There is no desktop portal under Xvfb, which is the case this can prove: the panel says so,
+    // the colour does not move, and nothing reads the screen instead. What a real portal answers
+    // is the owner's own run to see. See BACKLOG.md N54.
+    await clickElement(toplevel, ".currentline__dropper");
+    await waitFor(
+      async () => {
+        const said = await browser.execute(
+          () => document.querySelector(".statusbar__notice")?.textContent ?? "",
+        );
+        return said.includes("desktop portal") ? said : null;
+      },
+      { timeout: 20000, message: "the panel to say the eyedropper has no portal" },
+    );
+    expect(
+      await browser.execute(() => document.querySelector(".currentline__ass dd")?.textContent),
+    ).toBe(before);
+
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+      timeout: 15000,
+      message: "the picker to close",
+    });
+  });
+
   it("puts each mode's quantities on the axes the reference gives them", async () => {
     const caretBefore = (word) =>
       browser.execute((wanted) => {

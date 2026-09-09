@@ -3238,6 +3238,7 @@ export default function App() {
               <CurrentLine
                 key={subtitle.openId}
                 spectrumMode={layout?.spectrumMode ?? "hsvH"}
+                onNotice={say}
                 onSpectrumMode={(mode) => storeLayout({ spectrumMode: mode })}
                 index={selection.active}
                 cue={activeCue}

@@ -1098,3 +1098,14 @@
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
+
+/* The eyedropper, beside the preview where the reference puts it (N54). */
+.currentline__dropper {
+  align-self: center;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}

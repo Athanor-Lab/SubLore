@@ -8,6 +8,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import { invoke } from "@tauri-apps/api/core";
+
 import { en } from "../i18n/en";
 import { commandToken, runCommand, type CommandId, type CommandRegistry } from "../types/chrome";
 import { type AssFieldName, type CueRow } from "../types/subtitle";
@@ -42,6 +44,8 @@ import {
 } from "./cueView";
 
 type CurrentLineProps = {
+  /** Says something on the status bar's timed slot. See interface-spec 1.5. */
+  onNotice: (text: string) => void;
   /** Which way the picker draws its square, remembered in the layout (N53). */
   spectrumMode: SpectrumMode;
   onSpectrumMode: (mode: SpectrumMode) => void;
@@ -272,6 +276,7 @@ function byteOffset(text: string, at: number): number {
  * before M2.4, and a panel with no provider takes no space.
  */
 export default function CurrentLine({
+  onNotice,
   spectrumMode,
   onSpectrumMode,
   index,
@@ -989,6 +994,25 @@ export default function CurrentLine({
     setHex(written);
   }
 
+  /**
+   * The colour under a pixel of the screen, asked of the desktop portal. Where there is no portal
+   * the panel says so rather than reading the screen itself: under XWayland an X11 grab sees X
+   * windows and not Wayland ones, so it would answer with the wrong colour and no warning.
+   * See BACKLOG.md N54.
+   */
+  async function pickFromScreen() {
+    const picked = await invoke<
+      { kind: "colour"; hex: string } | { kind: "cancelled" } | { kind: "unavailable" }
+    >("eyedropper_pick").catch(() => ({ kind: "unavailable" }) as const);
+    if (picked.kind === "colour") {
+      typedColour(picked.hex);
+      return;
+    }
+    if (picked.kind === "unavailable") {
+      onNotice(en.subtitle.currentLine.eyedropperUnavailable);
+    }
+  }
+
   /** A point in the square, read as the colour that mode puts there. */
   function fromSquare(at: { x: number; y: number }) {
     moveTo(
@@ -1504,6 +1528,15 @@ export default function CurrentLine({
                 style={{ top: `${place.slider * 100}%` }}
               />
             </div>
+            <button
+              type="button"
+              className="currentline__dropper"
+              title={en.subtitle.currentLine.eyedropper}
+              aria-label={en.subtitle.currentLine.eyedropper}
+              onClick={() => void pickFromScreen()}
+            >
+              {en.subtitle.currentLine.eyedropperMark}
+            </button>
             <span
               className="currentline__preview"
               aria-label={en.subtitle.currentLine.colourPreview}
