@@ -317,6 +317,13 @@ export const en = {
     confirm: "Save",
     cancel: "Cancel",
   },
+  /** The event log window (interface-spec 9.12). */
+  eventLog: {
+    title: "Event log",
+    /** Before the app has said anything, which is a moment rather than a state. */
+    empty: "Nothing has been logged yet.",
+    close: "Close",
+  },
   /** The Language dialog (interface-spec 3.7 item 12). One language today, English. */
   language: {
     title: "Language",

@@ -7,6 +7,7 @@ pub mod chooser;
 pub mod clipboard;
 pub mod crash;
 pub mod dialog;
+pub mod events;
 pub mod fonts;
 pub mod frames;
 pub mod help;
@@ -256,6 +257,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_save,
             subtitle::subtitle_save_as,
             subtitle::subtitle_export,
+            events::log_events_read,
             language::language_read,
             language::language_set,
             preferences::preferences_read,
@@ -387,6 +389,7 @@ fn log_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
         .target(Target::new(TargetKind::LogDir {
             file_name: Some("sublore".to_owned()),
         }))
+        .target(events::target())
         .rotation_strategy(LOG_ROTATION)
         .max_file_size(LOG_MAX_BYTES)
         .timezone_strategy(TimezoneStrategy::UseUtc)
