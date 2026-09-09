@@ -1037,8 +1037,11 @@
   position: relative;
   width: 9rem;
   height: 6rem;
+  /* Black at the top, full value at the bottom, which is the way round the reference draws it:
+     its generator fills rows with the value rising from 0 downward. Web pickers usually do the
+     opposite, and this was built that way first. */
   background-image:
-    linear-gradient(to top, #000, rgb(0 0 0 / 0%)),
+    linear-gradient(to bottom, #000, rgb(0 0 0 / 0%)),
     linear-gradient(to right, #fff, rgb(255 255 255 / 0%));
   cursor: crosshair;
   touch-action: none;
