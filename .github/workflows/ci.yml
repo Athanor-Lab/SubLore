@@ -576,13 +576,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Download the deb
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: linux-deb
           path: installers/deb
 
       - name: Download the AppImage
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: linux-appimage
           path: installers/appimage
@@ -607,7 +607,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Download the rpm
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: linux-rpm
           path: installers/rpm
@@ -637,7 +637,7 @@ jobs:
       # are deliberately absent: v1 releases on Linux alone (owner ruling 2026-09-04), and an
       # installer nobody has ever run is exactly the Windows claim that ruling forbids.
       - name: Download the Linux packages
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: linux-*
           merge-multiple: true
