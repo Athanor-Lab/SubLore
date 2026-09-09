@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use sublore_edit::diff::{self, CueView};
 use sublore_edit::error::EditErrorKind;
-use sublore_edit::plan::{edit, Edit, Edited, Expectation, ExpectedCue};
+use sublore_edit::plan::{edit, Edit, Edited, Expectation, ExpectedCue, PastedFields};
 use sublore_edit::verify::verify;
 use sublore_formats::{
     AssEvent, AssEventKind, AssField, CueDetail, SubtitleDocument, SubtitleFormat, MAX_TIMECODE_MS,
@@ -2321,5 +2321,193 @@ fn each_field_carries_its_own_undo_label() {
             labels.iter().skip(position + 1).all(|other| other != label),
             "two fields share the undo label {label:?}"
         );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Paste over, and which fields it takes (N45, docs/paste-over-tasks.md P6).
+//
+// The rule the whole feature rests on is that a field the user did not choose is not rewritten at
+// all: its bytes are left where they are rather than re-serialised from a parsed value. So every
+// test here asserts on the bytes of the fields nobody asked for, not only on the ones that changed.
+
+/// The line a cue occupies in the written file, for asserting on bytes rather than on the model.
+fn line_of(written: &str, index: usize) -> &str {
+    written
+        .lines()
+        .filter(|line| line.starts_with("Dialogue:") || line.starts_with("Comment:"))
+        .nth(index)
+        .unwrap_or_else(|| panic!("the file has no event {index}:\n{written}"))
+}
+
+#[test]
+fn a_paste_over_takes_the_fields_it_names_and_leaves_the_rest_of_the_line_alone() {
+    let (document, before) = open("ass/clean/basic.ass");
+    let before = String::from_utf8(before).expect("utf-8");
+    let was = line_of(&before, 1).to_owned();
+    assert!(
+        was.contains("Ingrid"),
+        "the fixture's second event names a speaker: {was}"
+    );
+
+    let edited = edit(
+        &document,
+        &Edit::PasteOverCues {
+            edits: vec![(
+                1,
+                PastedFields {
+                    text: Some("Taken from the clipboard.".to_owned()),
+                    fields: vec![(AssField::Style, "Sign".to_owned())],
+                    ..PastedFields::default()
+                },
+            )],
+        },
+    )
+    .expect("style and text are declared on this fixture's Format line");
+
+    let after = String::from_utf8(edited.document.to_bytes()).expect("still utf-8");
+    let now = line_of(&after, 1);
+    assert!(now.contains("Sign"), "the style was taken: {now}");
+    assert!(
+        now.ends_with("Taken from the clipboard."),
+        "the text was taken: {now}"
+    );
+    // Not taken, and therefore not rewritten: the speaker, the margins and both timestamps.
+    assert!(now.contains("Ingrid"), "the speaker was left alone: {now}");
+    assert!(
+        now.contains("0:00:04.12,0:00:06.75"),
+        "the timestamps were left alone: {now}"
+    );
+    assert!(
+        now.contains(",0,0,0,"),
+        "the three margins were left alone: {now}"
+    );
+    // And every other line in the file is byte for byte what it was.
+    for index in [0, 2] {
+        assert_eq!(
+            line_of(&after, index),
+            line_of(&before, index),
+            "event {index} moved"
+        );
+    }
+}
+
+#[test]
+fn a_paste_over_of_times_alone_keeps_the_words() {
+    let (document, before) = open("srt/clean/basic-lf.srt");
+    let before = String::from_utf8(before).expect("utf-8");
+
+    let edited = edit(
+        &document,
+        &Edit::PasteOverCues {
+            edits: vec![(
+                0,
+                PastedFields {
+                    start_ms: Some(1_000),
+                    end_ms: Some(2_500),
+                    ..PastedFields::default()
+                },
+            )],
+        },
+    )
+    .expect("an SRT cue has timestamps to write");
+
+    let after = String::from_utf8(edited.document.to_bytes()).expect("still utf-8");
+    assert!(
+        after.contains("00:00:01,000 --> 00:00:02,500"),
+        "the pasted times: {after}"
+    );
+    assert!(
+        after.contains("The harbour was empty when we got there."),
+        "the words the paste did not take: {after}"
+    );
+    // The rest of the file, from the second cue on, is untouched.
+    let tail = |text: &str| text.split("\n\n").skip(1).collect::<Vec<_>>().join("\n\n");
+    assert_eq!(
+        tail(&after),
+        tail(&before),
+        "the cues nobody pasted over moved"
+    );
+}
+
+#[test]
+fn a_paste_over_taking_nothing_is_refused_rather_than_written() {
+    let (document, _) = open("ass/clean/basic.ass");
+    let refused = edit(
+        &document,
+        &Edit::PasteOverCues {
+            edits: vec![(0, PastedFields::default())],
+        },
+    )
+    .expect_err("a paste that takes no field is not an edit");
+    assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+}
+
+#[test]
+fn a_paste_over_of_an_ass_field_into_a_plain_cue_is_refused() {
+    let (document, before) = open("srt/clean/basic-lf.srt");
+    let refused = edit(
+        &document,
+        &Edit::PasteOverCues {
+            edits: vec![(
+                0,
+                PastedFields {
+                    fields: vec![(AssField::Style, "Sign".to_owned())],
+                    ..PastedFields::default()
+                },
+            )],
+        },
+    )
+    .expect_err("an SRT cue declares no style");
+    assert_eq!(refused.kind, EditErrorKind::NotApplicable);
+    // Refused means nothing was written, which is the half a caller relies on.
+    assert_eq!(document.to_bytes(), before);
+}
+
+#[test]
+fn two_cues_pasted_over_are_one_edit_and_one_splice() {
+    let (document, _) = open("ass/clean/basic.ass");
+    let take = |text: &str| PastedFields {
+        text: Some(text.to_owned()),
+        ..PastedFields::default()
+    };
+
+    let edited = edit(
+        &document,
+        &Edit::PasteOverCues {
+            edits: vec![
+                (0, take("First from the clipboard.")),
+                (2, take("Third from it.")),
+            ],
+        },
+    )
+    .expect("both cues exist and both take a text");
+
+    let after = String::from_utf8(edited.document.to_bytes()).expect("still utf-8");
+    assert!(line_of(&after, 0).ends_with("First from the clipboard."));
+    assert!(line_of(&after, 2).ends_with("Third from it."));
+    // The cue between them was named in the expectation and copied through, not rewritten.
+    assert!(
+        line_of(&after, 1).contains("Ingrid"),
+        "the cue in the middle: {}",
+        line_of(&after, 1)
+    );
+    assert_eq!(edited.cue_delta, 0, "a paste over adds and removes no cue");
+}
+
+#[test]
+fn a_paste_over_with_cues_out_of_order_is_refused() {
+    let (document, _) = open("ass/clean/basic.ass");
+    let take = || PastedFields {
+        text: Some("Anything.".to_owned()),
+        ..PastedFields::default()
+    };
+    for edits in [
+        vec![(2, take()), (0, take())],
+        vec![(0, take()), (0, take())],
+    ] {
+        let refused = edit(&document, &Edit::PasteOverCues { edits })
+            .expect_err("the cues must be in file order, each named once");
+        assert_eq!(refused.kind, EditErrorKind::NotApplicable);
     }
 }

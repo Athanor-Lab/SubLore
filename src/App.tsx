@@ -27,6 +27,7 @@ import ScriptProperties from "./components/ScriptProperties";
 import JumpToTime from "./components/JumpToTime";
 import LanguageDialog from "./components/LanguageDialog";
 import OpenEncoding from "./components/OpenEncoding";
+import PasteOverDialog from "./components/PasteOverDialog";
 import PreferencesDialog from "./components/PreferencesDialog";
 import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
@@ -37,6 +38,7 @@ import { LayerContext, useLayerRegistry } from "./hooks/useLayers";
 import { useAudioTracks } from "./hooks/useAudioTracks";
 import { type PanelLayout, useLayout } from "./hooks/useLayout";
 import { useWindowFloor } from "./hooks/useWindowFloor";
+import { type PasteFields, usePasteFields } from "./hooks/usePasteFields";
 import { usePreferences } from "./hooks/usePreferences";
 import { usePreview } from "./hooks/usePreview";
 import { useContributions, type Contribution } from "./hooks/useContributions";
@@ -824,6 +826,9 @@ export default function App() {
   // Whether the Language dialog is up (interface-spec 3.7 item 12).
   const [languageOpen, setLanguageOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  /** The rows and the clipboard a paste over is waiting on an answer about, if one is open. */
+  const [pasteOverAsk, setPasteOverAsk] = useState<{ rows: number[]; text: string } | null>(null);
+  const { pasteFields, store: storePasteFields } = usePasteFields();
   // The three numbers the commands below read, the reference's own until the store says otherwise.
   const { preferences, store: storePreferences } = usePreferences();
   const [shiftOpen, setShiftOpen] = useState(false);
@@ -1046,6 +1051,10 @@ export default function App() {
   }
 
   /** The clipboard's lines over the selected rows, in order, as one undo step. */
+  /**
+   * Ask which fields to take, then take them. The dialog opens on every paste over, which is the
+   * reference's own behaviour: only the boxes it opens with are remembered (paste-over-tasks.md).
+   */
   async function pasteOverCues() {
     const rows = [...selection.selected].sort((one, two) => one - two);
     if (rows.length === 0) {
@@ -1055,7 +1064,33 @@ export default function App() {
     if (text === "") {
       return;
     }
-    await subtitle.pasteOver(rows, text);
+    setPasteOverAsk({ rows, text });
+  }
+
+  /** Which of the eleven this document and this selection can take. See paste-over-tasks.md P5. */
+  function pasteableFields(rows: number[]): ReadonlySet<keyof PasteFields> {
+    // The three every format has. A row's own text and timings are always writable.
+    const can = new Set<keyof PasteFields>(["start", "end", "text"]);
+    if (subtitle.summary?.format === "ass") {
+      can.add("comment");
+    }
+    // A declared field, and only where every row in the selection declares it: a paste is one edit,
+    // and one row refusing would refuse the whole of it.
+    const declared = rows.map((row) => new Set(subtitle.cues[row]?.declaredFields ?? []));
+    for (const field of [
+      "layer",
+      "style",
+      "actor",
+      "marginL",
+      "marginR",
+      "marginV",
+      "effect",
+    ] as const) {
+      if (declared.length > 0 && declared.every((row) => row.has(field))) {
+        can.add(field);
+      }
+    }
+    return can;
   }
 
   async function saveDocument() {
@@ -3381,6 +3416,19 @@ export default function App() {
           />
         )}
         {languageOpen && <LanguageDialog onClose={() => setLanguageOpen(false)} />}
+        {pasteOverAsk !== null && (
+          <PasteOverDialog
+            fields={pasteFields}
+            available={pasteableFields(pasteOverAsk.rows)}
+            onConfirm={(next) => {
+              const asked = pasteOverAsk;
+              setPasteOverAsk(null);
+              void storePasteFields(next);
+              void subtitle.pasteOver(asked.rows, asked.text, next);
+            }}
+            onClose={() => setPasteOverAsk(null)}
+          />
+        )}
         {preferencesOpen && (
           <PreferencesDialog
             preferences={preferences}

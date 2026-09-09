@@ -66,6 +66,9 @@ pub enum EditKind {
     /// Which field is on the label, not just that a field was written: two fields of one cue must
     /// never merge into one undo step. See ass-field-write-tasks.md W3.
     SetField(AssField),
+    /// A paste over, whatever mix of fields it took. Its own kind for the reason `SetTexts`
+    /// is: it may have rewritten forty lines and must never coalesce into the edit before it.
+    PasteOverCues,
     /// Its own kind, never `SetField`: the descriptor is not one of the fields the `Format:` line
     /// declares, and turning a line into a comment changes how many cues a player would draw.
     SetComment,

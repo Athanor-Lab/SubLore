@@ -2,6 +2,9 @@
 /**
  * The clipboard group of the Edit menu: copy cues, paste over cues, select all cues.
  *
+ * Paste over asks which fields to take before it takes them (N45), so every paste here answers
+ * that dialog with the boxes it opens holding. What the dialog itself does is `paste-over.spec.js`.
+ *
  * The round trip is what is checked, and it has to be: the page cannot reach the clipboard at all
  * under this webview, so a copy that wrote nowhere and a paste that read nothing would both look
  * like success from inside the page. Copying and then pasting back is the only thing that proves
@@ -126,6 +129,24 @@ async function fromEditMenu(toplevel, token) {
 }
 
 /** Whether an Edit menu item is drawn and greyed, without choosing it. */
+/**
+ * Answer the field dialog by asking for the text and nothing else, which is what these tests are
+ * about. Said out loud rather than left to what the dialog opens holding: that is the last answer
+ * any spec gave, and a test that passes because of the run order is a test that proves nothing.
+ */
+async function takeTheTextAlone(toplevel) {
+  await waitFor(() => present(".pasteover"), {
+    timeout: 15000,
+    message: "the paste over field dialog to open",
+  });
+  await clickElement(toplevel, ".pasteover__onlytext");
+  await clickElement(toplevel, ".pasteover__confirm");
+  await waitFor(async () => ((await present(".pasteover")) ? null : 1), {
+    timeout: 15000,
+    message: "the paste over field dialog to close",
+  });
+}
+
 async function editItem(toplevel, token) {
   await clickElement(toplevel, ".menubar__title--edit");
   await waitFor(() => present(`.menubar__item--${token}`), {
@@ -209,6 +230,7 @@ describe("the clipboard", () => {
       message: "the third row to be the one it was",
     });
     await fromEditMenu(toplevel, "edit-paste-over");
+    await takeTheTextAlone(toplevel);
 
     // The whole round trip: the text left the app through GTK's clipboard and came back through it.
     await waitFor(async () => ((await rowTexts())[2] === FIRST ? 1 : null), {
@@ -237,6 +259,7 @@ describe("the clipboard", () => {
     await fromEditMenu(toplevel, "edit-copy");
 
     await fromEditMenu(toplevel, "edit-paste-over");
+    await takeTheTextAlone(toplevel);
     // Three rows, three lines, and the second is the two-line one: a paste that read the clipboard
     // as one cue would put the whole file's text on the first row and leave the others alone.
     await waitFor(
@@ -271,6 +294,7 @@ describe("the clipboard", () => {
     // delete rather than a delete that happened to empty the clipboard.
     await clickRow(toplevel, 1);
     await fromEditMenu(toplevel, "edit-paste-over");
+    await takeTheTextAlone(toplevel);
     await waitFor(async () => ((await rowTexts())[0] === SECOND ? 1 : null), {
       timeout: 20000,
       message: "the cut line to come back over the first row",
