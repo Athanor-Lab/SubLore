@@ -21,6 +21,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
+import { appLog } from "../lib/applog.js";
 import { waitFor } from "../lib/proc.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
@@ -220,6 +221,16 @@ async function settledPlayhead() {
   }
   throw new Error(`the playhead never stopped moving; it last read ${last}`);
 }
+
+/**
+ * The fixture's own frame rate, read from the script that makes it rather than pinned here: a stop
+ * is allowed to overshoot by a frame and the number of milliseconds that is belongs to the media.
+ */
+const FIXTURE_FPS = Number(
+  /rate=(\d+)/.exec(
+    readFileSync(path.join(repoRoot, "fixtures", "video", "make-sample.sh"), "utf8"),
+  )?.[1] ?? "0",
+);
 
 describe("the times follow the playhead", () => {
   let toplevel = null;
@@ -426,6 +437,21 @@ describe("the times follow the playhead", () => {
     // asserting something this harness cannot see.
     expect(stopped).toBeGreaterThan(11.6);
     expect(stopped).toBeLessThan(11.9);
+
+    // And the precision the slider cannot show, read from the app's own account of the stop. The
+    // check lives on the branch that sees every frame; one moved to the branch that feeds the
+    // interface would overshoot by up to a tenth, and a tenth is three frames at this fixture's
+    // rate. That is the difference this assertion exists to see. See BACKLOG.md N20.
+    const said = /playback: range stopped at ([\d.]+) for a target of ([\d.]+)/.exec(
+      appLog(dataHome()),
+    );
+    expect(said).not.toBe(null);
+    const overshoot = Number(said[1]) - Number(said[2]);
+    expect(overshoot).toBeGreaterThanOrEqual(0);
+    // A frame and a half. Clean, this branch overshoots by under a frame; moved under the
+    // throttle it overshot by 73 ms against a 30 fps fixture, which is more than two. The margin
+    // is deliberate on both sides so a slow runner cannot decide the verdict.
+    expect(overshoot).toBeLessThan(1.5 / FIXTURE_FPS);
   });
 
   it("plays the half second before the cue, and stops where the cue starts", async () => {
