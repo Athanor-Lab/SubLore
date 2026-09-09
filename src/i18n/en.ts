@@ -324,6 +324,18 @@ export const en = {
     empty: "Nothing has been logged yet.",
     close: "Close",
   },
+  /** Help's update check (interface-spec 3.8), which runs once and only when it is asked for. */
+  update: {
+    title: "Check for updates",
+    asking: "Asking whether there is a newer version.",
+    upToDate: "This is the newest version of Sublore.",
+    /** `{version}` is the release's own name, as the project tagged it. */
+    newer: "Sublore {version} is available.",
+    open: "Open the release page",
+    /** The check, not the app: nothing about the running copy has gone wrong. */
+    failed: "The check could not be made. Your copy of Sublore is unaffected.",
+    close: "Close",
+  },
   /** The Language dialog (interface-spec 3.7 item 12). One language today, English. */
   language: {
     title: "Language",

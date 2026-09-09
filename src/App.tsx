@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { choosePath, type ChooseKind } from "./chooser";
 import { openHelpLink } from "./help";
 import AboutDialog from "./components/AboutDialog";
+import UpdateDialog from "./components/UpdateDialog";
 import EventLogDialog from "./components/EventLogDialog";
 import StyleEditor from "./components/StyleEditor";
 import CueList from "./components/CueList";
@@ -801,6 +802,7 @@ export default function App() {
   // them all.
   const [choosing, setChoosing] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
   const [eventLogOpen, setEventLogOpen] = useState(false);
   /** How the grid draws override tags. Shown as the file spells them until told otherwise. */
   const [tagMode, setTagMode] = useState<TagMode>("show");
@@ -2429,11 +2431,10 @@ export default function App() {
       run: () => void openHelpLink("bugs"),
     },
     {
-      // Greyed until the update check is built, the one network call §1 allows the open core.
       id: "help.check-updates",
       label: en.menu.help.checkUpdates,
-      enabled: false,
-      run: () => {},
+      enabled: true,
+      run: () => setUpdateOpen(true),
     },
     {
       id: "help.event-log",
@@ -3367,6 +3368,7 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {updateOpen && <UpdateDialog onClose={() => setUpdateOpen(false)} />}
         {eventLogOpen && <EventLogDialog onClose={() => setEventLogOpen(false)} />}
         {encodingPath !== null && (
           <OpenEncoding

@@ -20,6 +20,7 @@ pub mod project;
 pub mod recent;
 pub mod strings;
 pub mod subtitle;
+pub mod update;
 pub mod video;
 
 /// The `log` facade, re-exported by tauri-plugin-log, so the crate needs no direct dependency on it.
@@ -259,6 +260,8 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_export,
             events::log_events_read,
             language::language_read,
+            update::update_check,
+            update::update_open_release,
             language::language_set,
             preferences::preferences_read,
             preferences::preferences_write,

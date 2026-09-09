@@ -1,4 +1,5 @@
-//! The only code in Sublore that opens a socket. See BACKLOG.md M3.2.
+//! One of the two places in Sublore that open a socket, the other being the update check in
+//! `src-tauri/src/update.rs`. Both are behind an explicit press. See BACKLOG.md M3.2.
 //!
 //! It holds no address of its own: the URL is built from the catalog and passed in, which is what
 //! makes "no network unless the user asks" checkable by grep as well as by test. Compression is
