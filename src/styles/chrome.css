@@ -632,6 +632,74 @@
   font: inherit;
 }
 
+/* Preferences: the three numbers 9.6 keeps for v1. */
+.preferences {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.preferences__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(24rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.preferences__heading {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.preferences__field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.preferences__label {
+  flex: none;
+  width: 11rem;
+  color: var(--ink-muted);
+}
+
+.preferences__value {
+  flex: 1;
+  min-width: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.preferences__refusal {
+  margin: 0;
+  color: var(--ink-warn);
+}
+
+.preferences__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.preferences__confirm,
+.preferences__cancel {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
 /* Language: one interface language chosen and remembered (3.7 item 12). */
 .languagedialog {
   position: fixed;

@@ -25,6 +25,7 @@ import ScriptProperties from "./components/ScriptProperties";
 import JumpToTime from "./components/JumpToTime";
 import LanguageDialog from "./components/LanguageDialog";
 import OpenEncoding from "./components/OpenEncoding";
+import PreferencesDialog from "./components/PreferencesDialog";
 import ShiftTimes, { type ShiftRequest } from "./components/ShiftTimes";
 import VideoStage from "./components/VideoStage";
 import { type VideoDetails } from "./types/video";
@@ -34,6 +35,7 @@ import { LayerContext, useLayerRegistry } from "./hooks/useLayers";
 import { useAudioTracks } from "./hooks/useAudioTracks";
 import { type PanelLayout, useLayout } from "./hooks/useLayout";
 import { useWindowFloor } from "./hooks/useWindowFloor";
+import { usePreferences } from "./hooks/usePreferences";
 import { usePreview } from "./hooks/usePreview";
 import { useContributions, type Contribution } from "./hooks/useContributions";
 import { useModulePanels } from "./hooks/useModulePanels";
@@ -214,17 +216,6 @@ const MIN_GRID_HEIGHT = 109;
 
 /** The part of the bound above that moves with the interface size. */
 const MIN_GRID_HEAD = 25;
-
-/**
- * How long a cue the user has just made lasts. A choice, not a derivation: an inserted cue has no
- * timing of its own yet, and two seconds is about what a subtitle line runs for.
- */
-const NEW_CUE_MS = 2000;
-
-/** How far lead-in pulls a start back and lead-out pushes an end on. The reference's own numbers
- * (`src/audio_timing_dialogue.cpp:551-561`), which are what a translator's ear is used to. */
-const LEAD_IN_MS = 100;
-const LEAD_OUT_MS = 350;
 
 /**
  * The four inline style flags, in the order row three of the panel draws them. Each writes its own
@@ -828,6 +819,9 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   // Whether the Language dialog is up (interface-spec 3.7 item 12).
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  // The three numbers the commands below read, the reference's own until the store says otherwise.
+  const { preferences, store: storePreferences } = usePreferences();
   const [shiftOpen, setShiftOpen] = useState(false);
   // Absent until the menu asks for it, and gone again on Close: T4 takes the band off the screen.
   const [transcribeOpen, setTranscribeOpen] = useState(false);
@@ -1142,7 +1136,7 @@ export default function App() {
       }
       landing.current = "inserted";
       try {
-        await subtitle.insertCue(subtitle.cues.length, 0, NEW_CUE_MS, "");
+        await subtitle.insertCue(subtitle.cues.length, 0, preferences.newCueMs, "");
       } finally {
         landing.current = null;
       }
@@ -1154,18 +1148,18 @@ export default function App() {
     let endMs: number;
     if (atPlayhead) {
       startMs = Math.round(position * 1000);
-      endMs = startMs + NEW_CUE_MS;
+      endMs = startMs + preferences.newCueMs;
     } else if (after) {
       startMs = current.endMs;
       endMs = subtitle.cues.reduce(
         (soonest, cue) => (cue.startMs >= startMs ? Math.min(soonest, cue.startMs) : soonest),
-        startMs + NEW_CUE_MS,
+        startMs + preferences.newCueMs,
       );
     } else {
       endMs = current.startMs;
       startMs = subtitle.cues.reduce(
         (latest, cue) => (cue.endMs <= endMs ? Math.max(latest, cue.endMs) : latest),
-        Math.max(0, endMs - NEW_CUE_MS),
+        Math.max(0, endMs - preferences.newCueMs),
       );
     }
     if (endMs <= startMs) {
@@ -1199,7 +1193,7 @@ export default function App() {
     const previous = at === null ? null : (subtitle.cues[at] ?? null);
     const before = at === null || previous === null ? subtitle.cues.length : at + 1;
     const startMs = previous === null ? 0 : previous.endMs;
-    await subtitle.insertCue(before, startMs, startMs + NEW_CUE_MS, "");
+    await subtitle.insertCue(before, startMs, startMs + preferences.newCueMs, "");
     selection.move(before, "plain");
   }
 
@@ -1649,7 +1643,7 @@ export default function App() {
       const end = subtitle.cues[last]?.endMs ?? 0;
       landing.current = "inserted";
       try {
-        await subtitle.insertCue(subtitle.cues.length, end, end + NEW_CUE_MS, "");
+        await subtitle.insertCue(subtitle.cues.length, end, end + preferences.newCueMs, "");
       } finally {
         landing.current = null;
       }
@@ -2097,14 +2091,14 @@ export default function App() {
       label: en.menu.timing.leadIn,
       accelerator: en.menu.keys.leadIn,
       enabled: subtitle.summary !== null && selection.active !== null,
-      run: () => void nudge("start", -LEAD_IN_MS),
+      run: () => void nudge("start", -preferences.leadInMs),
     },
     {
       id: "time.lead-out",
       label: en.menu.timing.leadOut,
       accelerator: en.menu.keys.leadOut,
       enabled: subtitle.summary !== null && selection.active !== null,
-      run: () => void nudge("end", LEAD_OUT_MS),
+      run: () => void nudge("end", preferences.leadOutMs),
     },
     {
       // No cursor needed: finding the cue at the playhead is what gives it one.
@@ -2651,6 +2645,14 @@ export default function App() {
       enabled: true,
       run: () => setLanguageOpen(true),
     },
+    {
+      id: "view.preferences",
+      label: en.menu.view.preferences,
+      accelerator: en.menu.keys.preferences,
+      // The small set 9.6 keeps for v1; drawn always, like the language beside it.
+      enabled: true,
+      run: () => setPreferencesOpen(true),
+    },
     ...audio.tracks.map((track, index): Command => ({
       id: `audio.track.${track.id}`,
       label: track.title ?? track.lang ?? `${en.menu.audio.track} ${index + 1}`,
@@ -2983,6 +2985,7 @@ export default function App() {
         SEPARATOR,
         ...interfaceScales.map(({ percent }): CommandId => `view.interface-scale-${percent}`),
         "view.language",
+        "view.preferences",
       ],
     },
     {
@@ -3375,6 +3378,16 @@ export default function App() {
           />
         )}
         {languageOpen && <LanguageDialog onClose={() => setLanguageOpen(false)} />}
+        {preferencesOpen && (
+          <PreferencesDialog
+            preferences={preferences}
+            onConfirm={(next) => {
+              setPreferencesOpen(false);
+              void storePreferences(next);
+            }}
+            onClose={() => setPreferencesOpen(false)}
+          />
+        )}
         {exportOpen && (
           <OpenEncoding
             writable
