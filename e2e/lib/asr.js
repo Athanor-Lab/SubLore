@@ -38,7 +38,7 @@ const DAMAGE_OFFSET = 40000000;
  * home in its own module body, which runs after this module has been imported.
  */
 export function asrDir() {
-  return path.join(dataHome(), "asr-stub");
+  return path.join(runHome(), "asr-stub");
 }
 
 /** Where SUBLORE_WHISPER_BIN points. A copy, so the run never needs to chmod a repository file. */
@@ -46,10 +46,26 @@ export function stubBinary() {
   return path.join(asrDir(), "whisper-stub.mjs");
 }
 
-function dataHome() {
+/**
+ * The run's own tree, not the spec's.
+ *
+ * The stub sidecar and the model copy are read only and shared by every spec, and they are put there
+ * once in `onPrepare`. Since each spec got a data home of its own (N19) that is no longer the same
+ * directory the app writes into, so these two have to name the run's rather than the spec's.
+ */
+/** Where the app under test writes: this spec's own tree since N19 split them. */
+function specHome() {
   const dir = process.env.SUBLORE_E2E_DATA_HOME;
   if (typeof dir !== "string" || dir === "") {
-    throw new Error("SUBLORE_E2E_DATA_HOME is not set; e2e/wdio.conf.js sets it for every run.");
+    throw new Error("SUBLORE_E2E_DATA_HOME is not set; e2e/wdio.conf.js sets it for every spec.");
+  }
+  return dir;
+}
+
+function runHome() {
+  const dir = process.env.SUBLORE_E2E_RUN_HOME ?? process.env.SUBLORE_E2E_DATA_HOME;
+  if (typeof dir !== "string" || dir === "") {
+    throw new Error("SUBLORE_E2E_RUN_HOME is not set; e2e/wdio.conf.js sets it for every run.");
   }
   return dir;
 }
@@ -65,7 +81,7 @@ export function appDataDir() {
     "asr.js appDataDir",
     "resolve the app data dir a run redirected the app to, and redirect it in the first place",
   );
-  return path.join(dataHome(), APP_IDENTIFIER);
+  return path.join(specHome(), APP_IDENTIFIER);
 }
 
 /** The model the app runs against, inside the run's own data directory. */
@@ -168,7 +184,17 @@ export function installStubSidecar() {
     path.join(asrDir(), "transcript.json"),
   );
   setStubMode("fast");
+}
 
+/**
+ * The model, in the app data dir of the spec about to run.
+ *
+ * Split out of `installStubSidecar` when each spec got its own data home (N19): the stub is shared
+ * and read only, the model sits where the app looks and therefore has to follow the spec. Copied
+ * only for the specs that transcribe, because it is 75 MB and doing it for all of them would cost
+ * more than the battery saves.
+ */
+export function installModelForSpec() {
   installModel();
 }
 

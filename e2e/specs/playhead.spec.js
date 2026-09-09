@@ -199,6 +199,28 @@ async function cursorTo(toplevel, position) {
   });
 }
 
+/**
+ * The playhead once it has stopped moving.
+ *
+ * Moving the cursor sends the picture to that line's start, and that follow is on its way when the
+ * next line of a test runs: a seek sent into that window is the one that is lost, and the picture
+ * stays where the follow put it. The same wait `cue-insert.spec.js` uses, for the same reason.
+ */
+async function settledPlayhead() {
+  const read = () =>
+    browser.execute(() => Number(document.querySelector(".controls__slider")?.value ?? -1));
+  let last = await read();
+  for (let tries = 0; tries < 30; tries += 1) {
+    await browser.pause(300);
+    const now = await read();
+    if (now === last) {
+      return now;
+    }
+    last = now;
+  }
+  throw new Error(`the playhead never stopped moving; it last read ${last}`);
+}
+
 describe("the times follow the playhead", () => {
   let toplevel = null;
   let copy = null;
@@ -271,9 +293,18 @@ describe("the times follow the playhead", () => {
     // The cursor first and the picture after it: moving the cursor takes the picture to that
     // line's start, so a seek made before it would be undone by the move.
     await cursorTo(toplevel, 2);
+    const wasAt = (await gridRows())[1]?.start;
+    // The follow has to land before the seek is sent, or the seek is the one that is lost.
+    await settledPlayhead();
     await seekTo(INSIDE_SECOND);
+    await settledPlayhead();
     // Read, not assumed: the seek asked for a time and the player landed where it landed.
     const paused = asTimecode(await playhead());
+    // And the seek has to have moved the picture off this line's own start, or the command below
+    // would have nothing to do and the check below it would pass on a document nobody edited. The
+    // cursor puts the picture at that start, so a seek that was lost leaves it exactly there. This
+    // is the precondition, named, rather than a silent pass. See BACKLOG.md N9.
+    expect(paused).not.toBe(wasAt);
 
     await runFromMenu(toplevel, "time-start-to-playhead");
     const rows = await waitFor(
@@ -285,7 +316,13 @@ describe("the times follow the playhead", () => {
     );
     // Only the start moved: the end is the fixture's own, untouched.
     expect(rows[1].end).toBe("00:00:08.340");
-    expect(await present(".statusbar__dirty")).toBe(true);
+    // Waited for, not sampled: the mark follows the edit reaching the document, and this test fails
+    // alone on main because it read the mark in the same breath as the row. It passed in a full run
+    // only because the specs before it had left the app warm (N19).
+    await waitFor(async () => ((await present(".statusbar__dirty")) ? 1 : null), {
+      timeout: 20000,
+      message: "the unsaved mark to follow the edit",
+    });
     // A command is not a save.
     expect(readFileSync(copy).equals(openedBytes)).toBe(true);
   });
