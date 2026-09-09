@@ -86,6 +86,22 @@ const DEFAULT_VIDEO_FOLLOW_SELECTION: bool = true;
 
 /// Which panels the window draws, as the View menu's four radios name them.
 ///
+/// Which of the five ways the colour picker draws its square, remembered the way the reference
+/// remembers it. The names are the axes, not the dropdown's own words. A name this version does not
+/// know reads as the one you choose a colour by looking at, rather than throwing the layout away.
+/// See BACKLOG.md N53.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SpectrumMode {
+    RgbR,
+    RgbG,
+    RgbB,
+    HslL,
+    #[default]
+    #[serde(other)]
+    HsvH,
+}
+
 /// Stored rather than derived: what a translator chose to see outlives the session, and a layout
 /// that reset to everything on every launch would be a setting that does not settle.
 /// See interface-spec 3.7.
@@ -122,6 +138,8 @@ pub struct Layout {
     pub wave_autonext: bool,
     pub video_follow_selection: bool,
     pub panels: PanelLayout,
+    /// Which way the colour picker draws its square (N53).
+    pub spectrum_mode: SpectrumMode,
 }
 
 impl Default for Layout {
@@ -136,6 +154,7 @@ impl Default for Layout {
             wave_autonext: DEFAULT_WAVE_AUTONEXT,
             video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
             panels: PanelLayout::Full,
+            spectrum_mode: SpectrumMode::HsvH,
         }
     }
 }
@@ -194,6 +213,7 @@ impl Layout {
             // A closed list has nothing to clamp, and an unknown name has already become `Full`
             // where it was read.
             panels: self.panels,
+            spectrum_mode: self.spectrum_mode,
         }
     }
 }
@@ -397,6 +417,7 @@ mod tests {
             wave_autonext: true,
             video_follow_selection: false,
             panels: PanelLayout::GridOnly,
+            spectrum_mode: SpectrumMode::HsvH,
         };
         write_to(&path, left).expect("a layout written under the temp dir");
         assert_eq!(read_from(&path), left);
@@ -493,6 +514,7 @@ mod tests {
                 wave_autonext: true,
                 video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
                 panels: PanelLayout::Full,
+                spectrum_mode: SpectrumMode::HsvH,
             }
         );
     }
@@ -627,6 +649,7 @@ mod tests {
                     wave_autonext: true,
                     video_follow_selection: DEFAULT_VIDEO_FOLLOW_SELECTION,
                     panels: PanelLayout::Full,
+                    spectrum_mode: SpectrumMode::HsvH,
                 }
                 .sane(),
                 Layout::default(),
@@ -676,6 +699,7 @@ mod tests {
             wave_autonext: true,
             video_follow_selection: false,
             panels: PanelLayout::GridOnly,
+            spectrum_mode: SpectrumMode::HsvH,
         };
         write_to(&path, second).expect("the second layout");
         assert_eq!(read_from(&path), second);

@@ -1408,9 +1408,9 @@ describe("the current line's bands", () => {
 
     const spectrum = () =>
       browser.execute(() => ({
-        squareLeft: document.querySelector(".currentline__square .currentline__thumb")?.style.left,
-        squareTop: document.querySelector(".currentline__square .currentline__thumb")?.style.top,
-        hueTop: document.querySelector(".currentline__hue .currentline__thumb")?.style.top,
+        squareLeft: document.querySelector(".currentline__square-thumb")?.style.left,
+        squareTop: document.querySelector(".currentline__square-thumb")?.style.top,
+        hueTop: document.querySelector(".currentline__hue-thumb")?.style.top,
         preview: document.querySelector(".currentline__preview")?.style.background,
         ass: document.querySelector(".currentline__ass dd")?.textContent,
         rgb: document.querySelector(".currentline__rgb dd")?.textContent,
@@ -1454,6 +1454,85 @@ describe("the current line's bands", () => {
     // Half value is half way down, which is the other half of the axis being the way it is.
     expect(percent(grey.squareTop)).toBeCloseTo(50, 0);
     expect(grey.hsv).toBe("120, 0, 50");
+
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+      timeout: 15000,
+      message: "the picker to close",
+    });
+  });
+
+  it("puts each mode's quantities on the axes the reference gives them", async () => {
+    const caretBefore = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+
+    if (await present(".currentline__picker")) {
+      pressKey("Escape");
+      await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+        timeout: 15000,
+        message: "a picker left open by an earlier test to close",
+      });
+    }
+    await caretBefore("harbour");
+    await clickElement(toplevel, ".currentline__colour-primary");
+    await waitFor(() => present(".currentline__picker"), {
+      timeout: 15000,
+      message: "the picker to open",
+    });
+
+    await typeHex("#3366CC");
+    const notations = () =>
+      browser.execute(() => ({
+        rgb: document.querySelector(".currentline__rgb dd")?.textContent,
+        hsv: document.querySelector(".currentline__hsv dd")?.textContent,
+        squareLeft: document.querySelector(".currentline__square-thumb")?.style.left,
+        squareTop: document.querySelector(".currentline__square-thumb")?.style.top,
+        hueTop: document.querySelector(".currentline__hue-thumb")?.style.top,
+      }));
+    const inHsv = await waitFor(
+      async () => {
+        const now = await notations();
+        return now.rgb === "51, 102, 204" ? now : null;
+      },
+      { timeout: 15000, message: "the typed colour to reach the picker" },
+    );
+
+    // In HSV/H the square is saturation across and value down, so this colour sits three quarters
+    // saturated and four fifths of the way down.
+    const percent = (value) => Number.parseFloat(value);
+    expect(percent(inHsv.squareLeft)).toBeCloseTo(75, 0);
+    expect(percent(inHsv.squareTop)).toBeCloseTo(80, 0);
+
+    // RGB/B: green across, red down, blue on the slider. The colour must not move an inch.
+    await browser.execute(() => {
+      const choice = document.querySelector(".currentline__mode-choice");
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLSelectElement.prototype,
+        "value",
+      ).set;
+      setter.call(choice, "rgbB");
+      choice.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const inRgb = await waitFor(
+      async () => {
+        const now = await notations();
+        return now.squareLeft !== inHsv.squareLeft ? now : null;
+      },
+      { timeout: 15000, message: "the mode change to move the mark" },
+    );
+    expect(inRgb.rgb).toBe(inHsv.rgb);
+    expect(inRgb.hsv).toBe(inHsv.hsv);
+    // 102 of 255 across, 51 of 255 down, 204 of 255 along the slider.
+    expect(percent(inRgb.squareLeft)).toBeCloseTo(40, 0);
+    expect(percent(inRgb.squareTop)).toBeCloseTo(20, 0);
+    expect(percent(inRgb.hueTop)).toBeCloseTo(80, 0);
 
     pressKey("Escape");
     await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
