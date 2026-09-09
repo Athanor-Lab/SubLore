@@ -24,6 +24,9 @@ The first version has not been tagged. When it is, this section takes its number
   above them. A field you did not choose is not written at all, so the line keeps it exactly.
 - **A colour spectrum.** The picker has a square, a hue slider, a preview and four notations that
   are one colour written five ways, in the five spectrum modes, and the mode is remembered.
+- **The window says what you are working on.** It carries the open file's name, a `*` in front of
+  it while there is unsaved work, and `Untitled` before a file has been chosen. Three episodes open
+  are three windows you can tell apart.
 
 ### Fixed
 
