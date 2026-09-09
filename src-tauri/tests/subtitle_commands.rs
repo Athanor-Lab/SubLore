@@ -3,6 +3,7 @@
 //! the outcomes a GUI test cannot see cheaply, including the ones that need a file to be broken.
 //! See BACKLOG.md M1.5, and M2.3 for the session the commands now go through.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -247,6 +248,7 @@ fn overwriting_keeps_the_previous_file_and_never_writes_beside_the_source() {
     let source = fixture("fixtures/subtitles/srt/clean/basic-crlf.srt");
     let destination = scratch.join("episode.srt");
     fs::write(&destination, b"the file that was already there\n").expect("scratch write");
+    let before = beside_the_source(&source);
 
     let saved = save_copy(&source, &destination.to_string_lossy(), scratch.backups())
         .expect("the save succeeds");
@@ -267,19 +269,26 @@ fn overwriting_keeps_the_previous_file_and_never_writes_beside_the_source() {
     );
 
     // CONTRIBUTING.md §3.1: the file the user opened is read-only, and nothing lands in its folder.
-    let source_dir = Path::new(&source).parent().expect("fixture directory");
-    let stray: Vec<PathBuf> = fs::read_dir(source_dir)
+    // Asserted as a relationship and not as an inventory: this used to demand that every entry in
+    // the fixture directory end in `.srt`, so adding a README there would have turned it red for a
+    // reason that has nothing to do with a save. See BACKLOG.md N9.
+    let now = beside_the_source(&source);
+    assert_eq!(
+        now,
+        before,
+        "the save left {:?} beside the source",
+        now.difference(&before).collect::<Vec<_>>()
+    );
+}
+
+/// Everything in the folder the source sits in, by name. Taken before and after a save, so what is
+/// compared is what the save changed rather than what the repository happens to keep there.
+fn beside_the_source(source: &str) -> BTreeSet<PathBuf> {
+    let directory = Path::new(source).parent().expect("fixture directory");
+    fs::read_dir(directory)
         .expect("fixture directory listing")
         .map(|entry| entry.expect("directory entry").path())
-        .filter(|path| {
-            let name = path.file_name().unwrap_or_default().to_string_lossy();
-            !name.ends_with(".srt")
-        })
-        .collect();
-    assert!(
-        stray.is_empty(),
-        "the save left {stray:?} beside the source"
-    );
+        .collect()
 }
 
 #[test]
