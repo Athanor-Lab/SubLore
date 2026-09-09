@@ -241,6 +241,60 @@ async function seekBar() {
   return bar;
 }
 
+/**
+ * The transport read as rows and as fit, rather than as a height against another height: the
+ * distinct tops its own four controls sit at, what the row asks for in width, and what it is given.
+ * A height is only ever a comparison with a height taken under the same code, which is what left
+ * the floor claim provable by nothing (N55).
+ */
+async function transportRow() {
+  const row = await browser.execute((slop) => {
+    const controls = document.querySelector(".controls");
+    const slider = document.querySelector(".controls__slider");
+    if (controls === null || slider === null) {
+      return null;
+    }
+    // Rows as bands rather than as tops: the row centres what it holds, so four controls of four
+    // heights sit at four tops on one row. Two controls on the same row overlap vertically; the gap
+    // between two rows means the next one starts at or below the band the last one ended at.
+    const boxes = Array.from(controls.children)
+      .map((part) => part.getBoundingClientRect())
+      .sort((a, b) => a.top - b.top);
+    let rows = boxes.length === 0 ? 0 : 1;
+    let bottom = boxes.length === 0 ? 0 : boxes[0].bottom;
+    for (const box of boxes.slice(1)) {
+      if (box.top >= bottom - slop) {
+        rows += 1;
+        bottom = box.bottom;
+      } else {
+        bottom = Math.max(bottom, box.bottom);
+      }
+    }
+    return {
+      rows,
+      asks: controls.scrollWidth,
+      has: controls.clientWidth,
+      bar: slider.getBoundingClientRect().width,
+      barMinimum: Number.parseFloat(window.getComputedStyle(slider).minWidth),
+    };
+  }, SLOP_PX);
+  if (row === null || !Number.isFinite(row.barMinimum)) {
+    throw new Error(".controls is missing, or its seek bar has no rule holding it at a width");
+  }
+  return row;
+}
+
+/** The three readings above as the one answer they make: the transport is usable where it stands. */
+function transportHolds(row) {
+  return {
+    rows: row.rows,
+    fits: row.asks <= row.has + SLOP_PX,
+    bar: row.bar >= row.barMinimum - SLOP_PX,
+  };
+}
+
+const TRANSPORT_ON_ONE_ROW = { rows: 1, fits: true, bar: true };
+
 /** Pick one of the View menu's five sizes, through the menu, the way a person reaches it. */
 async function pickSize(toplevel, percent) {
   const item = `.menubar__item--view-interface-scale-${percent}`;
@@ -585,9 +639,10 @@ describe("the interface size", () => {
 
     const settled = await shellSizes();
     expect(settled.video).toBeLessThan(wide.video);
-    // The claim the floor was measured for: the transport is the height it is when it has room, so
-    // it is on the row it was on, not wrapped onto four and eating the picture.
-    expect(settled.transport).toBe(wide.transport);
+    // The claim the floor was measured for, counted off the controls rather than read off a height:
+    // the four sit on one band, the row asks for no more width than the panel gives it, and the seek
+    // bar is still the width its own rule holds it at. See N55.
+    expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ONE_ROW);
 
     // The same reading taken during the gesture. Everything above is equally true of a panel that
     // ignores the pointer and jumps once it is let go, which is the mutation that left every
@@ -617,7 +672,9 @@ describe("the interface size", () => {
       );
       // It stopped there rather than carrying on: the pointer is asking for a width past zero.
       expect(held.video).toBeGreaterThanOrEqual(settled.video - SLOP_PX);
-      expect(held.transport).toBe(wide.transport);
+      // The reading that carries the claim, taken with the button still down. Nothing here is
+      // compared against a number this run measured, so a panel with no floor cannot satisfy it.
+      expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ONE_ROW);
     } finally {
       // Never leave the button down: it lands on whatever the next check clicks.
       releaseButton();
