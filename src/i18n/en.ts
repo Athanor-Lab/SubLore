@@ -755,6 +755,10 @@ export const en = {
         hslL: "HSL/L",
         hsvH: "HSV/H",
       },
+      /** The eyedropper beside the preview, and what it says when no portal answers (N54). */
+      eyedropper: "Pick a colour from the screen",
+      eyedropperMark: "⊙",
+      eyedropperUnavailable: "The eyedropper needs a desktop portal, and this desktop has none.",
       colourPreview: "The colour chosen",
       assNotation: "ASS",
       rgbNotation: "RGB",

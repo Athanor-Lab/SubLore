@@ -63,6 +63,26 @@ tauri-plugin-opener = "2"
 # it, same version and same features, MIT/Apache-2.0. Blocking and small, so the check needs no
 # async runtime of its own; stdlib has no HTTPS client. See update-check-tasks.md.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
+# The desktop portal the eyedropper asks for a colour, over the session bus. Already in the tree:
+# tauri-plugin-opener talks to the portal with it. MIT, and the only portable way to reach a portal
+# from Rust; a screen grab is what this exists to avoid. Linux only, like the portal itself.
+[target.'cfg(target_os = "linux")'.dependencies.zbus]
+version = "5"
+default-features = false
+features = ["tokio"]
+
+# The one timeout the eyedropper needs: a portal that never answers must not hold a command open
+# for the session. Already in the tree through tauri, MIT.
+[target.'cfg(target_os = "linux")'.dependencies.tokio]
+version = "1"
+default-features = false
+features = ["time"]
+
+# `next()` on the portal's signal stream. zbus re-exports futures-core, which is the trait and not
+# the extension, so the extension comes from here. Already in the tree through tauri, MIT/Apache-2.0.
+[target.'cfg(target_os = "linux")'.dependencies.futures-util]
+version = "0.3"
+default-features = false
 
 [dev-dependencies]
 libc = "0.2"

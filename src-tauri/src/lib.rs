@@ -8,6 +8,7 @@ pub mod clipboard;
 pub mod crash;
 pub mod dialog;
 pub mod events;
+pub mod eyedropper;
 pub mod fonts;
 pub mod frames;
 pub mod help;
@@ -260,6 +261,7 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_save_as,
             subtitle::subtitle_export,
             events::log_events_read,
+            eyedropper::eyedropper_pick,
             language::language_read,
             update::update_check,
             update::update_open_release,
