@@ -32,7 +32,7 @@ import {
   videoFixture,
 } from "../lib/paths.js";
 import { describeProcesses, killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
-import { allWindows, childWindows, mapState, rootTree } from "../lib/x11.js";
+import { allWindows, childWindows, isAppWindowName, mapState, rootTree } from "../lib/x11.js";
 
 /**
  * How long the app's own children get to finish leaving after it has exited.
@@ -60,11 +60,15 @@ function check(label, ok, detail = "") {
 /**
  * By name, not by size: `findToplevel` looks for the configured 1024x700 and at ratio 2 the window
  * is twice that, which is the very thing under test.
+ *
+ * Through `isAppWindowName`, because the window is named for the document it holds (N57). Matching
+ * the app's name exactly still found a window here, but only in the moment between the window being
+ * created and the page naming it, which is a race this check would eventually lose.
  */
 function toplevelByName() {
-  const named = allWindows().filter((window) => window.name === "Sublore" && window.width > 200);
+  const named = allWindows().filter((window) => isAppWindowName(window.name) && window.width > 200);
   if (named.length > 1) {
-    throw new Error(`expected one "Sublore" toplevel, found ${named.length}\n${rootTree()}`);
+    throw new Error(`expected one app toplevel, found ${named.length}\n${rootTree()}`);
   }
   return named.length === 1 ? named[0] : null;
 }
@@ -100,7 +104,7 @@ async function measureAt(scale) {
         }
         return toplevelByName();
       },
-      { timeout: 30000, message: `the "Sublore" toplevel at GDK_SCALE=${scale}` },
+      { timeout: 30000, message: `the app toplevel at GDK_SCALE=${scale}` },
     );
     // The first mapped geometry is not the settled one: the page lays out, the surface is sized
     // from the page's rectangle, and reading between the two gives an intermediate height. On CI
