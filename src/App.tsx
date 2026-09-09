@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { choosePath, type ChooseKind } from "./chooser";
 import { openHelpLink } from "./help";
 import AboutDialog from "./components/AboutDialog";
+import EventLogDialog from "./components/EventLogDialog";
 import StyleEditor from "./components/StyleEditor";
 import CueList from "./components/CueList";
 import { type TagMode } from "./components/cueView";
@@ -800,6 +801,7 @@ export default function App() {
   // them all.
   const [choosing, setChoosing] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [eventLogOpen, setEventLogOpen] = useState(false);
   /** How the grid draws override tags. Shown as the file spells them until told otherwise. */
   const [tagMode, setTagMode] = useState<TagMode>("show");
   // The status bar's timed slot: a sentence a command pushes, cleared by its own clock (1.5).
@@ -2434,11 +2436,10 @@ export default function App() {
       run: () => {},
     },
     {
-      // Greyed until the event-log window exists (interface-spec §9.12).
       id: "help.event-log",
       label: en.menu.help.eventLog,
-      enabled: false,
-      run: () => {},
+      enabled: true,
+      run: () => setEventLogOpen(true),
     },
     {
       id: "subtitle.move-up",
@@ -3366,6 +3367,7 @@ export default function App() {
           moduleRefusals={modules.refused.map((refused) => refusalLine(refused, en.modules))}
         />
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {eventLogOpen && <EventLogDialog onClose={() => setEventLogOpen(false)} />}
         {encodingPath !== null && (
           <OpenEncoding
             onChoose={(label) => {

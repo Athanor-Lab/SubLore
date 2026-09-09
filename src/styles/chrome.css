@@ -846,3 +846,57 @@
   color: inherit;
   font: inherit;
 }
+
+/* Event log: what the app has said this run (9.12). */
+.eventlog {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.eventlog__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(56rem, 92vw);
+  height: min(28rem, 80vh);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.eventlog__heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.eventlog__lines {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0.4rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  font-family: monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.eventlog__buttons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.eventlog__close {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}

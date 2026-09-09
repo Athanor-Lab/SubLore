@@ -138,7 +138,7 @@ describe("the Help menu", () => {
     await closeMenu();
   });
 
-  it("greys the two whose provider is not built, and enables the rest", async () => {
+  it("greys the one whose provider is not built, and enables the rest", async () => {
     await openHelp(toplevel);
     const greyed = Object.fromEntries(
       (await helpItems()).map((item) => [item.token, item.disabled]),
@@ -148,9 +148,9 @@ describe("the Help menu", () => {
     expect(greyed["help-website"]).toBe(false);
     expect(greyed["help-report-bug"]).toBe(false);
     expect(greyed["help-about"]).toBe(false);
-    // Greyed: the update check and the log window are not built.
+    expect(greyed["help-event-log"]).toBe(false);
+    // Greyed: the update check is not built.
     expect(greyed["help-check-updates"]).toBe(true);
-    expect(greyed["help-event-log"]).toBe(true);
     await closeMenu();
   });
 
