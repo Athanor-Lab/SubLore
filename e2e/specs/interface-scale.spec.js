@@ -18,7 +18,7 @@
  * 150 per cent the window can no longer be that narrow, so it is asserted here at the narrowest
  * window there is, and the floor is proved to be one by asking for a pixel under it.
  */
-import { rmSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -62,6 +62,9 @@ const FLOOR_PERCENTS = [90, 110, 150];
 
 /** Percentage widths and scaled type both land on fractions of a pixel. */
 const SLOP_PX = 1;
+
+/** A share of the top row is a ratio, so it is compared with room for the pixel either end of it. */
+const SHARE_SLOP = 0.01;
 
 /**
  * How far a box holding type may land from the factor its type grew by. The line box is a
@@ -761,5 +764,24 @@ describe("the interface size", () => {
     expect(Number((opened.gridRow.type / at100.gridRow.type).toFixed(3))).toBe(
       DEFAULT_PERCENT / 100,
     );
+  });
+
+  it("opens the video panel at its floor when the stored share is under it, at 150 per cent", async () => {
+    // The floor the panel is drawn at, which is not the one the sash refuses to drag past: every
+    // other check here reaches the floor by dragging, so the sash's own bound gets there first and
+    // the drawn one is never the thing under test (N56). The share written is the smallest the
+    // store keeps, a panel far narrower than the transport at this window, and 150 is where the
+    // transport is widest.
+    writeFileSync(storedLayout(), JSON.stringify({ videoFraction: 0.1, interfaceScale: 1.5 }));
+
+    await browser.reloadSession();
+    toplevel = await attachToApp();
+    await openTheFixtures(toplevel);
+
+    // Raised: what is drawn is a wider share than the one that was stored.
+    const opened = await shellSizes();
+    expect(opened.video / opened.top).toBeGreaterThan(0.1 + SHARE_SLOP);
+    // And raised to a width the transport is usable at, read with no pointer anywhere near it.
+    expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ONE_ROW);
   });
 });
