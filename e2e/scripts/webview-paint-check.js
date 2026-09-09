@@ -33,7 +33,7 @@ import process from "node:process";
 
 import { requireAppBinary, requireDisplay, requireTool } from "../lib/paths.js";
 import { killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
-import { allWindows, mapState, rootTree } from "../lib/x11.js";
+import { allWindows, isAppWindowName, mapState, rootTree } from "../lib/x11.js";
 
 /** Gutting an assertion has to be as red as failing one, so the checks count themselves. */
 const EXPECTED_CHECKS = 5;
@@ -62,7 +62,9 @@ const DECISION =
  * keep the 1024x700 it asks for, and this check has to work on the owner's real display too.
  */
 function appWindow() {
-  const named = allWindows().filter((window) => window.name === "Sublore" && window.width > 200);
+  // Through `isAppWindowName`: the window is named for the document it holds (N57), so the app's
+  // own tail is what identifies it and the whole name is a race against the page's first paint.
+  const named = allWindows().filter((window) => isAppWindowName(window.name) && window.width > 200);
   return named.sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null;
 }
 
