@@ -1,8 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { en } from "../i18n/en";
 import { commandToken, runCommand, type CommandId, type CommandRegistry } from "../types/chrome";
 import { type AssFieldName, type CueRow } from "../types/subtitle";
+import {
+  assFromRgb,
+  hexFromRgb,
+  hslFromRgb,
+  hsvFromRgb,
+  rgbFromHex,
+  rgbFromHsv,
+  roundedHsl,
+  roundedHsv,
+  type Hsv,
+} from "../colour";
 import {
   CHARACTER_LIMIT,
   CPS_LIMIT,
@@ -314,6 +333,23 @@ export default function CurrentLine({
   } | null>(null);
   /** What the picker's own field holds, kept between openings so a colour is typed once. */
   const [hex, setHex] = useState(PALETTE[0]);
+  /**
+   * The picker's own position, in HSV. Held rather than derived from `hex` on every render, because
+   * a grey has no hue: derived, the slider would swing to red the moment white was picked (C5).
+   */
+  const [hsv, setHsv] = useState<Hsv>(() =>
+    hsvFromRgb(rgbFromHex(PALETTE[0]) ?? { r: 0, g: 0, b: 0 }),
+  );
+  /** True while the square or the hue slider is being dragged, so a release can apply once. */
+  const dragging = useRef<"square" | "hue" | null>(null);
+  /**
+   * The colour the picker has moved to, read by the release that writes it.
+   *
+   * A ref rather than the `hex` state: a pointer released before React has committed the move would
+   * hand the writer the colour from the render before it, so the square would draw one colour and
+   * the line would take another. Found by the check, not by review.
+   */
+  const moved = useRef(PALETTE[0]);
   /** The transparency beside it. Empty on purpose: an empty field writes no transparency at all. */
   const [alpha, setAlpha] = useState("");
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -880,7 +916,42 @@ export default function CurrentLine({
    * number between 0 and 255: a half-typed field must not reach the line. The two go together as
    * one step, because choosing a colour is one thing a translator did. See B12.
    */
-  async function pickColour(slot: ColourSlot, value: string) {
+  /** Move the picker to a colour without writing it: the fields and the preview follow, the line
+   * does not. Writing happens when a gesture ends or a field is confirmed. */
+  function moveTo(next: Hsv) {
+    setHsv(next);
+    const written = hexFromRgb(rgbFromHsv(next));
+    moved.current = written;
+    setHex(written);
+  }
+
+  /** Where a pointer landed inside a box, as a fraction of it in each direction. */
+  function fractionIn(event: ReactPointerEvent<HTMLElement>): { x: number; y: number } {
+    const box = event.currentTarget.getBoundingClientRect();
+    return {
+      x: box.width === 0 ? 0 : Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)),
+      y: box.height === 0 ? 0 : Math.min(1, Math.max(0, (event.clientY - box.top) / box.height)),
+    };
+  }
+
+  /** A typed notation, whatever it was typed in, moved onto the picker. Keeps the hue a grey has
+   * none of, which is the whole reason the position is held rather than derived. */
+  function typedColour(value: string) {
+    const rgb = rgbFromHex(value);
+    if (rgb === null) {
+      return;
+    }
+    setHsv(hsvFromRgb(rgb, hsv.h));
+    setHex(
+      value.trim().toUpperCase().startsWith("#")
+        ? value.trim().toUpperCase()
+        : `#${value.trim().toUpperCase()}`,
+    );
+  }
+
+  /** `keepOpen` is what a drag inside the picker wants: the colour reaches the line and the picker
+   * stays up, so the next adjustment is one gesture rather than a reopen. */
+  async function pickColour(slot: ColourSlot, value: string, keepOpen = false) {
     const written = assColour(value);
     if (written === null) {
       return;
@@ -892,7 +963,9 @@ export default function CurrentLine({
     }
     const trimmed = value.trim().toUpperCase();
     setHex(trimmed.startsWith("#") ? trimmed : `#${trimmed}`);
-    setColourAt(null);
+    if (!keepOpen) {
+      setColourAt(null);
+    }
     const tags: [string, string][] = [[COLOUR_TAGS[slot], written]];
     if (transparency !== null) {
       tags.push([ALPHA_TAGS[slot], transparency]);
@@ -1266,6 +1339,9 @@ export default function CurrentLine({
           className="currentline__picker"
           ref={pickerRef}
           role="group"
+          // Focusable so a gesture inside it can put the focus here: after a drag on the square
+          // nothing focusable has been touched, and Escape sent to the body closes nothing.
+          tabIndex={-1}
           aria-label={en.subtitle.currentLine.colours[colourAt.slot]}
           style={{ left: colourAt.left, top: colourAt.top }}
           onKeyDown={(event) => {
@@ -1275,6 +1351,91 @@ export default function CurrentLine({
             }
           }}
         >
+          <div className="currentline__spectrum">
+            {/* Saturation across, value down, over the hue the slider holds. One gesture writes
+              once: the drag moves the picker and the release puts it on the line. */}
+            <div
+              className="currentline__square"
+              style={{ background: hexFromRgb(rgbFromHsv({ h: hsv.h, s: 1, v: 1 })) }}
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                pickerRef.current?.focus();
+                dragging.current = "square";
+                const at = fractionIn(event);
+                moveTo({ h: hsv.h, s: at.x, v: 1 - at.y });
+              }}
+              onPointerMove={(event) => {
+                if (dragging.current !== "square") {
+                  return;
+                }
+                const at = fractionIn(event);
+                moveTo({ h: hsv.h, s: at.x, v: 1 - at.y });
+              }}
+              onPointerUp={() => {
+                if (dragging.current !== "square") {
+                  return;
+                }
+                dragging.current = null;
+                void pickColour(colourAt.slot, moved.current, true);
+              }}
+            >
+              <span
+                className="currentline__thumb"
+                style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }}
+              />
+            </div>
+            <div
+              className="currentline__hue"
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                pickerRef.current?.focus();
+                dragging.current = "hue";
+                moveTo({ ...hsv, h: fractionIn(event).y * 360 });
+              }}
+              onPointerMove={(event) => {
+                if (dragging.current !== "hue") {
+                  return;
+                }
+                moveTo({ ...hsv, h: fractionIn(event).y * 360 });
+              }}
+              onPointerUp={() => {
+                if (dragging.current !== "hue") {
+                  return;
+                }
+                dragging.current = null;
+                void pickColour(colourAt.slot, moved.current, true);
+              }}
+            >
+              <span className="currentline__thumb" style={{ top: `${(hsv.h / 360) * 100}%` }} />
+            </div>
+            <span
+              className="currentline__preview"
+              aria-label={en.subtitle.currentLine.colourPreview}
+              style={{ background: hexFromRgb(rgbFromHsv(hsv)) }}
+            />
+          </div>
+          <dl className="currentline__notations">
+            <div className="currentline__notation currentline__ass">
+              <dt>{en.subtitle.currentLine.assNotation}</dt>
+              <dd>{assFromRgb(rgbFromHsv(hsv))}</dd>
+            </div>
+            <div className="currentline__notation currentline__rgb">
+              <dt>{en.subtitle.currentLine.rgbNotation}</dt>
+              <dd>{(({ r, g, b }) => `${r}, ${g}, ${b}`)(rgbFromHsv(hsv))}</dd>
+            </div>
+            <div className="currentline__notation currentline__hsv">
+              <dt>{en.subtitle.currentLine.hsvNotation}</dt>
+              <dd>{(({ h, s, v }) => `${h}, ${s}, ${v}`)(roundedHsv(hsv))}</dd>
+            </div>
+            <div className="currentline__notation currentline__hsl">
+              <dt>{en.subtitle.currentLine.hslNotation}</dt>
+              <dd>
+                {(({ h, s, l }) => `${h}, ${s}, ${l}`)(
+                  roundedHsl(hslFromRgb(rgbFromHsv(hsv), hsv.h)),
+                )}
+              </dd>
+            </div>
+          </dl>
           <div className="currentline__palette">
             {PALETTE.map((value) => (
               <button
@@ -1283,7 +1444,10 @@ export default function CurrentLine({
                 className="currentline__swatch"
                 style={{ background: value }}
                 aria-label={value}
-                onClick={() => void pickColour(colourAt.slot, value)}
+                onClick={() => {
+                  typedColour(value);
+                  void pickColour(colourAt.slot, value);
+                }}
               />
             ))}
           </div>
@@ -1294,7 +1458,10 @@ export default function CurrentLine({
             data-document-editor=""
             value={hex}
             spellCheck={false}
-            onChange={(event) => setHex(event.target.value)}
+            onChange={(event) => {
+              setHex(event.target.value);
+              typedColour(event.target.value);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();

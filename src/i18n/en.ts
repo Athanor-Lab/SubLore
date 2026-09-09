@@ -745,6 +745,12 @@ export const en = {
         shadow: "Shadow colour",
       },
       /** The picker's own field, which takes a colour written the way the web writes one. */
+      /** The spectrum square, its hue slider and the swatch beside them (N39). */
+      colourPreview: "The colour chosen",
+      assNotation: "ASS",
+      rgbNotation: "RGB",
+      hsvNotation: "HSV",
+      hslNotation: "HSL",
       colourValue: "Colour, as #RRGGBB",
       /**
        * How see-through the colour is. ASS counts transparency and not opacity, so 0 is solid and
