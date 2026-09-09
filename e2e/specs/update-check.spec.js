@@ -124,8 +124,9 @@ describe("checking for updates", () => {
     );
     expect(said).toContain("9.9.9");
 
-    // The page the backend found, opened through the same launcher the Help links use. No browser
-    // opens under Xvfb, and the logged address is the whole of what a check can see.
+    // The page the backend found, opened through the same launcher the Help links use. The harness
+    // puts a launcher that goes nowhere in front of the real ones, so this records an address
+    // rather than opening it anywhere (lib/browserstub.js).
     await clickElement(toplevel, ".update__open");
     await waitFor(
       () =>
