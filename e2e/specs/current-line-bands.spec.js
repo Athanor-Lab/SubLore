@@ -220,6 +220,19 @@ function centreOf(selector) {
   }, selector);
 }
 
+/** Put a colour in the picker's own field, the way a person typing one would. */
+async function typeHex(value) {
+  await browser.execute((text) => {
+    const input = document.querySelector(".currentline__hex");
+    // Focused as well as filled: a key pressed afterwards has to land inside the picker, and
+    // Escape sent to the body closes nothing.
+    input.focus();
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(input, text);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, value);
+}
+
 async function clickElement(toplevel, selector) {
   const centre = await centreOf(selector);
   if (centre === null) {
@@ -1370,6 +1383,150 @@ describe("the current line's bands", () => {
     await clickElement(toplevel, ".toolbar__edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
+      message: "one undo to take the colour back off",
+    });
+  });
+
+  it("moves the square, the slider and every notation together, and a grey keeps its hue", async () => {
+    const caretBefore = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+    // The spectrum the picker did not have (N39). What is asserted is that the five ways of saying
+    // one colour agree, because that is the whole claim: they are one state drawn five times.
+    await caretBefore("harbour");
+    await clickElement(toplevel, ".currentline__colour-primary");
+    await waitFor(() => present(".currentline__picker"), {
+      timeout: 15000,
+      message: "the picker to open",
+    });
+
+    const spectrum = () =>
+      browser.execute(() => ({
+        squareLeft: document.querySelector(".currentline__square .currentline__thumb")?.style.left,
+        squareTop: document.querySelector(".currentline__square .currentline__thumb")?.style.top,
+        hueTop: document.querySelector(".currentline__hue .currentline__thumb")?.style.top,
+        preview: document.querySelector(".currentline__preview")?.style.background,
+        ass: document.querySelector(".currentline__ass dd")?.textContent,
+        rgb: document.querySelector(".currentline__rgb dd")?.textContent,
+        hsv: document.querySelector(".currentline__hsv dd")?.textContent,
+        hsl: document.querySelector(".currentline__hsl dd")?.textContent,
+      }));
+
+    await typeHex("#00FF00");
+    const green = await waitFor(
+      async () => {
+        const now = await spectrum();
+        return now.rgb === "0, 255, 0" ? now : null;
+      },
+      { timeout: 15000, message: "pure green to reach the notations" },
+    );
+    // Green is hue 120 of 360, so the slider sits a third of the way down, and the square's mark is
+    // in the corner where saturation is full and value is full. Read as numbers: how many digits a
+    // browser spells a percentage with is its business, and pinning the string tests the browser.
+    const percent = (value) => Number.parseFloat(value);
+    expect(percent(green.hueTop)).toBeCloseTo(100 / 3, 3);
+    expect(percent(green.squareLeft)).toBeCloseTo(100, 3);
+    expect(percent(green.squareTop)).toBeCloseTo(0, 3);
+    expect(green.ass).toBe("&H00FF00&");
+    expect(green.hsv).toBe("120, 100, 100");
+    expect(green.hsl).toBe("120, 100, 50");
+
+    // The case the picker is built around: a grey has no hue, so a picker that re-derived its state
+    // would swing the slider to red. The mark stays where green left it.
+    await typeHex("#808080");
+    const grey = await waitFor(
+      async () => {
+        const now = await spectrum();
+        return now.rgb === "128, 128, 128" ? now : null;
+      },
+      { timeout: 15000, message: "the grey to reach the notations" },
+    );
+    expect(percent(grey.hueTop)).toBeCloseTo(percent(green.hueTop), 3);
+    expect(percent(grey.squareLeft)).toBeCloseTo(0, 3);
+    expect(grey.hsv).toBe("120, 0, 50");
+
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+      timeout: 15000,
+      message: "the picker to close",
+    });
+  });
+
+  it("writes what the square was clicked on, and stays open for the next adjustment", async () => {
+    // Left open by a test that failed before its own Escape, a picker turns one red into two: the
+    // click below would toggle it shut rather than open.
+    if (await present(".currentline__picker")) {
+      pressKey("Escape");
+      await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+        timeout: 15000,
+        message: "a picker left open by an earlier test to close",
+      });
+    }
+    const lineText = () =>
+      browser.execute(() => document.querySelector(".currentline__text")?.value ?? null);
+    const caretBefore = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+    const before = await lineText();
+    await caretBefore("harbour");
+    await clickElement(toplevel, ".currentline__colour-primary");
+    await waitFor(() => present(".currentline__picker"), {
+      timeout: 15000,
+      message: "the picker to open",
+    });
+    // Not typed into the field: focusing it takes the caret out of the text box, and a colour
+    // written at no caret is written nowhere. What the picker starts on is whatever it was left on.
+    const notation = () =>
+      browser.execute(() => document.querySelector(".currentline__ass dd")?.textContent);
+    const started = await notation();
+
+    // The top left of the square is white at any hue: saturation nil, value full.
+    const corner = await browser.execute(() => {
+      const box = document.querySelector(".currentline__square")?.getBoundingClientRect();
+      const dpr = window.devicePixelRatio;
+      return box === undefined ? null : { x: (box.x + 3) * dpr, y: (box.y + 3) * dpr };
+    });
+    expect(corner).not.toBe(null);
+    clickAt(toplevel.absX + corner.x, toplevel.absY + corner.y);
+
+    // What reached the line is what the picker says it picked. Tying the two together is the claim;
+    // pinning a literal colour would pin where in the square three pixels land, which is the box's
+    // size and not the behaviour.
+    const picked = await waitFor(
+      async () => {
+        const said = await notation();
+        return said !== null && said !== started ? said : null;
+      },
+      { timeout: 20000, message: "the square's click to move the picker" },
+    );
+    await waitFor(async () => ((await lineText())?.includes(`{\\c${picked}}`) ? 1 : null), {
+      timeout: 20000,
+      message: `the colour the square was clicked on (${picked}) to reach the line`,
+    });
+    // A gesture inside the picker leaves it up: the next adjustment is one more gesture, not a
+    // reopen. A swatch still closes it, which the check above this one pins.
+    expect(await present(".currentline__picker")).toBe(true);
+
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+      timeout: 15000,
+      message: "the picker to close",
+    });
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await lineText()) === before ? 1 : null), {
+      timeout: 20000,
       message: "one undo to take the colour back off",
     });
   });
