@@ -56,6 +56,7 @@ import { useTranscription } from "./hooks/useTranscription";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
 import { en } from "./i18n/en";
 import { fill } from "./i18n/format";
+import { setWindowTitle, windowTitle } from "./title";
 import { commandFor, ownsTheKeyboard } from "./keyboard";
 import { narrowest, scrollbarWidth, widestRow } from "./measure";
 import { requestQuit } from "./quit";
@@ -1750,6 +1751,12 @@ export default function App() {
   /** Whether the open media has audio to draw, which is what two of the four layouts need. */
   const hasAudio = audio.tracks.length > 0;
   const dirty = subtitle.dirty || editorOpen || lineEdited;
+  // The window's own name, rewritten whenever either half of it changes (N57). Not a layout effect:
+  // the title is chrome outside the page and nothing on screen is measured against it.
+  const documentPath = subtitle.summary?.path ?? null;
+  useEffect(() => {
+    void setWindowTitle(windowTitle(documentPath, dirty));
+  }, [documentPath, dirty]);
   const blocked = subtitle.blockedPath !== null || subtitle.blockedNew;
   // Whatever the stored layout says, and following until it says otherwise: the panel is decoration
   // on any file longer than its own window if it does not follow the line.

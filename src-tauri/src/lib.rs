@@ -22,6 +22,7 @@ pub mod project;
 pub mod recent;
 pub mod strings;
 pub mod subtitle;
+pub mod title;
 pub mod update;
 pub mod video;
 
@@ -287,6 +288,7 @@ pub fn run() -> tauri::Result<()> {
             modules::module_report,
             startup_files_command,
             help::open_help_link,
+            title::window_title_set,
             quit
         ])
         .setup(move |app| {
