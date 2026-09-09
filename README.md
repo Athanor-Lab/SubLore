@@ -71,6 +71,8 @@ Install the Microsoft C++ Build Tools with the "Desktop development with C++" wo
 
 macOS is not a target for v1.
 
+Sublore releases on Linux. Windows compiles on every push and must never be allowed to break, but compiling is not verifying: the behavioural suite runs on Linux, so this README describes Linux and says nothing about how Sublore behaves anywhere else.
+
 ## Development
 
 ```sh
@@ -80,12 +82,11 @@ pnpm tauri dev
 
 ## Subtitle files
 
-Sublore opens SRT, VTT and ASS files, shows the format, the cue count and the line endings, and lists the cues. A cue's text can be edited in place, with undo and redo, and the file can be saved over itself or as a copy elsewhere. Timing, the side-by-side view and everything the termbase needs are not built yet.
+Sublore opens SRT, VTT and ASS files, shows the format, the cue count and the line endings, and lists the cues. A cue's text can be edited in place, with undo and redo, and the file can be saved over itself or as a copy elsewhere. It plays the video beside the list, draws the sound as a waveform with the current cue's start and end marked on it, and opens a second document as the source to translate from. Everything the termbase needs is not built yet.
 
 A file is written only when you ask for it, by saving. Both routes — over the file you opened, and as a copy elsewhere — write atomically: a temporary file first, then a rename, so the destination is always either the old file or the new one and never something in between. Whatever was there before is kept as a timestamped backup, inside Sublore's own folder rather than next to your file:
 
 - Linux: `~/.local/share/com.sublore.app/backups/`
-- Windows: `%APPDATA%\com.sublore.app\backups\`
 
 Ten backups are kept per file. Nothing else deletes them; removing them is your call.
 
@@ -114,8 +115,9 @@ Two things have to be on the machine before it will run:
 "Use GPU when available" runs the Vulkan binary. Without one, or when a GPU run fails, Sublore runs
 the CPU binary instead and says on screen that it did. The CPU path always works.
 
-Models are yours to fetch, and nothing is fetched until you press Download: Sublore opens no network
-connection of any other kind. A download is checked against a known size and SHA-256 when it
+Models are yours to fetch, and nothing is fetched until you press Download. The only other time
+Sublore opens a connection is Help's Check for updates, which asks once, when you press it, and
+never on its own. A download is checked against a known size and SHA-256 when it
 finishes, and is only then given its real name, so a file that fails its checksum is never handed to
 whisper; an interrupted one resumes where it stopped. Before each run the model is checked again,
 its size and its SHA-256 both, which is what catches a file damaged after it arrived: whisper loads a
@@ -124,7 +126,6 @@ says so instead. Downloading that model again replaces the damaged file. Models 
 data:
 
 - Linux: `~/.local/share/com.sublore.app/models/`
-- Windows: `%APPDATA%\com.sublore.app\models\`
 
 Your video and audio files are only ever read. The audio Sublore extracts goes into a scratch folder
 inside its own data directory and is deleted when the run ends, whether it finished or you stopped
@@ -135,7 +136,6 @@ it. Cancelling kills the transcription process; closing Sublore mid-run does too
 Sublore writes a log file, and a crash report if it ever crashes. Both stay on your machine: nothing is sent anywhere.
 
 - Linux: `~/.local/share/com.sublore.app/logs/`
-- Windows: `%LOCALAPPDATA%\com.sublore.app\logs\`
 
 The log is `sublore.log`, capped at 2 MB with two older files kept beside it. A crash appends to `crash.log` in the same folder, so earlier crashes are not lost, and moves it to `crash.log.1` once it passes 256 KB. If Sublore crashes before it has resolved that folder, the report goes to `sublore-crash.log` in the system temp directory instead.
 

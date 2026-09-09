@@ -33,6 +33,11 @@ jobs:
       - name: Check for forbidden vocabulary
         run: scripts/check-vocabulary.sh
 
+      # Three files carry the version and a tag carries a fourth claim about it. Nothing checked
+      # that they agree, so About could name a version the packages do not carry.
+      - name: Check the version is one number
+        run: .github/scripts/check-version.sh
+
   check:
     name: check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -609,3 +614,36 @@ jobs:
 
       - name: Install the rpm and start what it installed
         run: .github/scripts/package-smoke-rpm.sh installers/rpm/*.rpm
+
+  # A tag is the only thing here that publishes, and it publishes a draft. The owner's hand run in
+  # owner-run-v1.md happens against the very files a user would download, before anyone can reach
+  # them; publishing the draft is a button they press afterwards.
+  #
+  # Behind the two package smoke jobs on purpose: a package that cannot be installed must never
+  # reach a release page, and those two are what answer that.
+  release:
+    name: release (draft)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [vocabulary, check, e2e, package-smoke, package-smoke-rpm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The three Linux bundles and nothing else. The Windows installers this workflow also builds
+      # are deliberately absent: v1 releases on Linux alone (owner ruling 2026-09-04), and an
+      # installer nobody has ever run is exactly the Windows claim that ruling forbids.
+      - name: Download the Linux packages
+        uses: actions/download-artifact@v7
+        with:
+          pattern: linux-*
+          merge-multiple: true
+          path: packages
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/draft-release.sh "${GITHUB_REF_NAME}" packages
