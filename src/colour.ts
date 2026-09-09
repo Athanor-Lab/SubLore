@@ -148,3 +148,69 @@ export function roundedHsv({ h, s, v }: Hsv): { h: number; s: number; v: number 
 export function roundedHsl({ h, s, l }: Hsl): { h: number; s: number; l: number } {
   return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
 }
+
+/** The five ways the reference draws the square, in the order its dropdown lists them. */
+export const SPECTRUM_MODES = ["rgbR", "rgbG", "rgbB", "hslL", "hsvH"] as const;
+
+export type SpectrumMode = (typeof SPECTRUM_MODES)[number];
+
+/**
+ * What each mode puts on each axis, read from the reference's own generators: the outer loop fills
+ * rows and the inner fills columns, so the outer quantity is the vertical axis and both run from
+ * nothing at the top left to full at the bottom right.
+ *
+ * Two of them are not what the name suggests. `hslL` puts the hue on the square's vertical axis and
+ * the lightness on the slider; `hsvH` puts the hue on the slider. They are opposite ways of
+ * reaching the same colour.
+ */
+export const AXES: Record<SpectrumMode, { x: string; y: string; slider: string }> = {
+  rgbR: { x: "blue", y: "green", slider: "red" },
+  rgbG: { x: "blue", y: "red", slider: "green" },
+  rgbB: { x: "green", y: "red", slider: "blue" },
+  hslL: { x: "saturation", y: "hue", slider: "lightness" },
+  hsvH: { x: "saturation", y: "value", slider: "hue" },
+};
+
+/** Where a colour sits in a mode's square and on its slider, each 0 to 1. */
+export function positionIn(mode: SpectrumMode, hsv: Hsv): { x: number; y: number; slider: number } {
+  const rgb = rgbFromHsv(hsv);
+  const hsl = hslFromRgb(rgb, hsv.h);
+  switch (mode) {
+    case "rgbR":
+      return { x: rgb.b / 255, y: rgb.g / 255, slider: rgb.r / 255 };
+    case "rgbG":
+      return { x: rgb.b / 255, y: rgb.r / 255, slider: rgb.g / 255 };
+    case "rgbB":
+      return { x: rgb.g / 255, y: rgb.r / 255, slider: rgb.b / 255 };
+    case "hslL":
+      return { x: hsl.s, y: hsl.h / 360, slider: hsl.l };
+    default:
+      return { x: hsv.s, y: hsv.v, slider: hsv.h / 360 };
+  }
+}
+
+/** The colour at a place in a mode's square, with the slider where it is. */
+export function colourAt(mode: SpectrumMode, at: { x: number; y: number; slider: number }): Rgb {
+  const byte255 = (value: number) => byte(clamp(value, 0, 1) * 255);
+  switch (mode) {
+    case "rgbR":
+      return { r: byte255(at.slider), g: byte255(at.y), b: byte255(at.x) };
+    case "rgbG":
+      return { r: byte255(at.y), g: byte255(at.slider), b: byte255(at.x) };
+    case "rgbB":
+      return { r: byte255(at.y), g: byte255(at.x), b: byte255(at.slider) };
+    case "hslL":
+      return rgbFromHsl({ h: at.y * 360, s: at.x, l: at.slider });
+    default:
+      return rgbFromHsv({ h: at.slider * 360, s: at.x, v: at.y });
+  }
+}
+
+/** The colour along a mode's slider, with the square where it is. */
+export function sliderColourAt(
+  mode: SpectrumMode,
+  at: { x: number; y: number },
+  slider: number,
+): Rgb {
+  return colourAt(mode, { ...at, slider });
+}

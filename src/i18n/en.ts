@@ -746,6 +746,15 @@ export const en = {
       },
       /** The picker's own field, which takes a colour written the way the web writes one. */
       /** The spectrum square, its hue slider and the swatch beside them (N39). */
+      /** The dropdown above the square, and the five it offers in the reference's order (N53). */
+      spectrumMode: "Spectrum mode",
+      spectrumModes: {
+        rgbR: "RGB/R",
+        rgbG: "RGB/G",
+        rgbB: "RGB/B",
+        hslL: "HSL/L",
+        hsvH: "HSV/H",
+      },
       colourPreview: "The colour chosen",
       assNotation: "ASS",
       rgbNotation: "RGB",

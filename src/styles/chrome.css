@@ -1033,36 +1033,30 @@
   align-items: flex-start;
 }
 
+/* The square and the slider are painted per pixel now, so the box carries no gradient of its own. */
 .currentline__square {
-  position: relative;
   width: 9rem;
   height: 6rem;
   /* Black at the top, full value at the bottom, which is the way round the reference draws it:
      its generator fills rows with the value rising from 0 downward. Web pickers usually do the
      opposite, and this was built that way first. */
-  background-image:
-    linear-gradient(to bottom, #000, rgb(0 0 0 / 0%)),
-    linear-gradient(to right, #fff, rgb(255 255 255 / 0%));
   cursor: crosshair;
   touch-action: none;
 }
 
 .currentline__hue {
-  position: relative;
   width: 0.9rem;
   height: 6rem;
-  background: linear-gradient(
-    to bottom,
-    #f00 0%,
-    #ff0 17%,
-    #0f0 33%,
-    #0ff 50%,
-    #00f 67%,
-    #f0f 83%,
-    #f00 100%
-  );
   cursor: crosshair;
   touch-action: none;
+}
+
+/* Each canvas gets a box of its own, so a mark placed in per cent is placed against that canvas
+   rather than against the whole row. */
+.currentline__square-box,
+.currentline__hue-box {
+  position: relative;
+  line-height: 0;
 }
 
 /* One mark for both, placed by whichever axes its parent uses. */

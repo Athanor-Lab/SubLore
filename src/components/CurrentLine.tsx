@@ -12,6 +12,10 @@ import { en } from "../i18n/en";
 import { commandToken, runCommand, type CommandId, type CommandRegistry } from "../types/chrome";
 import { type AssFieldName, type CueRow } from "../types/subtitle";
 import {
+  colourAt as colourInMode,
+  positionIn,
+  SPECTRUM_MODES,
+  type SpectrumMode,
   assFromRgb,
   hexFromRgb,
   hslFromRgb,
@@ -38,6 +42,9 @@ import {
 } from "./cueView";
 
 type CurrentLineProps = {
+  /** Which way the picker draws its square, remembered in the layout (N53). */
+  spectrumMode: SpectrumMode;
+  onSpectrumMode: (mode: SpectrumMode) => void;
   /** The row the cursor is on, or null while the document has none. */
   index: number | null;
   cue: CueRow | null;
@@ -135,6 +142,10 @@ function assAlpha(typed: string): string | null {
 }
 
 /** What the picker offers without typing: the sixteen a subtitle is actually coloured with. */
+/** How many pixels each side of the painted square is. The reference paints 256; this is the same
+ * square at the size the panel gives it, and the axes are fractions either way. */
+const SQUARE_SIZE = 128;
+
 const PALETTE = [
   "#FFFFFF",
   "#C0C0C0",
@@ -261,6 +272,8 @@ function byteOffset(text: string, at: number): number {
  * before M2.4, and a panel with no provider takes no space.
  */
 export default function CurrentLine({
+  spectrumMode,
+  onSpectrumMode,
   index,
   cue,
   multiline,
@@ -350,6 +363,8 @@ export default function CurrentLine({
    * the line would take another. Found by the check, not by review.
    */
   const moved = useRef(PALETTE[0]);
+  const squareRef = useRef<HTMLCanvasElement>(null);
+  const sliderRef = useRef<HTMLCanvasElement>(null);
   /** The transparency beside it. Empty on purpose: an empty field writes no transparency at all. */
   const [alpha, setAlpha] = useState("");
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -748,6 +763,55 @@ export default function CurrentLine({
     }
   }
 
+  // Above the early return below, and it has to be: a hook underneath it stops existing the
+  // moment the panel has no line, and the render after one appears then has more hooks than the
+  // one before it. That is React error #310, and it is what this was.
+  /** Where the picker's colour sits in the mode being drawn. */
+  const place = positionIn(spectrumMode, hsv);
+  const { x: squareX, y: squareY, slider: sliderAt } = place;
+
+  // Painted rather than stacked out of gradients: three of the five modes are a sum of two channels
+  // over a third, which gradients cannot express, and the reference fills a bitmap for the same
+  // reason. Redrawn when the mode changes and when the slider moves, because the slider is what the
+  // square is drawn against.
+  useEffect(() => {
+    const square = squareRef.current?.getContext("2d");
+    if (square != null) {
+      const image = square.createImageData(SQUARE_SIZE, SQUARE_SIZE);
+      for (let y = 0; y < SQUARE_SIZE; y += 1) {
+        for (let x = 0; x < SQUARE_SIZE; x += 1) {
+          const shade = colourInMode(spectrumMode, {
+            x: x / (SQUARE_SIZE - 1),
+            y: y / (SQUARE_SIZE - 1),
+            slider: sliderAt,
+          });
+          const at = (y * SQUARE_SIZE + x) * 4;
+          image.data[at] = shade.r;
+          image.data[at + 1] = shade.g;
+          image.data[at + 2] = shade.b;
+          image.data[at + 3] = 255;
+        }
+      }
+      square.putImageData(image, 0, 0);
+    }
+    const bar = sliderRef.current?.getContext("2d");
+    if (bar != null) {
+      const image = bar.createImageData(1, SQUARE_SIZE);
+      for (let y = 0; y < SQUARE_SIZE; y += 1) {
+        const shade = colourInMode(spectrumMode, {
+          x: squareX,
+          y: squareY,
+          slider: y / (SQUARE_SIZE - 1),
+        });
+        image.data[y * 4] = shade.r;
+        image.data[y * 4 + 1] = shade.g;
+        image.data[y * 4 + 2] = shade.b;
+        image.data[y * 4 + 3] = 255;
+      }
+      bar.putImageData(image, 0, 0);
+    }
+  }, [spectrumMode, sliderAt, squareX, squareY]);
+
   if (cue === null) {
     return (
       <section className="currentline" aria-label={en.subtitle.currentLine.label}>
@@ -923,6 +987,18 @@ export default function CurrentLine({
     const written = hexFromRgb(rgbFromHsv(next));
     moved.current = written;
     setHex(written);
+  }
+
+  /** A point in the square, read as the colour that mode puts there. */
+  function fromSquare(at: { x: number; y: number }) {
+    moveTo(
+      hsvFromRgb(colourInMode(spectrumMode, { x: at.x, y: at.y, slider: place.slider }), hsv.h),
+    );
+  }
+
+  /** A point on the slider, read the same way. */
+  function fromSlider(slider: number) {
+    moveTo(hsvFromRgb(colourInMode(spectrumMode, { x: place.x, y: place.y, slider }), hsv.h));
   }
 
   /** Where a pointer landed inside a box, as a fraction of it in each direction. */
@@ -1351,62 +1427,82 @@ export default function CurrentLine({
             }
           }}
         >
+          <label className="currentline__mode">
+            <span>{en.subtitle.currentLine.spectrumMode}</span>
+            <select
+              className="currentline__mode-choice"
+              value={spectrumMode}
+              onChange={(event) => onSpectrumMode(event.target.value as SpectrumMode)}
+            >
+              {SPECTRUM_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {en.subtitle.currentLine.spectrumModes[mode]}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="currentline__spectrum">
             {/* Saturation across, value down, over the hue the slider holds. One gesture writes
               once: the drag moves the picker and the release puts it on the line. */}
-            <div
-              className="currentline__square"
-              style={{ background: hexFromRgb(rgbFromHsv({ h: hsv.h, s: 1, v: 1 })) }}
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                pickerRef.current?.focus();
-                dragging.current = "square";
-                const at = fractionIn(event);
-                moveTo({ h: hsv.h, s: at.x, v: at.y });
-              }}
-              onPointerMove={(event) => {
-                if (dragging.current !== "square") {
-                  return;
-                }
-                const at = fractionIn(event);
-                moveTo({ h: hsv.h, s: at.x, v: at.y });
-              }}
-              onPointerUp={() => {
-                if (dragging.current !== "square") {
-                  return;
-                }
-                dragging.current = null;
-                void pickColour(colourAt.slot, moved.current, true);
-              }}
-            >
+            <div className="currentline__square-box">
+              <canvas
+                className="currentline__square"
+                ref={squareRef}
+                width={SQUARE_SIZE}
+                height={SQUARE_SIZE}
+                onPointerDown={(event) => {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  pickerRef.current?.focus();
+                  dragging.current = "square";
+                  fromSquare(fractionIn(event));
+                }}
+                onPointerMove={(event) => {
+                  if (dragging.current === "square") {
+                    fromSquare(fractionIn(event));
+                  }
+                }}
+                onPointerUp={() => {
+                  if (dragging.current !== "square") {
+                    return;
+                  }
+                  dragging.current = null;
+                  void pickColour(colourAt.slot, moved.current, true);
+                }}
+              />
               <span
-                className="currentline__thumb"
-                style={{ left: `${hsv.s * 100}%`, top: `${hsv.v * 100}%` }}
+                className="currentline__thumb currentline__square-thumb"
+                style={{ left: `${place.x * 100}%`, top: `${place.y * 100}%` }}
               />
             </div>
-            <div
-              className="currentline__hue"
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                pickerRef.current?.focus();
-                dragging.current = "hue";
-                moveTo({ ...hsv, h: fractionIn(event).y * 360 });
-              }}
-              onPointerMove={(event) => {
-                if (dragging.current !== "hue") {
-                  return;
-                }
-                moveTo({ ...hsv, h: fractionIn(event).y * 360 });
-              }}
-              onPointerUp={() => {
-                if (dragging.current !== "hue") {
-                  return;
-                }
-                dragging.current = null;
-                void pickColour(colourAt.slot, moved.current, true);
-              }}
-            >
-              <span className="currentline__thumb" style={{ top: `${(hsv.h / 360) * 100}%` }} />
+            <div className="currentline__hue-box">
+              <canvas
+                className="currentline__hue"
+                ref={sliderRef}
+                width={1}
+                height={SQUARE_SIZE}
+                onPointerDown={(event) => {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  pickerRef.current?.focus();
+                  dragging.current = "hue";
+                  fromSlider(fractionIn(event).y);
+                }}
+                onPointerMove={(event) => {
+                  if (dragging.current === "hue") {
+                    fromSlider(fractionIn(event).y);
+                  }
+                }}
+                onPointerUp={() => {
+                  if (dragging.current !== "hue") {
+                    return;
+                  }
+                  dragging.current = null;
+                  void pickColour(colourAt.slot, moved.current, true);
+                }}
+              />
+              <span
+                className="currentline__thumb currentline__hue-thumb"
+                style={{ top: `${place.slider * 100}%` }}
+              />
             </div>
             <span
               className="currentline__preview"

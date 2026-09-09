@@ -3237,6 +3237,8 @@ export default function App() {
               )}
               <CurrentLine
                 key={subtitle.openId}
+                spectrumMode={layout?.spectrumMode ?? "hsvH"}
+                onSpectrumMode={(mode) => storeLayout({ spectrumMode: mode })}
                 index={selection.active}
                 cue={activeCue}
                 multiline={subtitle.summary?.format !== "ass"}

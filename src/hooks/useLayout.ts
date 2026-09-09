@@ -19,7 +19,12 @@ export type Layout = {
   videoFollowSelection: boolean;
   /** Which panels the window draws, as the View menu's four radios name them. */
   panels: PanelLayout;
+  /** Which way the colour picker draws its square. See BACKLOG.md N53. */
+  spectrumMode: SpectrumMode;
 };
+
+/** The five the picker's own dropdown offers, in its order. Kept in step with `layout.rs`. */
+export type SpectrumMode = "rgbR" | "rgbG" | "rgbB" | "hslL" | "hsvH";
 
 /** The four the View menu offers. See interface-spec 3.7. */
 export type PanelLayout = "gridOnly" | "videoGrid" | "waveformGrid" | "full";
