@@ -17,7 +17,12 @@ import {
   stubPid,
 } from "../lib/asr.js";
 import { answerChooser, cancelChooser, findChooser, waitForChooser } from "../lib/chooser.js";
-import { answerDialog, waitForUnsavedDialog, waitForUnsavedDialogGone } from "../lib/gtk-dialog.js";
+import {
+  answerDialog,
+  findUnsavedDialog,
+  waitForUnsavedDialog,
+  waitForUnsavedDialogGone,
+} from "../lib/gtk-dialog.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import {
   closeWindowTool,
@@ -25,10 +30,11 @@ import {
   requireCloseWindowTool,
   requireVideoFixture,
   windowHeight,
+  windowTitle,
   windowWidth,
 } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { findToplevel } from "../lib/x11.js";
+import { findToplevel, findWindowsWithAppGeometry, rootTree } from "../lib/x11.js";
 
 /** What the status line says before anything has been transcribed. */
 const IDLE_STATUS = "No transcription yet.";
@@ -206,6 +212,67 @@ async function editRow(toplevel, position, text) {
   await waitFor(async () => ((await present(".statusbar__dirty")) ? true : null), {
     timeout: 20000,
     message: `the document to be unsaved after row ${position} was committed`,
+  });
+}
+
+/** What the window calls a document that has never had a file (N57). */
+const UNTITLED = "Untitled";
+
+/**
+ * The document half of the window's name: the unsaved mark and the app's own tail taken off.
+ *
+ * This is the only place the shell says whether the open document has a file, which is why the
+ * checks below could not assert their own precondition until the window carried it (M3.7, N57).
+ */
+function documentInWindowName() {
+  const windows = findWindowsWithAppGeometry();
+  const name = windows.length === 1 ? windows[0].name : null;
+  const suffix = ` - ${windowTitle}`;
+  if (typeof name !== "string" || !name.endsWith(suffix)) {
+    return null;
+  }
+  return name.slice(0, -suffix.length).replace(/^\* /, "");
+}
+
+/**
+ * Wait until the open document is the one the check needs, named rather than inherited.
+ *
+ * On CI run 33537893939 the four first-save checks reached this point with a document that had a
+ * file, waited twenty seconds for a chooser Save had no reason to open, and reported a timeout that
+ * said nothing about why. This says why (M3.7).
+ */
+async function expectOpenDocument(expected, before) {
+  await waitFor(() => (documentInWindowName() === expected ? true : null), {
+    timeout: 20000,
+    message: `the open document to be ${JSON.stringify(expected)} before ${before}`,
+  }).catch((error) => {
+    throw new Error(
+      `${error.message}\nthe window calls it ${JSON.stringify(documentInWindowName())}\n` +
+        `${rootTree()}`,
+    );
+  });
+}
+
+/**
+ * A transcription this check made itself, on a document that has never had a file.
+ *
+ * The first-save checks used to inherit that state from a run several checks earlier. Whatever is
+ * on screen is usually unsaved work, and a run asks before it takes its place, so the question is
+ * answered when it comes and not waited for when it does not.
+ */
+async function aFreshTranscription(toplevel) {
+  setStubMode("fast");
+  await startRun(toplevel);
+  await waitForStatus(" cues");
+  const dialog = await waitFor(findUnsavedDialog, { timeout: 5000 }).catch(() => null);
+  if (dialog !== null) {
+    answerDialog(dialog, "discard");
+    await waitForUnsavedDialogGone("Discard");
+    focusWindow(toplevel.id);
+  }
+  await waitFor(async () => ((await present(".statusbar__dirty")) === true ? true : null), {
+    timeout: 30000,
+    message: "the new transcription to become the open document",
   });
 }
 
@@ -572,9 +639,12 @@ describe("transcription", () => {
     expect(await textOf(".asrbar__error")).toBe(null);
   });
 
-  // Decision 24, B2: the document on screen is the transcription the CPU run left, and it has
-  // never had a file. These four drive its first save through the window.
+  // Decision 24, B2: these four drive a document that has never had a file through its first save.
+  // The head of the chain makes its own rather than inheriting the CPU run's, and all four say what
+  // they are working on before they act (M3.7).
   it("asks a document with no file where it goes, and cancelling writes nothing", async () => {
+    await aFreshTranscription(toplevel);
+    await expectOpenDocument(UNTITLED, "asking a document with no file where it goes");
     expect(await present(".statusbar__dirty")).toBe(true);
 
     await clickElement(toplevel, ".toolbar__file-save");
@@ -590,6 +660,8 @@ describe("transcription", () => {
   });
 
   it("writes it where the chooser was answered, and it is not unsaved work any more", async () => {
+    // The check above cancelled, so the document still has no file: asserted, not assumed.
+    await expectOpenDocument(UNTITLED, "answering the chooser it opens");
     adopted = path.join(firstSaveDir, "first-save.srt");
     const firstCue = await rowText(1);
     expect(words(firstCue).length).toBeGreaterThan(0);
@@ -611,6 +683,9 @@ describe("transcription", () => {
   });
 
   it("writes to that same file on Ctrl+S afterwards, with no chooser", async () => {
+    // The opposite precondition, and the one that makes this check mean anything: the document has
+    // the file the check before it gave it, so Ctrl+S has somewhere to write without asking.
+    await expectOpenDocument(path.basename(adopted), "editing the line it saves");
     await editRow(toplevel, 1, AFTER_FIRST_SAVE);
     expect(await present(".statusbar__dirty")).toBe(true);
 
@@ -638,6 +713,7 @@ describe("transcription", () => {
       timeout: 30000,
       message: "the new transcription to become the open document",
     });
+    await expectOpenDocument(UNTITLED, "the close gate is asked to save it");
     const before = readdirSync(firstSaveDir);
 
     execFileSync("python3", [closeWindowTool, toplevel.id], { stdio: "inherit", timeout: 15000 });
