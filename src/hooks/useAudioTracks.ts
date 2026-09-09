@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
+import { en } from "../i18n/en";
 
 /** One of the open media's audio tracks, as `src-tauri/src/video/player.rs` reports it. */
 export type AudioTrack = {
@@ -32,6 +33,8 @@ const NO_TRACKS: AudioTrackList = { tracks: [], currentId: null };
 export function useAudioTracks(
   path: string | null,
   ready: boolean,
+  /** Says a refusal on the status bar's timed slot: this hook has no surface of its own. */
+  onRefused: (text: string) => void,
 ): {
   tracks: AudioTrack[];
   currentId: number | null;
@@ -67,17 +70,25 @@ export function useAudioTracks(
     };
   }, [path, ready]);
 
-  const switchTo = useCallback((id: number) => {
-    void invoke<AudioTrackList>("audio_switch_track", { id })
-      .then(setList)
-      .catch(() => {
-        // The waveform's own failure line covers a switch that could not be peaked; a menu that
-        // silently keeps its old mark would be the worse answer, so the list is asked again.
-        void invoke<AudioTrackList>("audio_tracks")
-          .then(setList)
-          .catch(() => undefined);
-      });
-  }, []);
+  const switchTo = useCallback(
+    (id: number) => {
+      void invoke<AudioTrackList>("audio_switch_track", { id })
+        .then(setList)
+        .catch(() => {
+          // The waveform's failure line covers one half of this, a switch whose peak job started
+          // and then failed. It does not cover the other: a switch refused before any job exists
+          // emits no event at all, so the waveform says nothing and the command did nothing in
+          // silence. That half is said here. See BACKLOG.md N27.
+          onRefused(en.audio.switchRefused);
+          // And the menu is asked again, because one that silently keeps its old mark would be
+          // claiming a track the app is not drawing.
+          void invoke<AudioTrackList>("audio_tracks")
+            .then(setList)
+            .catch(() => undefined);
+        });
+    },
+    [onRefused],
+  );
 
   return { tracks: list.tracks, currentId: list.currentId, switchTo };
 }

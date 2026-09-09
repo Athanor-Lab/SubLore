@@ -460,7 +460,9 @@ export default function App() {
     step: stepVideo,
     setRegion,
   } = useVideoPlayer(layers.covered);
-  const audio = useAudioTracks(state.path, state.status === "ready");
+  // Above the hooks that need it: a hook that says something has to be able to say it.
+  const [notice, say] = useTimedMessage();
+  const audio = useAudioTracks(state.path, state.status === "ready", say);
   // The videos opened lately: read once, drawn as the Video menu's recent list, and remembered on
   // every open however it happens, so the list is right whether a video came from the chooser, the
   // command line or the list itself. See recent.rs and interface-spec 3.5 item 3.
@@ -809,7 +811,6 @@ export default function App() {
   /** How the grid draws override tags. Shown as the file spells them until told otherwise. */
   const [tagMode, setTagMode] = useState<TagMode>("show");
   // The status bar's timed slot: a sentence a command pushes, cleared by its own clock (1.5).
-  const [notice, say] = useTimedMessage();
   /** Which declared style the editor is open over, or null while it is closed. See B10. */
   const [editingStyle, setEditingStyle] = useState<number | null>(null);
   /** What Video details is showing, and nothing on screen while it is null. */
