@@ -32,7 +32,6 @@ import path from "node:path";
 import process from "node:process";
 
 import { requireAppBinary, requireDisplay, requireTool } from "../lib/paths.js";
-import { requireFfmpeg } from "../lib/pixels.js";
 import { killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
 import { allWindows, mapState, rootTree } from "../lib/x11.js";
 
@@ -186,7 +185,7 @@ function requireUncontaminatedEnvironment() {
 async function main() {
   requireDisplay();
   requireAppBinary();
-  requireFfmpeg();
+  requireTool("ffmpeg", "measure the luma of the capture, which is what this check reads");
   requireTool("import", "capture the app's own window, which a root grab cannot do under XWayland");
   requireUncontaminatedEnvironment();
 

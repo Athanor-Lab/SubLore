@@ -7,9 +7,10 @@ at the window.
 Tools the harness needs on PATH: `xdotool`, `xwininfo`, `python3` with python-xlib, and `ffmpeg`.
 ffmpeg is there for the app, not for the harness: `asr.spec.js` transcribes audio the app really
 extracts from `sample.mkv` with it, which is why `wdio.conf.js` requires it at load and says so in
-the same line. No spec measures pixels — `lib/pixels.js`'s `saturation()` has no caller left, and
-`video-surface.spec.js`'s own header says why the picture is not asserted under Xvfb, and
-`preview.spec.js` asserts mpv's own read-back of the overlay it holds for the same reason. xdotool,
+the same line. No spec measures pixels: `video-surface.spec.js`'s own header says why the picture is not
+asserted under Xvfb, and `preview.spec.js` asserts mpv's own read-back of the overlay it
+holds for the same reason. The one check that does read pixels is `webview-paint-check.js`,
+which is a script and not a spec. xdotool,
 xwininfo and ffmpeg are each checked before any spec starts, so a missing one is a sentence naming it
 rather than a timeout inside whichever spec needed it first.
 

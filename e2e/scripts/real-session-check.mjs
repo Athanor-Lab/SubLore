@@ -19,9 +19,9 @@
  * Needs the owner's own Wayland session, so it does not run in CI and has no `pnpm` script entry;
  * invoke it by hand: `node e2e/scripts/real-session-check.mjs`.
  *
- * Saturation is measured inline rather than through `e2e/lib/pixels.js`'s `saturation()`: that
- * helper captures with `x11grab` on the X root, which reads black here (measured) because this
- * XWayland is rootless and holds no desktop. The two share the signalstats parse, not the capture.
+ * Saturation is measured inline. The obvious capture, `x11grab` on the X root, reads black here
+ * (measured) because this XWayland is rootless and holds no desktop, so the window is grabbed
+ * by name instead and only the signalstats parse is shared with the other pixel check.
  */
 import { spawnSync, spawn } from "node:child_process";
 import console from "node:console";
