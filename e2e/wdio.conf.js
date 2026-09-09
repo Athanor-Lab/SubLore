@@ -127,7 +127,7 @@ export const config = {
   // Two, not four. The state that made this unsafe is gone (N19) and every spec now passes alone,
   // so what is left to find out is what parallel load does to the checks that measure time. Two is
   // the smallest number that can answer it, and the number moves once it has. See N24.
-  maxInstances: 2,
+  maxInstances: 4,
   /**
    * One retry of a whole spec file, on the shared runner only. Five CI runs on 2026-09-06 each
    * failed exactly one check and a different one every time, all of them timing, none of them
