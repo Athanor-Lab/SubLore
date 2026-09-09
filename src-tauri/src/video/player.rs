@@ -1072,7 +1072,18 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                     .lock()
                     .ok()
                     .and_then(|mut target| target.take_if(|end| position >= *end))
-                    .is_some();
+                    .is_some_and(|end| {
+                        // Said out loud, because nothing else can see it. The harness reads the
+                        // transport slider, which is the copy the throttle below hands the
+                        // interface, and that lags by up to the tenth this branch exists to avoid:
+                        // through that instrument a stop checked here and a stop checked there are
+                        // the same reading. This line is mpv's own account, and it makes the frame
+                        // precision assertable. See BACKLOG.md N20.
+                        log::info!(
+                            "playback: range stopped at {position:.3} for a target of {end:.3}"
+                        );
+                        true
+                    });
                 if stopping {
                     shared.asked_paused.store(true, Ordering::Relaxed);
                     if let Err(error) = mpv.set_property("pause", true) {
