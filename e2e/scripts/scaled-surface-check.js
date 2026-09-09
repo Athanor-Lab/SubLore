@@ -31,8 +31,19 @@ import {
   requireVideoFixture,
   videoFixture,
 } from "../lib/paths.js";
-import { killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
+import { describeProcesses, killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
 import { allWindows, childWindows, mapState, rootTree } from "../lib/x11.js";
+
+/**
+ * How long the app's own children get to finish leaving after it has exited.
+ *
+ * Sixty seconds and not the ten this used to be, because ten was picked before anyone knew who was
+ * staying. Measured on 2026-09-09 over 34 runs: four survivors, every one of them WebKit's web
+ * content process, and every one gone on its own. Three went within two seconds of the old limit
+ * and one sat in uninterruptible sleep for another thirty-seven. A process that never leaves still
+ * fails this, which is the point; it just is not asked to leave faster than it can. See N16.
+ */
+const GROUP_EMPTY_TIMEOUT_MS = 60000;
 
 /** Gutting an assertion has to be as red as failing one, so the checks count themselves. */
 const EXPECTED_CHECKS = 5;
@@ -120,12 +131,17 @@ async function measureAt(scale) {
 
     execFileSync("python3", [closeWindowTool, toplevel.id], { stdio: "ignore", timeout: 15000 });
     await waitFor(() => exit !== null, { timeout: 20000, message: "the app to exit" });
+    const waitedFrom = Date.now();
     const survivors = await waitFor(() => (processGroupMembers(pgid).length === 0 ? [] : null), {
-      timeout: 10000,
+      timeout: GROUP_EMPTY_TIMEOUT_MS,
       message: `process group ${pgid} to be empty`,
     }).catch(() => processGroupMembers(pgid));
+    // How long the wait actually took, on the failure path as well as the happy one: a survivor
+    // reported after a fifth of a second is a different fault from one reported after the whole
+    // timeout, and without this the message cannot tell them apart. See N16.
+    const waitedMs = Date.now() - waitedFrom;
 
-    return { toplevel, surface, exit, survivors, surfaceMapState };
+    return { toplevel, surface, exit, survivors, surfaceMapState, waitedMs };
   } finally {
     try {
       if (processGroupMembers(pgid).length > 0) {
@@ -220,8 +236,11 @@ async function main() {
       double.exit.code === 0 &&
       single.survivors.length === 0 &&
       double.survivors.length === 0,
-    `exits ${JSON.stringify([single.exit, double.exit])}, survivors ` +
-      `${JSON.stringify([single.survivors, double.survivors])}`,
+    `exits ${JSON.stringify([single.exit, double.exit])}\n` +
+      `survivors at ratio 1, after waiting ${single.waitedMs}ms:\n` +
+      `${describeProcesses(single.survivors)}\n` +
+      `survivors at ratio 2, after waiting ${double.waitedMs}ms:\n` +
+      `${describeProcesses(double.survivors)}`,
   );
 
   if (checksRun < EXPECTED_CHECKS) {

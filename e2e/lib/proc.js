@@ -76,6 +76,32 @@ export function processGroupMembers(pgid) {
 }
 
 /**
+ * What each of `pids` actually is, one `ps` line apiece, for a failure message that can be
+ * diagnosed after the fact. A bare pid says nothing once the process is gone, which is how N16 sat
+ * open for a week: the check reported a number and nobody could learn what had survived.
+ * @param {number[]} pids
+ * @returns {string}
+ */
+export function describeProcesses(pids) {
+  requireLinuxBackend(
+    "proc.js describeProcesses",
+    "name the processes a run left behind, so a failure says what survived rather than which pid",
+  );
+  if (pids.length === 0) {
+    return "none";
+  }
+  try {
+    return execFileSync("ps", ["-o", "pid,ppid,etimes,stat,args", "-p", pids.join(",")], {
+      encoding: "utf8",
+      timeout: 10000,
+    }).trim();
+  } catch {
+    // Every one of them exited between the check and this call, which is worth saying plainly.
+    return `${JSON.stringify(pids)}, all gone by the time ps ran`;
+  }
+}
+
+/**
  * Best-effort teardown of a whole process group. Never throws for a group that is already gone:
  * that is the outcome asked for, and this runs on failure paths. It does throw off Linux, where
  * the catch below would swallow the negative signal and leave the app running.
