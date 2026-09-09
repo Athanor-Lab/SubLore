@@ -570,6 +570,12 @@ export const en = {
     },
     /** Appended to the status line while the document differs from the file on disk. */
     dirty: "Unsaved changes",
+    /** The window's own name, which is what a task bar shows with three episodes open (N57). */
+    windowTitle: "{mark}{document} - Sublore",
+    /** Leads the window name while there is unsaved work, and is empty when there is none. */
+    windowTitleDirty: "* ",
+    /** The window name for a document that has never had a file: a transcription, or no file yet. */
+    windowTitleUntitled: "Untitled",
     /** Shown once the undo bound has dropped its oldest entries. */
     truncated: "Undo history is full, so the oldest edits can no longer be undone.",
     noFile: "No subtitle file open.",

@@ -136,6 +136,23 @@ export function windowSize(id) {
 }
 
 /**
+ * Whether an X window's name is this app's.
+ *
+ * The window is named for the document it holds, so what identifies it is the app's own tail and
+ * not the whole name: `Untitled - Sublore` before a file is opened, `* episode-01.ass - Sublore`
+ * with unsaved work in one, and the bare `Sublore` the window is created with before the page has
+ * had a chance to name it. See N57.
+ * @param {string} name
+ */
+export function isAppWindowName(name) {
+  // A toplevel with no name at all is on the display too, and it is never this app's.
+  if (typeof name !== "string") {
+    return false;
+  }
+  return name === windowTitle || name.endsWith(` - ${windowTitle}`);
+}
+
+/**
  * The app toplevel at the size the caller states, defaulting to the size the app starts at.
  * Selected by geometry and exact name, never by name alone: GTK also creates a 10x10 group-leader
  * window that answers to the same name (BACKLOG M0.5 harness note).
@@ -162,7 +179,7 @@ export function findToplevel({ width = windowWidth, height = windowHeight } = {}
   }
   const tree = rootTree();
   const matches = parseWindowLines(tree).filter(
-    (window) => window.name === windowTitle && window.width === width && window.height === height,
+    (window) => isAppWindowName(window.name) && window.width === width && window.height === height,
   );
   if (matches.length > 1) {
     throw new Error(
