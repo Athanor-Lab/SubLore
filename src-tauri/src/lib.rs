@@ -14,6 +14,7 @@ pub mod help;
 pub mod language;
 pub mod layout;
 mod modules;
+pub mod paste_fields;
 pub mod preferences;
 pub mod preview;
 pub mod project;
@@ -263,6 +264,8 @@ pub fn run() -> tauri::Result<()> {
             update::update_check,
             update::update_open_release,
             language::language_set,
+            paste_fields::paste_fields_read,
+            paste_fields::paste_fields_write,
             preferences::preferences_read,
             preferences::preferences_write,
             subtitle::subtitle_adopt_transcription,

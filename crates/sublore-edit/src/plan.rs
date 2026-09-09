@@ -70,6 +70,13 @@ pub enum Edit {
     SetManyTimes {
         edits: Vec<(usize, u32, u32)>,
     },
+    /// A paste over: for each named cue, the fields the user chose to take from the clipboard,
+    /// written together as one undo step. Pairs are `(cue, fields)`, strictly ascending by cue,
+    /// each cue named once. A field the caller left out keeps whatever the target already has,
+    /// which is what the dialog exists to decide. See docs/paste-over-tasks.md.
+    PasteOverCues {
+        edits: Vec<(usize, PastedFields)>,
+    },
     /// One declared field of one ASS event, written verbatim. The text field is not among the
     /// fields `AssField` can name. See docs/ass-field-write-tasks.md W3.
     SetField {
@@ -165,6 +172,34 @@ pub enum Edit {
     },
 }
 
+/// What a paste over takes from one clipboard cue. Every part is optional, and absent means "keep
+/// what is there": the eleven checkboxes of the reference's own dialog, in the shape this crate can
+/// write. See docs/paste-over-tasks.md.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PastedFields {
+    /// Whether the target becomes a `Comment:` or a `Dialogue:`. ASS only.
+    pub comment: Option<bool>,
+    pub start_ms: Option<u32>,
+    pub end_ms: Option<u32>,
+    /// Line breaks as "\n", like every other text this crate takes.
+    pub text: Option<String>,
+    /// The declared ASS fields to take, each named once. Order does not matter: the plan sorts its
+    /// writes by where they sit in the line, so the caller never has to know the Format order.
+    pub fields: Vec<(AssField, String)>,
+}
+
+impl PastedFields {
+    /// Whether this asks for anything at all. A paste over that takes no field is not an edit, and
+    /// making it one would put an empty step on the undo stack.
+    pub fn is_empty(&self) -> bool {
+        self.comment.is_none()
+            && self.start_ms.is_none()
+            && self.end_ms.is_none()
+            && self.text.is_none()
+            && self.fields.is_empty()
+    }
+}
+
 /// The byte replacement, its label, and what the document must look like once the edited bytes are
 /// parsed again.
 #[derive(Clone, Debug)]
@@ -211,6 +246,7 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
     match edit {
         Edit::SetText { cue, text } => plan_set_text(document, *cue, text),
         Edit::SetTexts { edits } => plan_set_texts(document, edits),
+        Edit::PasteOverCues { edits } => plan_paste_over_cues(document, edits),
         Edit::SetManyTimes { edits } => plan_set_many_times(document, edits),
         Edit::SetTimes {
             cue,
@@ -1020,6 +1056,238 @@ fn plan_set_texts(
         splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
         label: EditLabel {
             kind: EditKind::SetTexts,
+            cue: *first,
+        },
+        expect: Expectation {
+            from: *first,
+            removed: run.len(),
+            cues,
+            segments_from,
+            segments_removed: segments_run,
+            segments_inserted: segments_run,
+        },
+    })
+}
+
+/// One replacement inside one cue: where it goes and what goes there.
+struct CueWrite {
+    range: Span,
+    inserted: String,
+}
+
+/// The writes one paste over makes in one cue, and what that cue must read back as.
+///
+/// Each chosen part is located on its own, so what the user did not choose is not rewritten and its
+/// bytes are not touched. That is what keeps a paste over lossless: an untaken field is not
+/// re-serialised from a parsed value, it is simply left alone.
+fn paste_writes(
+    document: &SubtitleDocument,
+    located: &Located<'_>,
+    pasted: &PastedFields,
+) -> Result<(Vec<CueWrite>, ExpectedCue), EditError> {
+    let mut writes: Vec<CueWrite> = Vec::new();
+
+    if let Some(comment) = pasted.comment {
+        let CueDetail::Ass(event) = &located.cue.detail else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                "the cue is not an ASS event, so it has no descriptor to rewrite",
+            ));
+        };
+        writes.push(CueWrite {
+            range: event.descriptor,
+            inserted: if comment { "Comment" } else { "Dialogue" }.to_owned(),
+        });
+    }
+
+    // One write covers both timestamps, so a paste that takes only one of them writes the other
+    // back as it already reads. `time_write` is what decides where that region begins and ends.
+    let start_ms = pasted
+        .start_ms
+        .unwrap_or_else(|| located.cue.start.millis());
+    let end_ms = pasted.end_ms.unwrap_or_else(|| located.cue.end.millis());
+    if pasted.start_ms.is_some() || pasted.end_ms.is_some() {
+        if start_ms > end_ms {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                format!("the start {start_ms} is after the end {end_ms}"),
+            ));
+        }
+        let write = time_write(document, located, start_ms, end_ms)?;
+        writes.push(CueWrite {
+            range: Span::new(write.range.start, write.range.end),
+            inserted: write.inserted,
+        });
+    }
+
+    for (field, value) in &pasted.fields {
+        let CueDetail::Ass(event) = &located.cue.detail else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                "the cue is not an ASS event, so it holds no declared field",
+            ));
+        };
+        // Refused, never added, for the reason `plan_set_field` gives: declaring a field means
+        // rewriting the Format line and every event under it (W5.1).
+        let Some(at) = event.field_index(*field) else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                format!(
+                    "the section's Format line declares no {} before the text",
+                    field.as_str()
+                ),
+            ));
+        };
+        let Some(span) = event.fields.get(at).copied() else {
+            return Err(EditError::new(
+                EditErrorKind::NotApplicable,
+                format!(
+                    "field {at} is outside the event's {} fields",
+                    event.fields.len()
+                ),
+            ));
+        };
+        validate_field_value(*field, value)?;
+        writes.push(CueWrite {
+            range: field_core(document, span),
+            inserted: written_value(value).to_owned(),
+        });
+    }
+
+    let text_raw = match &pasted.text {
+        Some(text) => {
+            let write = plan_text_write(document, located, text)?;
+            writes.push(CueWrite {
+                range: write.range,
+                inserted: write.inserted,
+            });
+            write.written
+        }
+        None => document.slice(located.cue.text).to_owned(),
+    };
+
+    writes.sort_by_key(|write| write.range.start);
+    // A Format line may put a field between the two timestamps, and then the timing region swallows
+    // it and this paste would write the same bytes twice. Refused rather than guessed at: dropping
+    // one of the two writes would silently take a field the user asked for, or lose one they did.
+    if let Some(pair) = writes
+        .windows(2)
+        .find(|pair| pair[0].range.end > pair[1].range.start)
+    {
+        return Err(EditError::new(
+            EditErrorKind::BadRange,
+            format!(
+                "this cue's fields overlap in the file: a write ending at {} sits inside the one starting at {}",
+                pair[0].range.end, pair[1].range.start
+            ),
+        ));
+    }
+
+    Ok((
+        writes,
+        ExpectedCue {
+            text_raw,
+            start_ms,
+            end_ms,
+        },
+    ))
+}
+
+/// Several cues pasted over in one splice, so the whole paste is one undo step.
+///
+/// Built the way `plan_set_texts` and `plan_set_many_times` are: one splice over the run the edits
+/// touch, every cue in between copied through and named in the expectation. What differs is that a
+/// cue here may take several writes rather than one, because the fields a paste takes sit in
+/// different places on the line. See docs/paste-over-tasks.md.
+fn plan_paste_over_cues(
+    document: &SubtitleDocument,
+    edits: &[(usize, PastedFields)],
+) -> Result<Planned, EditError> {
+    let (Some((first, _)), Some((last, _))) = (edits.first(), edits.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a paste over naming no cues",
+        ));
+    };
+    if edits.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "the cues must be given in file order, each one named once",
+        ));
+    }
+    // A paste that takes nothing is not an edit. Refused here rather than planned into an empty
+    // splice, so it never reaches the undo stack as a step that undoes nothing.
+    if edits.iter().all(|(_, pasted)| pasted.is_empty()) {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a paste over taking no field from any cue",
+        ));
+    }
+
+    let run = locate_run(document, *first, *last)?;
+    let (Some(head), Some(tail)) = (run.first(), run.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a paste over naming no cues",
+        ));
+    };
+    let segments_from = head.segment_index;
+    let segments_run = tail
+        .segment_index
+        .saturating_sub(segments_from)
+        .saturating_add(1);
+
+    let mut writes: Vec<CueWrite> = Vec::new();
+    let mut cues = Vec::with_capacity(run.len());
+    let mut pending = edits.iter().peekable();
+    for (offset, located) in run.iter().enumerate() {
+        let index = first.saturating_add(offset);
+        match pending.next_if(|(at, _)| *at == index) {
+            Some((_, pasted)) if !pasted.is_empty() => {
+                let (mut mine, expected) = paste_writes(document, located, pasted)?;
+                writes.append(&mut mine);
+                cues.push(expected);
+            }
+            // Named but taking nothing, or not named at all: copied through either way, and named
+            // in the expectation because the splice replaces the bytes it sits in.
+            _ => cues.push(ExpectedCue {
+                text_raw: document.slice(located.cue.text).to_owned(),
+                start_ms: located.cue.start.millis(),
+                end_ms: located.cue.end.millis(),
+            }),
+        }
+    }
+
+    let (Some(opening), Some(closing)) = (writes.first(), writes.last()) else {
+        return Err(EditError::new(
+            EditErrorKind::NotApplicable,
+            "a paste over with nothing to write",
+        ));
+    };
+    let span = Span::new(opening.range.start, closing.range.end);
+
+    let body = document.source().body();
+    let mut inserted = String::new();
+    let mut cursor = span.start;
+    for write in &writes {
+        let Some(between) = body.get(cursor..write.range.start) else {
+            return Err(EditError::new(
+                EditErrorKind::BadRange,
+                format!(
+                    "the write at {} does not follow the one ending at {cursor}",
+                    write.range.start
+                ),
+            ));
+        };
+        inserted.push_str(between);
+        inserted.push_str(&write.inserted);
+        cursor = write.range.end;
+    }
+
+    Ok(Planned {
+        splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
+        label: EditLabel {
+            kind: EditKind::PasteOverCues,
             cue: *first,
         },
         expect: Expectation {

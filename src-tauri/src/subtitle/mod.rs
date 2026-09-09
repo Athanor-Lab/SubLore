@@ -14,11 +14,12 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use sublore_edit::diff::{CuePatch, CueView};
 use sublore_edit::history::Run;
-use sublore_edit::plan::{self, AssStyleField, Edit};
+use sublore_edit::plan::{self, AssStyleField, Edit, PastedFields};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{
-    parse, AssField, Newline, ScriptInfo, Segment, SegmentKind, SubtitleDocument, SubtitleFormat,
+    parse, AssEventKind, AssField, CueDetail, Newline, ScriptInfo, Segment, SegmentKind,
+    SubtitleDocument, SubtitleFormat,
 };
 use sublore_io::atomic::save_with_backup;
 use sublore_io::backup::BackupStore;
@@ -617,7 +618,16 @@ pub async fn subtitle_paste_over(
     revision: u64,
     cues: Vec<usize>,
     text: String,
+    fields: PasteMask,
 ) -> Result<CuePatchDto, SubtitleError> {
+    // Nothing chosen is nothing to do, and the dialog's Cancel is the other way to say it. Refused
+    // here rather than planned, so an empty step never reaches the undo stack.
+    if !fields.takes_anything() {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::EditRefused,
+            "no field was chosen to paste over",
+        ));
+    }
     let slot = state.slot();
     let read = {
         let slot = Arc::clone(&slot);
@@ -625,7 +635,7 @@ pub async fn subtitle_paste_over(
         blocking(move || {
             let guard = lock(&slot)?;
             let session = current_ref(&guard)?;
-            texts_in_fragment(session.document(), &text)
+            cues_in_fragment(session.document(), &text)
         })
         .await?
     };
@@ -637,20 +647,103 @@ pub async fn subtitle_paste_over(
     }
     // As many as there are to give, and no further: a paste over three rows from a clipboard of
     // two leaves the third alone rather than emptying it.
-    let edits: Vec<(usize, String)> = cues
+    let edits: Vec<(usize, PastedFields)> = cues
         .into_iter()
         .zip(read)
-        .collect::<Vec<_>>()
-        .into_iter()
+        .map(|(cue, pasted)| (cue, fields.take_from(&pasted)))
         .collect();
-    edited(&app, slot, revision, Edit::SetTexts { edits }).await
+    edited(&app, slot, revision, Edit::PasteOverCues { edits }).await
 }
 
-/// Parse `fragment` behind `document`'s own header and hand back the text of every cue in it.
-fn texts_in_fragment(
+/// Which of the eleven fields a paste over takes, as the dialog leaves them. The order is the
+/// reference's own, which is the order the dialog draws. See docs/paste-over-tasks.md.
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasteMask {
+    pub comment: bool,
+    pub layer: bool,
+    pub start: bool,
+    pub end: bool,
+    pub style: bool,
+    pub actor: bool,
+    pub margin_l: bool,
+    pub margin_r: bool,
+    pub margin_v: bool,
+    pub effect: bool,
+    pub text: bool,
+}
+
+impl PasteMask {
+    fn takes_anything(self) -> bool {
+        self.comment
+            || self.layer
+            || self.start
+            || self.end
+            || self.style
+            || self.actor
+            || self.margin_l
+            || self.margin_r
+            || self.margin_v
+            || self.effect
+            || self.text
+    }
+
+    /// What this mask takes from one clipboard cue.
+    ///
+    /// A field the clipboard's own cue does not carry is skipped rather than written empty: pasting
+    /// an SRT fragment over an ASS line has no style to give, and blanking the target's would be
+    /// taking something the user never copied.
+    fn take_from(self, pasted: &PastedCue) -> PastedFields {
+        let named = |wanted: AssField| {
+            pasted
+                .fields
+                .iter()
+                .find(|(field, _)| *field == wanted)
+                .map(|(field, value)| (*field, value.clone()))
+        };
+        let mut fields = Vec::new();
+        for (chosen, which) in [
+            (self.layer, AssField::Layer),
+            (self.style, AssField::Style),
+            (self.actor, AssField::Actor),
+            (self.margin_l, AssField::MarginL),
+            (self.margin_r, AssField::MarginR),
+            (self.margin_v, AssField::MarginV),
+            (self.effect, AssField::Effect),
+        ] {
+            if chosen {
+                fields.extend(named(which));
+            }
+        }
+        PastedFields {
+            comment: self.comment.then_some(pasted.comment),
+            start_ms: self.start.then_some(pasted.start_ms),
+            end_ms: self.end.then_some(pasted.end_ms),
+            text: self.text.then(|| pasted.text.clone()),
+            fields,
+        }
+    }
+}
+
+/// One cue read out of a clipboard fragment, with everything a paste over could take from it.
+#[derive(Debug)]
+struct PastedCue {
+    comment: bool,
+    start_ms: u32,
+    end_ms: u32,
+    text: String,
+    fields: Vec<(AssField, String)>,
+}
+
+/// Parse `fragment` behind `document`'s own header and hand back every cue in it, whole.
+///
+/// Behind the header for the reason a paste is: an ASS event means nothing without the `Format:`
+/// line that names its columns, so a fragment is read with the document's own header in front of it
+/// and a fragment this document cannot read is refused rather than half understood.
+fn cues_in_fragment(
     document: &SubtitleDocument,
     fragment: &str,
-) -> Result<Vec<String>, SubtitleError> {
+) -> Result<Vec<PastedCue>, SubtitleError> {
     let body = document.source().body();
     let first_cue = document
         .segments()
@@ -663,7 +756,29 @@ fn texts_in_fragment(
     let parsed = parse(document.format(), whole.as_bytes()).map_err(SubtitleError::from_parse)?;
     Ok(parsed
         .cues()
-        .map(|cue| parsed.slice(cue.text).to_owned())
+        .map(|cue| {
+            let (comment, fields) = match &cue.detail {
+                CueDetail::Ass(event) => {
+                    let mut found = Vec::new();
+                    for field in AssField::ALL {
+                        if let Some(at) = event.field_index(field) {
+                            if let Some(span) = event.fields.get(at).copied() {
+                                found.push((field, parsed.slice(span).trim().to_owned()));
+                            }
+                        }
+                    }
+                    (matches!(event.kind, AssEventKind::Comment), found)
+                }
+                _ => (false, Vec::new()),
+            };
+            PastedCue {
+                comment,
+                start_ms: cue.start.millis(),
+                end_ms: cue.end.millis(),
+                text: parsed.slice(cue.text).to_owned(),
+                fields,
+            }
+        })
         .collect())
 }
 

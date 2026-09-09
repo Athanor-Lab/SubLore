@@ -952,3 +952,76 @@
   color: inherit;
   font: inherit;
 }
+
+/* Paste over: which fields to take from the clipboard (N45). */
+.pasteover {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.pasteover__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(24rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.pasteover__heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.pasteover__lead {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.pasteover__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.15rem 0.6rem;
+  padding: 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+}
+
+.pasteover__field {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.pasteover__field[aria-disabled="true"] {
+  color: var(--ink-muted);
+}
+
+.pasteover__quick,
+.pasteover__buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.pasteover__buttons {
+  justify-content: flex-end;
+}
+
+.pasteover__quick button,
+.pasteover__buttons button {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}
+
+.pasteover__quick button {
+  flex: 1;
+}

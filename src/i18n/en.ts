@@ -336,6 +336,29 @@ export const en = {
     failed: "The check could not be made. Your copy of Sublore is unaffected.",
     close: "Close",
   },
+  /** Paste over's field dialog (N45, docs/paste-over-tasks.md). The eleven in the reference's order. */
+  pasteOver: {
+    title: "Select fields to paste over",
+    lead: "Take these from the clipboard, and leave the rest as they are:",
+    comment: "Comment",
+    layer: "Layer",
+    start: "Start time",
+    end: "End time",
+    style: "Style",
+    actor: "Actor",
+    marginL: "Margin left",
+    marginR: "Margin right",
+    marginV: "Margin vertical",
+    effect: "Effect",
+    text: "Text",
+    /** The four quick buttons above the list. They change the ticks and confirm nothing. */
+    all: "All",
+    none: "None",
+    times: "Times",
+    onlyText: "Text only",
+    confirm: "Paste over",
+    cancel: "Cancel",
+  },
   /** The Language dialog (interface-spec 3.7 item 12). One language today, English. */
   language: {
     title: "Language",

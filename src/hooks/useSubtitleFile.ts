@@ -5,6 +5,7 @@ import { en } from "../i18n/en";
 import { fill } from "../i18n/format";
 import { type PublishedPanel } from "./useModulePanels";
 import { type RowRef } from "../types/chrome";
+import { type PasteFields } from "./usePasteFields";
 import {
   isSubtitleError,
   type AssFieldName,
@@ -118,7 +119,7 @@ export type SubtitleFile = {
   /** The named cues as the file writes them, lines and all, for the clipboard. */
   copyCues: (cues: number[]) => Promise<string>;
   /** Put the lines in `text` over the named cues, as one undo step. */
-  pasteOver: (cues: number[], text: string) => Promise<void>;
+  pasteOver: (cues: number[], text: string, fields: PasteFields) => Promise<void>;
   /** One field of one declared style. Each field is its own undo step. See edit-bar-tasks B10. */
   setStyleField: (style: number, field: AssStyleField, value: string) => Promise<void>;
   /** Empty one line. `keepTags` leaves the braced runs and drops only the words. See B13. */
@@ -522,7 +523,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   }, []);
 
   const pasteOver = useCallback(
-    (cues: number[], text: string) => command("subtitle_paste_over", { cues, text }),
+    (cues: number[], text: string, fields: PasteFields) =>
+      command("subtitle_paste_over", { cues, text, fields }),
     [command],
   );
 
