@@ -144,6 +144,7 @@ export const en = {
       /** One of the five interface size radio items (S1). `{percent}` is a whole number. */
       scale: "{percent}%",
       language: "Language…",
+      preferences: "Preferences…",
     },
     /** The four cue structure edits, interface-spec section 3 order (M2.7 E2, T3 C2). */
     subtitles: {
@@ -207,6 +208,7 @@ export const en = {
       undo: "Ctrl+Z",
       redo: "Ctrl+Y",
       quit: "Ctrl+Q",
+      preferences: "Alt+O",
       videoJumpTo: "Ctrl+G",
       videoPlay: "Ctrl+P",
       videoStepBack: "Left",
@@ -302,6 +304,16 @@ export const en = {
     version: "Version {version}",
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
+  },
+  /** The three numbers a translator may change (interface-spec 9.6). */
+  preferences: {
+    title: "Preferences",
+    leadIn: "Lead-in (ms)",
+    leadOut: "Lead-out (ms)",
+    newCue: "New cue length (ms)",
+    refused: "Each of these is a whole number of milliseconds, and none of them is negative.",
+    confirm: "Save",
+    cancel: "Cancel",
   },
   /** The Language dialog (interface-spec 3.7 item 12). One language today, English. */
   language: {

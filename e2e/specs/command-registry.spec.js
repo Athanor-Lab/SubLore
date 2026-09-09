@@ -156,6 +156,7 @@ const DECLARED = [
   "view-interface-scale-125",
   "view-interface-scale-150",
   "view-language",
+  "view-preferences",
 ];
 
 /**

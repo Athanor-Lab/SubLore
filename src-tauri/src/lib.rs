@@ -13,6 +13,7 @@ pub mod help;
 pub mod language;
 pub mod layout;
 mod modules;
+pub mod preferences;
 pub mod preview;
 pub mod project;
 pub mod recent;
@@ -257,6 +258,8 @@ pub fn run() -> tauri::Result<()> {
             subtitle::subtitle_export,
             language::language_read,
             language::language_set,
+            preferences::preferences_read,
+            preferences::preferences_write,
             subtitle::subtitle_adopt_transcription,
             video::video_open,
             video::video_close,

@@ -27,8 +27,8 @@ const FIRST = "The harbour was empty when we got there.";
 const SECOND =
   "Nobody had told the crew we were coming,\nso we sat on the dock until it got light.";
 const THIRD = "By then the fog had eaten the boats.";
-/** How long a new cue runs where nothing is in its way (`NEW_CUE_MS` in `src/App.tsx`). */
-const NEW_CUE_MS = 2000;
+/** How long a new cue runs where nothing is in its way: the preferences default (9.6). */
+const NEW_CUE_MS = 3000;
 /** Inside the second cue, so a line timed from here overlaps what is already written. */
 const PLAYHEAD_SECONDS = 6;
 
@@ -309,8 +309,8 @@ describe("the four ways of asking for a cue", () => {
 
     const grown = await waitForTexts([FIRST, "", SECOND, THIRD], "the new line under the first");
     const startMs = Math.round(playhead * 1000);
-    // Where the picture is, and two seconds long: the second cue starts at 5 s and this one starts
-    // after it, so a line timed from the playhead is allowed to overlap what is already written.
+    // Where the picture is, and the preference long: the second cue starts at 5 s and this one
+    // starts after it, so a line timed from the playhead may overlap what is already written.
     expect({ start: grown[1].start, end: grown[1].end }).toEqual({
       start: timecode(startMs),
       end: timecode(startMs + NEW_CUE_MS),
