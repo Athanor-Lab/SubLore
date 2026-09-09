@@ -8,9 +8,9 @@ import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
-import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
+import { repoRoot, windowHeight, windowTitle, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { findToplevel } from "../lib/x11.js";
+import { findToplevel, findWindowsWithAppGeometry } from "../lib/x11.js";
 
 /** What the status line says for the clean fixtures this spec opens, one per format in v1 scope. */
 const LF_STATUS = "SRT · 3 cues · LF";
@@ -107,6 +107,22 @@ function textOf(selector) {
 
 function present(selector) {
   return browser.execute((css) => document.querySelector(css) !== null, selector);
+}
+
+/**
+ * What the window says it is holding: the document's name, and whether the session still has
+ * unsaved work in it. The two hypotheses N30 poses are told apart by exactly this, and it needs
+ * nothing added to the app now that the window carries the document (N57).
+ */
+function heldDocument() {
+  const windows = findWindowsWithAppGeometry();
+  const name = windows.length === 1 ? windows[0].name : null;
+  const suffix = ` - ${windowTitle}`;
+  if (typeof name !== "string" || !name.endsWith(suffix)) {
+    return null;
+  }
+  const document_ = name.slice(0, -suffix.length);
+  return { name: document_.replace(/^\* /, ""), dirty: document_.startsWith("* ") };
 }
 
 /** A drawn control's greying, or null when the control is not drawn at all. */
@@ -310,7 +326,15 @@ describe("subtitle open and save", () => {
       async () => ((await disabledOf(".toolbar__file-discard")) === false ? true : null),
       { timeout: 20000, message: "the discard button to come alive once the edit refused an open" },
     );
-    expect(await rowText(DISCARD_POSITION)).toBe(DISCARD_TEXT);
+    // The two readings taken together at the moment of the refusal, which is what N30 asked for:
+    // the row, and what the session says it is holding. If the row ever goes back to the file's own
+    // text here while the window still carries the unsaved mark, the grid and the session disagree
+    // and it is the grid that is wrong. The failure then says which of the two it was.
+    const held = heldDocument();
+    expect({ row: await rowText(DISCARD_POSITION), held }).toEqual({
+      row: DISCARD_TEXT,
+      held: { name: path.basename(file), dirty: true },
+    });
 
     await clickElement(toplevel, ".toolbar__file-discard");
     await waitFor(async () => (await rowText(DISCARD_POSITION)) === original, {
