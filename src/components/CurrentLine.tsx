@@ -763,6 +763,55 @@ export default function CurrentLine({
     }
   }
 
+  // Above the early return below, and it has to be: a hook underneath it stops existing the
+  // moment the panel has no line, and the render after one appears then has more hooks than the
+  // one before it. That is React error #310, and it is what this was.
+  /** Where the picker's colour sits in the mode being drawn. */
+  const place = positionIn(spectrumMode, hsv);
+  const { x: squareX, y: squareY, slider: sliderAt } = place;
+
+  // Painted rather than stacked out of gradients: three of the five modes are a sum of two channels
+  // over a third, which gradients cannot express, and the reference fills a bitmap for the same
+  // reason. Redrawn when the mode changes and when the slider moves, because the slider is what the
+  // square is drawn against.
+  useEffect(() => {
+    const square = squareRef.current?.getContext("2d");
+    if (square != null) {
+      const image = square.createImageData(SQUARE_SIZE, SQUARE_SIZE);
+      for (let y = 0; y < SQUARE_SIZE; y += 1) {
+        for (let x = 0; x < SQUARE_SIZE; x += 1) {
+          const shade = colourInMode(spectrumMode, {
+            x: x / (SQUARE_SIZE - 1),
+            y: y / (SQUARE_SIZE - 1),
+            slider: sliderAt,
+          });
+          const at = (y * SQUARE_SIZE + x) * 4;
+          image.data[at] = shade.r;
+          image.data[at + 1] = shade.g;
+          image.data[at + 2] = shade.b;
+          image.data[at + 3] = 255;
+        }
+      }
+      square.putImageData(image, 0, 0);
+    }
+    const bar = sliderRef.current?.getContext("2d");
+    if (bar != null) {
+      const image = bar.createImageData(1, SQUARE_SIZE);
+      for (let y = 0; y < SQUARE_SIZE; y += 1) {
+        const shade = colourInMode(spectrumMode, {
+          x: squareX,
+          y: squareY,
+          slider: y / (SQUARE_SIZE - 1),
+        });
+        image.data[y * 4] = shade.r;
+        image.data[y * 4 + 1] = shade.g;
+        image.data[y * 4 + 2] = shade.b;
+        image.data[y * 4 + 3] = 255;
+      }
+      bar.putImageData(image, 0, 0);
+    }
+  }, [spectrumMode, sliderAt, squareX, squareY]);
+
   if (cue === null) {
     return (
       <section className="currentline" aria-label={en.subtitle.currentLine.label}>
@@ -939,52 +988,6 @@ export default function CurrentLine({
     moved.current = written;
     setHex(written);
   }
-
-  /** Where the picker's colour sits in the mode being drawn. */
-  const place = positionIn(spectrumMode, hsv);
-  const { x: squareX, y: squareY, slider: sliderAt } = place;
-
-  // Painted rather than stacked out of gradients: three of the five modes are a sum of two channels
-  // over a third, which gradients cannot express, and the reference fills a bitmap for the same
-  // reason. Redrawn when the mode changes and when the slider moves, because the slider is what the
-  // square is drawn against.
-  useEffect(() => {
-    const square = squareRef.current?.getContext("2d");
-    if (square != null) {
-      const image = square.createImageData(SQUARE_SIZE, SQUARE_SIZE);
-      for (let y = 0; y < SQUARE_SIZE; y += 1) {
-        for (let x = 0; x < SQUARE_SIZE; x += 1) {
-          const shade = colourInMode(spectrumMode, {
-            x: x / (SQUARE_SIZE - 1),
-            y: y / (SQUARE_SIZE - 1),
-            slider: sliderAt,
-          });
-          const at = (y * SQUARE_SIZE + x) * 4;
-          image.data[at] = shade.r;
-          image.data[at + 1] = shade.g;
-          image.data[at + 2] = shade.b;
-          image.data[at + 3] = 255;
-        }
-      }
-      square.putImageData(image, 0, 0);
-    }
-    const bar = sliderRef.current?.getContext("2d");
-    if (bar != null) {
-      const image = bar.createImageData(1, SQUARE_SIZE);
-      for (let y = 0; y < SQUARE_SIZE; y += 1) {
-        const shade = colourInMode(spectrumMode, {
-          x: squareX,
-          y: squareY,
-          slider: y / (SQUARE_SIZE - 1),
-        });
-        image.data[y * 4] = shade.r;
-        image.data[y * 4 + 1] = shade.g;
-        image.data[y * 4 + 2] = shade.b;
-        image.data[y * 4 + 3] = 255;
-      }
-      bar.putImageData(image, 0, 0);
-    }
-  }, [spectrumMode, sliderAt, squareX, squareY, open]);
 
   /** A point in the square, read as the colour that mode puts there. */
   function fromSquare(at: { x: number; y: number }) {
