@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window */
+/* global describe, it, before, afterEach, document, window */
 /**
  * The event log window (interface-spec 9.12): what the app has been saying this run, read back
  * without leaving it. The owner verifies behaviour rather than code, so "open the log window and
@@ -93,6 +93,17 @@ describe("the event log window", () => {
     });
   });
 
+  afterEach(async () => {
+    if (await present(".eventlog")) {
+      pressKey("Escape");
+      await waitFor(async () => ((await present(".eventlog")) ? null : 1), {
+        timeout: 15000,
+        message: "the event log window to close between tests",
+      });
+    }
+    await closeMenu();
+  });
+
   it("is a command that runs, and opens on the lines the app has written", async () => {
     // Something the app is made to say, before the window that shows it exists. The website link
     // logs its address and needs no browser to have done so.
@@ -108,8 +119,8 @@ describe("the event log window", () => {
       },
       { timeout: 20000, message: "the address the app logged to reach the window" },
     );
-    // A real log line and not a rendering of one: the plugin's own stamp is on it.
-    expect(shown).toMatch(/\[\d{4}-\d{2}-\d{2}]\[\d{2}:\d{2}:\d{2}]\[sublore/);
+    // A real log line and not a rendering of one: the stamp the log plugin writes is on it.
+    expect(shown).toMatch(/\[\d{4}-\d{2}-\d{2}]\[\d{2}:\d{2}:\d{2}]\[[A-Z]+]\[sublore/);
     await closeEventLog();
   });
 
