@@ -1,9 +1,9 @@
 /* global describe, it, before, afterEach, document, window */
 /**
  * The Help menu: the six items interface-spec §3.8 keeps in v1, in the reference's order, and the
- * three that need nothing but the user's own browser to open. Check for updates and Event log are
- * drawn greyed because their providers are not built yet; each is a slice of its own, and a command
- * that exists is drawn rather than absent (2026-09-03 ruling). About works from its new place last.
+ * three that open in the user's own browser. Every one of the six can act: the manual, the event
+ * log and the update check each closed a slice of their own, and none of them is drawn greyed any
+ * more. About works from its new place last.
  *
  * What is read is what the menu draws and what the app logs it asked to open. A browser cannot open
  * under Xvfb and this spec does not need one: the command logs the exact URL before it launches,
@@ -138,19 +138,13 @@ describe("the Help menu", () => {
     await closeMenu();
   });
 
-  it("greys the one whose provider is not built, and enables the rest", async () => {
+  it("draws all six enabled, now that every provider is built", async () => {
     await openHelp(toplevel);
     const greyed = Object.fromEntries(
       (await helpItems()).map((item) => [item.token, item.disabled]),
     );
-    // Enabled: the three browser links and About, all of which can act right now.
-    expect(greyed["help-contents"]).toBe(false);
-    expect(greyed["help-website"]).toBe(false);
-    expect(greyed["help-report-bug"]).toBe(false);
-    expect(greyed["help-about"]).toBe(false);
-    expect(greyed["help-event-log"]).toBe(false);
-    // Greyed: the update check is not built.
-    expect(greyed["help-check-updates"]).toBe(true);
+    // Every one of the six can act now, so none of them is drawn greyed.
+    expect(Object.values(greyed)).toEqual([false, false, false, false, false, false]);
     await closeMenu();
   });
 

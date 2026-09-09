@@ -5,6 +5,7 @@ import process from "node:process";
 
 import { asrDir, cacheHome, installStubSidecar, stubBinary } from "./lib/asr.js";
 import { appEnv } from "./lib/env.js";
+import { startUpdateStandIn } from "./lib/updates.js";
 import { driverPort, startDriver, stopDriver } from "./lib/driver.js";
 import { requireAppBinary, requireDisplay, requireTool, requireVideoFixture } from "./lib/paths.js";
 import { passedTests, recordPassedTest, resetTally } from "./lib/tally.js";
@@ -13,7 +14,7 @@ import { passedTests, recordPassedTest, resetTally } from "./lib/tally.js";
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 418;
+const EXPECTED_TESTS = 421;
 
 // Keeps a run out of the real data dir. Created once in the launcher; workers inherit the value.
 const inherited = process.env.SUBLORE_E2E_DATA_HOME;
@@ -24,6 +25,8 @@ process.env.SUBLORE_E2E_DATA_HOME ??= mkdtempSync(path.join(os.tmpdir(), "sublor
  * the next build with a quota error. A tree the caller named is the caller's to keep.
  */
 const ownDataHome = inherited === undefined ? process.env.SUBLORE_E2E_DATA_HOME : null;
+/** The update check's stand-in for this worker's session, held so `afterSession` can shut it. */
+let standIn = null;
 process.env.XDG_DATA_HOME = process.env.SUBLORE_E2E_DATA_HOME;
 // Pinned before the line below points XDG_CACHE_HOME at this run's own tree: a real model lives in
 // the developer's cache, and `sourceModel` falls back to whatever XDG_CACHE_HOME says.
@@ -149,11 +152,18 @@ export const config = {
    */
   beforeSession: async (config_, capabilities, specs) => {
     installModuleFixture(specs);
+    // Before the app exists, and in the process that launches it: an endpoint set in `onPrepare`
+    // lives in the launcher, and whether a worker inherits it is not something to bet a run on.
+    // With this set, no app in the battery can reach the real network to ask about updates.
+    standIn = await startUpdateStandIn(process.env.SUBLORE_E2E_DATA_HOME);
+    process.env.SUBLORE_UPDATE_ENDPOINT = standIn.url;
     await startDriver();
   },
 
-  afterSession: (config_, capabilities, specs) => {
+  afterSession: async (config_, capabilities, specs) => {
     stopDriver();
+    await standIn?.close();
+    standIn = null;
     // Unconditional: a module file left beside the executable would change what every later spec
     // starts with, and a failed run is exactly when it would be left behind.
     removeModuleFixture(specs);

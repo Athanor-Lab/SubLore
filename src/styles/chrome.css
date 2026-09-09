@@ -900,3 +900,55 @@
   color: inherit;
   font: inherit;
 }
+
+/* Check for updates: one answer, and nothing to fill in (3.8). */
+.update {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.update__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+  width: min(28rem, 90vw);
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+}
+
+.update__heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.update__asking,
+.update__current,
+.update__newer,
+.update__failed {
+  margin: 0;
+}
+
+.update__failed {
+  color: var(--ink-warn);
+}
+
+.update__buttons {
+  display: flex;
+  align-self: flex-end;
+}
+
+.update__open,
+.update__close {
+  padding: 0.15rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+}

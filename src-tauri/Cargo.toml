@@ -59,6 +59,10 @@ tauri-plugin-log = "2"
 # stdlib has no portable browser launch. Reached from Rust only, behind help::open_help_link, so the
 # webview is never granted the plugin's own open-url permission. See help-menu-tasks.md.
 tauri-plugin-opener = "2"
+# The one request Help's update check makes. Already in the tree: sublore-asr downloads models with
+# it, same version and same features, MIT/Apache-2.0. Blocking and small, so the check needs no
+# async runtime of its own; stdlib has no HTTPS client. See update-check-tasks.md.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
 
 [dev-dependencies]
 libc = "0.2"
