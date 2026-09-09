@@ -1362,14 +1362,14 @@ export default function CurrentLine({
                 pickerRef.current?.focus();
                 dragging.current = "square";
                 const at = fractionIn(event);
-                moveTo({ h: hsv.h, s: at.x, v: 1 - at.y });
+                moveTo({ h: hsv.h, s: at.x, v: at.y });
               }}
               onPointerMove={(event) => {
                 if (dragging.current !== "square") {
                   return;
                 }
                 const at = fractionIn(event);
-                moveTo({ h: hsv.h, s: at.x, v: 1 - at.y });
+                moveTo({ h: hsv.h, s: at.x, v: at.y });
               }}
               onPointerUp={() => {
                 if (dragging.current !== "square") {
@@ -1381,7 +1381,7 @@ export default function CurrentLine({
             >
               <span
                 className="currentline__thumb"
-                style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }}
+                style={{ left: `${hsv.s * 100}%`, top: `${hsv.v * 100}%` }}
               />
             </div>
             <div

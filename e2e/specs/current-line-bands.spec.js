@@ -1432,7 +1432,9 @@ describe("the current line's bands", () => {
     const percent = (value) => Number.parseFloat(value);
     expect(percent(green.hueTop)).toBeCloseTo(100 / 3, 3);
     expect(percent(green.squareLeft)).toBeCloseTo(100, 3);
-    expect(percent(green.squareTop)).toBeCloseTo(0, 3);
+    // The bottom, not the top: the reference draws value rising downward, black at the top, and a
+    // full-value colour therefore sits at the foot of the square.
+    expect(percent(green.squareTop)).toBeCloseTo(100, 3);
     expect(green.ass).toBe("&H00FF00&");
     expect(green.hsv).toBe("120, 100, 100");
     expect(green.hsl).toBe("120, 100, 50");
@@ -1449,6 +1451,8 @@ describe("the current line's bands", () => {
     );
     expect(percent(grey.hueTop)).toBeCloseTo(percent(green.hueTop), 3);
     expect(percent(grey.squareLeft)).toBeCloseTo(0, 3);
+    // Half value is half way down, which is the other half of the axis being the way it is.
+    expect(percent(grey.squareTop)).toBeCloseTo(50, 0);
     expect(grey.hsv).toBe("120, 0, 50");
 
     pressKey("Escape");
