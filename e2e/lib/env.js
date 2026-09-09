@@ -1,6 +1,8 @@
 import path from "node:path";
 import process from "node:process";
 
+import { browserStubDir, openedPath } from "./browserstub.js";
+
 /**
  * The environment the app is launched with, for every harness that spawns it.
  *
@@ -38,6 +40,15 @@ export function appEnv(overrides = {}) {
   // docstring above says a launcher needs a base environment, and that stays true.
   if (typeof env.XDG_DATA_HOME === "string" && env.XDG_DATA_HOME !== "") {
     env.XDG_CACHE_HOME = path.join(env.XDG_DATA_HOME, "cache");
+    env.SUBLORE_E2E_OPENED = openedPath(env.XDG_DATA_HOME);
+  }
+  // In front of the real launchers, never instead of them: a URL the app asks the desktop to open
+  // has to land in a file rather than in whoever's browser is running. See lib/browserstub.js.
+  // Prepended once however often this is called, so a long-lived harness does not grow its PATH.
+  const stubs = browserStubDir(env.XDG_DATA_HOME);
+  const entries = (env.PATH ?? "").split(path.delimiter);
+  if (entries[0] !== stubs) {
+    env.PATH = [stubs, ...entries.filter((entry) => entry !== stubs)].join(path.delimiter);
   }
   return env;
 }

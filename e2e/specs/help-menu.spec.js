@@ -5,9 +5,12 @@
  * log and the update check each closed a slice of their own, and none of them is drawn greyed any
  * more. About works from its new place last.
  *
- * What is read is what the menu draws and what the app logs it asked to open. A browser cannot open
- * under Xvfb and this spec does not need one: the command logs the exact URL before it launches,
- * which is the only thing about the launch a check can see. See help-menu-tasks.md.
+ * What is read is what the menu draws and what the app logs it asked to open. This used to say a
+ * browser cannot open under Xvfb, which was wrong and cost the owner a browser full of tabs: a
+ * second Firefox hands its URL to the instance already running, through the profile lock, which has
+ * nothing to do with DISPLAY. The harness now puts a launcher that goes nowhere in front of the real
+ * ones for every app it starts, so a run records the URL instead of opening it. See
+ * `lib/browserstub.js` and help-menu-tasks.md.
  */
 import { browser, expect } from "@wdio/globals";
 
