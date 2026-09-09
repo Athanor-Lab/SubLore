@@ -11,9 +11,17 @@ import {
   stubBinary,
 } from "./lib/asr.js";
 import { appEnv } from "./lib/env.js";
+import { startDisplay, stopDisplay } from "./lib/display.js";
 import { startUpdateStandIn } from "./lib/updates.js";
 import { driverPort, startDriver, stopDriver } from "./lib/driver.js";
-import { requireAppBinary, requireDisplay, requireTool, requireVideoFixture } from "./lib/paths.js";
+import {
+  requireAppBinary,
+  requireDisplay,
+  requireTool,
+  requireVideoFixture,
+  windowHeight,
+  windowWidth,
+} from "./lib/paths.js";
 import { passedTests, recordPassedTest, resetTally } from "./lib/tally.js";
 
 /**
@@ -116,7 +124,10 @@ export const config = {
   hostname: "127.0.0.1",
   port: driverPort,
   specs: ["./specs/*.spec.js"],
-  maxInstances: 1,
+  // Two, not four. The state that made this unsafe is gone (N19) and every spec now passes alone,
+  // so what is left to find out is what parallel load does to the checks that measure time. Two is
+  // the smallest number that can answer it, and the number moves once it has. See N24.
+  maxInstances: 2,
   /**
    * One retry of a whole spec file, on the shared runner only. Five CI runs on 2026-09-06 each
    * failed exactly one check and a different one every time, all of them timing, none of them
@@ -175,6 +186,9 @@ export const config = {
     // written. Twice on 2026-09-09 that reached across specs and reddened one that had done nothing
     // wrong. Per spec rather than per launch, so the five specs that relaunch the app still find
     // what the launch before them left. See BACKLOG.md N19.
+    // A display of this worker's own, before anything looks for a window on one. Serial or not,
+    // this is what lets two workers run without finding each other's app. See BACKLOG.md N24.
+    await startDisplay(`${windowWidth}x${windowHeight}x24`);
     const own = path.join(runDataHome, "spec", specName(specs));
     mkdirSync(own, { recursive: true });
     Object.assign(process.env, appEnv({ XDG_DATA_HOME: own }));
@@ -194,6 +208,7 @@ export const config = {
 
   afterSession: async (config_, capabilities, specs) => {
     stopDriver();
+    stopDisplay();
     await standIn?.close();
     standIn = null;
     // Unconditional: a module file left beside the executable would change what every later spec

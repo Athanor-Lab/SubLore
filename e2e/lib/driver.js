@@ -8,7 +8,16 @@ import { waitFor } from "./proc.js";
 /** tauri-driver is a dev tool installed with `cargo install tauri-driver --locked`, not a repo dep. */
 const DRIVER = process.env.TAURI_DRIVER_PATH ?? "tauri-driver";
 
-export const driverPort = Number(process.env.E2E_PORT ?? 4444);
+/**
+ * This worker's own driver port.
+ *
+ * One number for the whole battery was enough while it was serial. With workers in parallel each
+ * needs a driver of its own, because the app inherits the driver's environment and that is how a
+ * data home reaches it, so each needs a port of its own too. Two per worker, since the native
+ * driver takes the one above. See BACKLOG.md N24.
+ */
+const workerSlot = Number(/(\d+)$/.exec(process.env.WDIO_WORKER_ID ?? "")?.[1] ?? 0);
+export const driverPort = Number(process.env.E2E_PORT ?? 4444) + workerSlot * 2;
 const nativePort = driverPort + 1;
 
 let child = null;
