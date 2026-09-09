@@ -336,6 +336,11 @@ export const en = {
     failed: "The check could not be made. Your copy of Sublore is unaffected.",
     close: "Close",
   },
+  /** The audio track menu. See BACKLOG.md N27. */
+  audio: {
+    /** Said when a track switch is refused: a command that does nothing must not do it silently. */
+    switchRefused: "That audio track could not be switched to. The panel is still on the last one.",
+  },
   /** Paste over's field dialog (N45, docs/paste-over-tasks.md). The eleven in the reference's order. */
   pasteOver: {
     title: "Select fields to paste over",
