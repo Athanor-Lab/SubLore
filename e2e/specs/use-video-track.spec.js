@@ -5,7 +5,7 @@
  * through the same machinery the track submenu uses. Proved on the two-tone fixture the track
  * switch is proved on: pick the second track, then the command, and the first is marked again.
  */
-import { browser, expect } from "@wdio/globals";
+import { browser } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
@@ -93,7 +93,13 @@ describe("Use the video's audio", () => {
 
   it("returns to the video's first track after the second was picked", async () => {
     await openAudioMenu(toplevel);
-    expect(await checkedTrack()).toBe(1);
+    // Waited for, not assumed: the mark names the track a peak job was started on, and with a cold
+    // cache that job is still starting when the menu opens. This read as an instant truth only
+    // because an earlier spec had already peaked this fixture into a shared cache (N19).
+    await waitFor(async () => ((await checkedTrack()) === 1 ? 1 : null), {
+      timeout: 40000,
+      message: "the first track to be the one the panel is drawing",
+    });
     await clickElement(toplevel, ".menubar__item--audio-track-2");
     await waitFor(async () => ((await present(".menubar__menu")) ? null : 1), {
       timeout: 15000,
