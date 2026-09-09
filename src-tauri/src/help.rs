@@ -1,4 +1,4 @@
-//! The Help menu's two browser links. The webview names a place, never a URL.
+//! The Help menu's three browser links. The webview names a place, never a URL.
 //!
 //! Interface-spec §3.8: Project website and Report a bug open the user's default browser. That is
 //! the browser's network request and not Sublore's, so it is in scope where CLAUDE.md §1's own list
@@ -16,6 +16,9 @@ use crate::log;
 const WEBSITE_URL: &str = "https://github.com/Athanor-Lab/SubLore";
 /// Where a bug report goes today.
 const BUGS_URL: &str = "https://github.com/Athanor-Lab/SubLore/issues";
+/// The manual, which lives in the repository until a documentation site exists (manual-tasks.md,
+/// a stated assumption the owner changes in this one line).
+const MANUAL_URL: &str = "https://github.com/Athanor-Lab/SubLore/blob/main/docs/manual.md";
 
 /// Which Help link to open. A closed set on purpose: the webview picks a place, never a URL.
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -23,6 +26,7 @@ const BUGS_URL: &str = "https://github.com/Athanor-Lab/SubLore/issues";
 pub enum HelpLink {
     Website,
     Bugs,
+    Manual,
 }
 
 impl HelpLink {
@@ -30,6 +34,7 @@ impl HelpLink {
         match self {
             HelpLink::Website => WEBSITE_URL,
             HelpLink::Bugs => BUGS_URL,
+            HelpLink::Manual => MANUAL_URL,
         }
     }
 }

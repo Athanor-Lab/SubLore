@@ -1,10 +1,9 @@
 /* global describe, it, before, afterEach, document, window */
 /**
  * The Help menu: the six items interface-spec §3.8 keeps in v1, in the reference's order, and the
- * two that need nothing but the user's own browser to open. Contents, Check for updates and Event
- * log are drawn greyed because their providers (the manual, the update check, the log window) are
- * not built yet; each is a slice of its own, and a command that exists is drawn rather than absent
- * (2026-09-03 ruling). About works from its new place last.
+ * three that need nothing but the user's own browser to open. Check for updates and Event log are
+ * drawn greyed because their providers are not built yet; each is a slice of its own, and a command
+ * that exists is drawn rather than absent (2026-09-03 ruling). About works from its new place last.
  *
  * What is read is what the menu draws and what the app logs it asked to open. A browser cannot open
  * under Xvfb and this spec does not need one: the command logs the exact URL before it launches,
@@ -12,7 +11,7 @@
  */
 import { browser, expect } from "@wdio/globals";
 
-import { dataHome, waitForLog } from "../lib/applog.js";
+import { appLog, dataHome, waitForLog } from "../lib/applog.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -78,6 +77,19 @@ function helpItems() {
   );
 }
 
+/** The manual's address, as the app logs it before handing it to the browser. */
+const MANUAL_LOGGED =
+  /help: opening https:\/\/github\.com\/Athanor-Lab\/SubLore\/blob\/main\/docs\/manual\.md /g;
+
+/**
+ * How many times that address is already in the log. Both routes to the manual write the same line,
+ * so the second one is proved by the count going up and never by the line being there: matching the
+ * whole file would let the menu's own line pass for the accelerator's.
+ */
+function timesLogged() {
+  return (appLog(dataHome()).match(MANUAL_LOGGED) ?? []).length;
+}
+
 describe("the Help menu", () => {
   let toplevel = null;
 
@@ -126,17 +138,17 @@ describe("the Help menu", () => {
     await closeMenu();
   });
 
-  it("greys the three whose provider is not built, and enables the rest", async () => {
+  it("greys the two whose provider is not built, and enables the rest", async () => {
     await openHelp(toplevel);
     const greyed = Object.fromEntries(
       (await helpItems()).map((item) => [item.token, item.disabled]),
     );
-    // Enabled: the two browser links and About, all of which can act right now.
+    // Enabled: the three browser links and About, all of which can act right now.
+    expect(greyed["help-contents"]).toBe(false);
     expect(greyed["help-website"]).toBe(false);
     expect(greyed["help-report-bug"]).toBe(false);
     expect(greyed["help-about"]).toBe(false);
-    // Greyed: the manual, the update check and the log window are not built.
-    expect(greyed["help-contents"]).toBe(true);
+    // Greyed: the update check and the log window are not built.
     expect(greyed["help-check-updates"]).toBe(true);
     expect(greyed["help-event-log"]).toBe(true);
     await closeMenu();
@@ -158,6 +170,29 @@ describe("the Help menu", () => {
     await waitForLog(dataHome(), /help: opening https:\/\/github\.com\/Athanor-Lab\/SubLore /, {
       timeout: 20000,
       what: "the project website URL",
+    });
+  });
+
+  it("opens the manual in the browser, logging the exact URL", async () => {
+    const before = timesLogged();
+    await openHelp(toplevel);
+    await clickElement(toplevel, ".menubar__item--help-contents");
+    await waitFor(() => (timesLogged() > before ? 1 : null), {
+      timeout: 20000,
+      message: "the manual URL to reach the log from the menu",
+    });
+  });
+
+  it("opens the manual from F1 as well, with no menu in the way", async () => {
+    // A function key is the one bare press a text field never keeps, so this fires wherever the
+    // caret is (keyboard-tasks F5). The menu is shut: the accelerator is the whole route.
+    await closeMenu();
+    focusWindow(toplevel.id);
+    const before = timesLogged();
+    pressKey("F1");
+    await waitFor(() => (timesLogged() > before ? 1 : null), {
+      timeout: 20000,
+      message: "the manual URL to reach the log from F1",
     });
   });
 
