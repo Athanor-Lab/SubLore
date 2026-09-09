@@ -1,9 +1,15 @@
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { asrDir, cacheHome, installStubSidecar, stubBinary } from "./lib/asr.js";
+import {
+  asrDir,
+  cacheHome,
+  installModelForSpec,
+  installStubSidecar,
+  stubBinary,
+} from "./lib/asr.js";
 import { appEnv } from "./lib/env.js";
 import { startUpdateStandIn } from "./lib/updates.js";
 import { driverPort, startDriver, stopDriver } from "./lib/driver.js";
@@ -25,6 +31,18 @@ process.env.SUBLORE_E2E_DATA_HOME ??= mkdtempSync(path.join(os.tmpdir(), "sublor
  * the next build with a quota error. A tree the caller named is the caller's to keep.
  */
 const ownDataHome = inherited === undefined ? process.env.SUBLORE_E2E_DATA_HOME : null;
+/** The run's tree, kept because every spec's own directory is made under it. */
+const runDataHome = process.env.SUBLORE_E2E_DATA_HOME;
+// Read at module load, in the launcher and again in every worker, and before `beforeSession`
+// points the data home at the spec's own. What is shared and read only lives here: the stub
+// sidecar and the transcript it replays.
+process.env.SUBLORE_E2E_RUN_HOME = runDataHome;
+
+/** A spec file's name, as a directory name: what tells one spec's tree from another's. */
+function specName(specs) {
+  const first = Array.isArray(specs) ? specs[0] : specs;
+  return path.basename(String(first ?? "unknown")).replace(/[^a-zA-Z0-9._-]/g, "_");
+}
 /** The update check's stand-in for this worker's session, held so `afterSession` can shut it. */
 let standIn = null;
 process.env.XDG_DATA_HOME = process.env.SUBLORE_E2E_DATA_HOME;
@@ -152,6 +170,20 @@ export const config = {
    */
   beforeSession: async (config_, capabilities, specs) => {
     installModuleFixture(specs);
+    // A directory of this spec's own, under the run's. One data home for the whole battery is what
+    // made every spec inherit its predecessors' state: a project it had open, a preference it had
+    // written. Twice on 2026-09-09 that reached across specs and reddened one that had done nothing
+    // wrong. Per spec rather than per launch, so the five specs that relaunch the app still find
+    // what the launch before them left. See BACKLOG.md N19.
+    const own = path.join(runDataHome, "spec", specName(specs));
+    mkdirSync(own, { recursive: true });
+    Object.assign(process.env, appEnv({ XDG_DATA_HOME: own }));
+    process.env.SUBLORE_E2E_DATA_HOME = own;
+    // The stub sidecar is shared and read only; the model sits in the app's own data dir and so
+    // follows the spec. Only the specs that transcribe get it: it is 75 MB a copy.
+    if (specName(specs).startsWith("asr")) {
+      installModelForSpec();
+    }
     // Before the app exists, and in the process that launches it: an endpoint set in `onPrepare`
     // lives in the launcher, and whether a worker inherits it is not something to bet a run on.
     // With this set, no app in the battery can reach the real network to ask about updates.
