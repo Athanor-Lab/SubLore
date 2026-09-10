@@ -237,4 +237,23 @@ describe("splitting a cue at the playhead", () => {
     expect(await rowCount()).toBe(4);
     expect(await takeCommands()).toEqual([]);
   });
+
+  it("splits before the current frame on the reference's own key", async () => {
+    await clickRow(toplevel, 1);
+    await seekTo(toplevel, "00:00:03.500", 3.5);
+    pressKey("ctrl+d");
+    await waitFor(async () => ((await rowCount()) === 5 ? 1 : null), {
+      timeout: 15000,
+      message: "ctrl+d to cut the cue in two",
+    });
+
+    const first = await rowCells(1);
+    const second = await rowCells(2);
+    expect(first.end).toBe(second.start);
+    // Which of the two splits ran, and not merely that one did: `before` cuts on the near edge of
+    // the frame the playhead is on and `after` on its far edge, so the cut lands earlier than the
+    // playhead's own timecode one way and later the other. The strings are fixed width and zero
+    // padded, so comparing them compares the times.
+    expect(first.end < "00:00:03.500").toBe(true);
+  });
 });

@@ -2418,12 +2418,14 @@ export default function App() {
     {
       id: "subtitle.split-before-playhead",
       label: en.menu.subtitles.splitBeforePlayhead,
+      accelerator: en.menu.keys.splitBeforePlayhead,
       enabled: ready && activeCue !== null,
       run: () => void splitAtPlayhead(true),
     },
     {
       id: "subtitle.split-after-playhead",
       label: en.menu.subtitles.splitAfterPlayhead,
+      accelerator: en.menu.keys.splitAfterPlayhead,
       enabled: ready && activeCue !== null,
       run: () => void splitAtPlayhead(false),
     },
