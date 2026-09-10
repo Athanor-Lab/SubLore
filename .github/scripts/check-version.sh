@@ -47,6 +47,22 @@ case "${GITHUB_REF:-}" in
       exit 1
     fi
     echo "check-version: $package_json, and the tag agrees"
+    # The release reads its notes from the changelog section named for the tag, and refuses an
+    # absent or empty one. That refusal is right and it arrives at the wrong moment: the release job
+    # waits on the whole matrix, so a missing heading costs an hour before it is heard. Said here
+    # instead, in the job that takes five minutes. See release-changelog-gate-tasks.md R3.
+    notes=$(awk -v want="## ${GITHUB_REF#refs/tags/}" '
+      $0 == want { taking = 1; next }
+      taking && /^## / { exit }
+      taking { print }
+    ' CHANGELOG.md)
+    if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+      echo "check-version: CHANGELOG.md has no \"## ${GITHUB_REF#refs/tags/}\" section with anything in it." >&2
+      echo "  The release takes its notes from that section, so it would fail after the whole" >&2
+      echo "  matrix has run. Rename the Unreleased heading to the tag and push before tagging." >&2
+      exit 1
+    fi
+    echo "check-version: CHANGELOG.md has notes for ${GITHUB_REF#refs/tags/}"
     ;;
   *)
     echo "check-version: $package_json in all three files"
