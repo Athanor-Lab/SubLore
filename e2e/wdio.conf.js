@@ -10,7 +10,7 @@ import {
   installStubSidecar,
   stubBinary,
 } from "./lib/asr.js";
-import { appEnv } from "./lib/env.js";
+import { appEnv, silentMachine } from "./lib/env.js";
 import { startDisplay, stopDisplay } from "./lib/display.js";
 import { startUpdateStandIn } from "./lib/updates.js";
 import { driverPort, startDriver, stopDriver } from "./lib/driver.js";
@@ -28,7 +28,7 @@ import { passedTests, recordPassedTest, resetTally } from "./lib/tally.js";
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 435;
+const EXPECTED_TESTS = 437;
 
 // Keeps a run out of the real data dir. Created once in the launcher; workers inherit the value.
 const inherited = process.env.SUBLORE_E2E_DATA_HOME;
@@ -193,6 +193,12 @@ export const config = {
     mkdirSync(own, { recursive: true });
     Object.assign(process.env, appEnv({ XDG_DATA_HOME: own }));
     process.env.SUBLORE_E2E_DATA_HOME = own;
+    // One spec runs against a machine with no audio device, which is what a server or a plain
+    // virtual machine is. Only that one: every other spec wants whatever this machine has, and a
+    // battery-wide silence would change what the waveform specs are asserting. See BACKLOG.md N13.
+    if (specName(specs).startsWith("silent-machine")) {
+      Object.assign(process.env, silentMachine(own));
+    }
     // The stub sidecar is shared and read only; the model sits in the app's own data dir and so
     // follows the spec. Only the specs that transcribe get it: it is 75 MB a copy.
     if (specName(specs).startsWith("asr")) {

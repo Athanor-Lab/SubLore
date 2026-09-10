@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -23,6 +24,28 @@ import { browserStubDir, openedPath } from "./browserstub.js";
  * `cfg(target_os = "linux")`. So this stays as it is, MW.1b adds whatever the WebView2 launcher
  * needs beside it, and there is no guard here on purpose: a launcher needs a base environment.
  */
+/**
+ * A machine with no audio device at all, which is what a server, a container and a plain virtual
+ * machine are.
+ *
+ * Every backend mpv would try is sent somewhere that does not answer: ALSA's configuration, the
+ * runtime directory PipeWire's socket lives in, and PulseAudio's server. Measured on 2026-09-09,
+ * this makes mpv report "Could not open/initialize audio device" and, without
+ * `audio-fallback-to-null`, end the file about a second in. That is the defect this exists to
+ * catch. See BACKLOG.md N13.
+ *
+ * @param {string} dataHome the spec's own data home, which the empty runtime directory goes under
+ */
+export function silentMachine(dataHome) {
+  const runtime = path.join(dataHome, "no-audio-runtime");
+  mkdirSync(runtime, { recursive: true });
+  return {
+    XDG_RUNTIME_DIR: runtime,
+    ALSA_CONFIG_PATH: path.join(runtime, "there-is-no-asound.conf"),
+    PULSE_SERVER: path.join(runtime, "there-is-no-pulse-server"),
+  };
+}
+
 export function appEnv(overrides = {}) {
   const env = {
     ...process.env,
