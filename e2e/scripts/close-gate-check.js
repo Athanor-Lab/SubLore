@@ -39,7 +39,7 @@ import { killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
 import { allWindows, findToplevel, mapState, rootTree } from "../lib/x11.js";
 
 /** Gutting an assertion has to be as red as failing one, so the checks count themselves. */
-const EXPECTED_CHECKS = 12;
+const EXPECTED_CHECKS = 13;
 let checksRun = 0;
 
 /** The close dialog's window name. Frozen contract with src-tauri/src/strings.rs. */
@@ -387,10 +387,23 @@ async function main() {
         savedBlocks[differing[0]].includes(EDIT_MARK),
       `blocks before ${beforeBlocks.length}, after ${savedBlocks.length}, differing ${JSON.stringify(differing)}`,
     );
+    // Not "a file exists": a backup holding the bytes just written passes that and protects
+    // nothing, which is what §3.3 is for (N74).
+    const backups = backupsUnder(saveHome);
     check(
-      "save kept a timestamped backup of what it overwrote",
-      backupsUnder(saveHome).length > 0,
-      `no backup under ${path.join(saveHome, "com.sublore.app", "backups")}`,
+      "save kept exactly one backup, holding the bytes it overwrote and not the ones it wrote",
+      backups.length === 1 && readFileSync(backups[0]).equals(original),
+      `${backups.length} backups under ${path.join(saveHome, "com.sublore.app", "backups")}` +
+        `${backups.length === 0 ? "" : `, and ${backups[0]} holds ${readFileSync(backups[0]).length} bytes where the overwritten file had ${original.length}`}`,
+    );
+    check(
+      "the backup is named for the file and the second it was taken",
+      backups.length === 1 &&
+        new RegExp(
+          `^${path.basename(saveFile).replace(/\./gu, "\\.")}\\.\\d{8}-\\d{6}(-\\d{1,2})?\\.bak$`,
+          "u",
+        ).test(path.basename(backups[0])),
+      `the backup is ${backups.length === 1 ? path.basename(backups[0]) : "not there"}`,
     );
   } finally {
     cleanup(state);
