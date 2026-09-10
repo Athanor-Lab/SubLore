@@ -18,6 +18,20 @@ import { repoRoot } from "./paths.js";
  * `O_APPEND`, and the reader takes the unique set anyway. See BACKLOG.md N24.
  */
 function tallyFile() {
+  return runFile("tally");
+}
+
+/**
+ * The same file-per-run trick for tests that did not pass. `results.failed` in `onComplete` is
+ * zero when a spec file failed and its retry passed, so a run that was green only because of a
+ * retry looked like a clean run and threw its tree away: exactly the run whose logs are wanted
+ * (N86).
+ */
+function failFile() {
+  return runFile("failed");
+}
+
+function runFile(what) {
   // Read when it is used, never at import. A module body runs before the importing file's own, so
   // the launcher computed this before it had set the variable while every worker inherited it
   // already set: the two named different files and the guard read an empty one. Measured, on the
@@ -25,12 +39,32 @@ function tallyFile() {
   const runKey = process.env.SUBLORE_E2E_RUN_HOME ?? repoRoot;
   return path.join(
     os.tmpdir(),
-    `sublore-e2e-tally-${createHash("sha1").update(runKey).digest("hex").slice(0, 12)}`,
+    `sublore-e2e-${what}-${createHash("sha1").update(runKey).digest("hex").slice(0, 12)}`,
   );
 }
 
 export function resetTally() {
   writeFileSync(tallyFile(), "");
+  writeFileSync(failFile(), "");
+}
+
+export function recordFailedTest(title) {
+  appendFileSync(failFile(), `${title.replace(/\n/g, " ")}\n`);
+}
+
+/** Every test that did not pass at least once, retries included. */
+export function failedTests() {
+  try {
+    return [
+      ...new Set(
+        readFileSync(failFile(), "utf8")
+          .split("\n")
+          .filter((line) => line !== ""),
+      ),
+    ];
+  } catch {
+    return [];
+  }
 }
 
 export function recordPassedTest(title) {
