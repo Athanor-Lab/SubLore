@@ -57,3 +57,27 @@ export async function runFromMenu(click, menu, token) {
     message: `the menu to close after ${token}`,
   });
 }
+
+/**
+ * Whether a command is greyed, read where it is drawn rather than off a button that may not be
+ * there tomorrow. Opens the menu, reads the item, and closes it again, so it belongs outside a
+ * polling loop: a wait that called this would open and close a menu on every turn (N121).
+ */
+export async function menuItemDisabled(click, menu, token) {
+  await click(`.menubar__title--${menu}`);
+  await waitFor(() => present(".menubar__menu"), {
+    timeout: 15000,
+    message: `the ${menu} menu to open`,
+  });
+  await intoList(click, token);
+  const disabled = await browser.execute(
+    (css) => document.querySelector(css)?.disabled ?? null,
+    `#menuitem-${token}`,
+  );
+  await click(`.menubar__title--${menu}`);
+  await waitFor(async () => ((await present(".menubar__menu")) ? null : 1), {
+    timeout: 15000,
+    message: `the ${menu} menu to close again`,
+  });
+  return disabled;
+}
