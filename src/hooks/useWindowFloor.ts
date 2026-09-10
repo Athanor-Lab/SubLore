@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { widestRow } from "../measure";
 
@@ -45,6 +45,12 @@ export function useWindowFloor(
 ): { width: number | null; failed: boolean; seen: string | null } {
   const [rows, setRows] = useState<number | null>(null);
   const [refused, setRefused] = useState(false);
+  /**
+   * Which ask the verdict on screen belongs to. A resize sends several in a row and they do not
+   * answer in the order they were sent, so without this the last reply won: one refusal among them
+   * put a window-floor error on the status bar over a floor the window had accepted. See N66.
+   */
+  const asking = useRef(0);
   const [missing, setMissing] = useState(false);
   const [seen, setSeen] = useState<string | null>(null);
 
@@ -92,12 +98,20 @@ export function useWindowFloor(
     // is the one that has read itself narrower than the floor, and the window's own answer about
     // how wide it is can still be the one from before the resize that prompted the call. See N32.
     const carry = (hold: boolean) => {
+      asking.current += 1;
+      const mine = asking.current;
       void invoke<number[]>("layout_set_minimum_width", { width, hold })
         .then((was) => {
-          setRefused(false);
-          setSeen(was.join("/"));
+          if (mine === asking.current) {
+            setRefused(false);
+            setSeen(was.join("/"));
+          }
         })
-        .catch(() => setRefused(true));
+        .catch(() => {
+          if (mine === asking.current) {
+            setRefused(true);
+          }
+        });
     };
     carry(false);
     // A smallest size is a hint to whatever places the window, and not everything that places a
