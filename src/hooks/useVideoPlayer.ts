@@ -141,14 +141,22 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
   /** Unload the media. The player stays up, so the next open is as cheap as the first. */
   const close = useCallback(async () => {
     opening.current += 1;
+    const mine = opening.current;
     setErrorCode(null);
     try {
       await invoke("video_close");
-      setPosition(0);
-      setState(IDLE_STATE);
-      setPicture(null);
+      // Read again after the wait, the way every other call in this file does: an open that began
+      // while this was in flight owns the state now, and a close answering afterwards would empty
+      // the panel over a video that is loaded. See BACKLOG.md N61.
+      if (mine === opening.current) {
+        setPosition(0);
+        setState(IDLE_STATE);
+        setPicture(null);
+      }
     } catch (error) {
-      setErrorCode(toErrorCode(error));
+      if (mine === opening.current) {
+        setErrorCode(toErrorCode(error));
+      }
     }
   }, []);
 
