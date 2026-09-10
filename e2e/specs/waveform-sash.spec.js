@@ -99,9 +99,34 @@ async function dragSashBy(toplevel, dy) {
     toplevel.absY + toplevel.height - 2,
   );
   dragAt(fromX, fromY, fromX, toY);
-  // The release is what stores the height, so this reads a settled panel, never a mid-drag one.
-  await browser.pause(250);
+  // The release is what stores the height, and the panel settles after it. Waited for rather than
+  // slept through: 250 ms was a guess (N93).
+  await settledSash(SASH);
   return { fromHeight: sash.cssHeight, landedAt: Math.round(toY - toplevel.absY) };
+}
+
+/**
+ * Wait until a sash has stopped moving, and answer with where it is.
+ *
+ * A sleep after a drag is a guess at how long a layout takes, and this file reads exact sizes
+ * afterwards. Two readings that agree is the settled one (N93).
+ */
+async function settledSash(selector) {
+  let previous = null;
+  return waitFor(
+    async () => {
+      const now = await rectOf(selector);
+      const same =
+        now !== null && previous !== null && JSON.stringify(now) === JSON.stringify(previous);
+      previous = now;
+      return same ? now : null;
+    },
+    {
+      timeout: 15000,
+      interval: 100,
+      message: () => `${selector} to stop moving. The last reading was ${JSON.stringify(previous)}`,
+    },
+  );
 }
 
 async function clickElement(toplevel, selector) {

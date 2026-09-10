@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window, Event, getComputedStyle, PointerEvent */
+/* global describe, it, before, document, window, getComputedStyle, PointerEvent */
 /**
  * M2.5: the cursor's cue puts two markers on the waveform and either can be dragged.
  *
@@ -22,6 +22,7 @@ import { clickAt, dragAt, focusWindow } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
+import { seekTo } from "../lib/transport.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -126,17 +127,6 @@ function asMillis(timecode) {
  * marker: the neighbouring lines' boundaries are the same shape but a different colour, far enough
  * from both of these for the tolerance below.
  */
-/** Put the playhead somewhere, the way the transport's own slider does. */
-async function seekTo(seconds) {
-  await browser.execute((target) => {
-    const slider = document.querySelector(".controls__slider");
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-    setter.call(slider, String(target));
-    slider.dispatchEvent(new Event("input", { bubbles: true }));
-    slider.dispatchEvent(new Event("change", { bubbles: true }));
-  }, seconds);
-  await browser.pause(300);
-}
 
 function markerColumns() {
   return browser.execute(() => {

@@ -106,6 +106,31 @@ function shellSizes() {
 }
 
 /**
+ * Wait until the shell's sizes stop changing, and answer with them.
+ *
+ * A sleep after a drag is a guess at how long a layout takes. Measured on 2026-09-10 it was
+ * sometimes wrong by a pixel, which is enough: this file asserts exact sizes, and one run read a
+ * ceiling of 331 where 330 was wanted (N93). Two readings that agree is the settled one.
+ */
+async function settledSizes() {
+  let previous = null;
+  return waitFor(
+    async () => {
+      const now = await shellSizes();
+      const same = previous !== null && JSON.stringify(now) === JSON.stringify(previous);
+      previous = now;
+      return same ? now : null;
+    },
+    {
+      timeout: 15000,
+      interval: 100,
+      message: () =>
+        `the shell's sizes to stop changing. The last reading was ${JSON.stringify(previous)}`,
+    },
+  );
+}
+
+/**
  * No window manager under Xvfb, so the toplevel origin is also the viewport origin.
  *
  * The destination is kept inside the window: `xdotool` refuses a pointer off the screen, and a drag
@@ -122,8 +147,9 @@ async function dragSash(toplevel, selector, dx, dy) {
   const toX = toplevel.absX + inside(sash.midX + dx, toplevel.width);
   const toY = toplevel.absY + inside(sash.midY + dy, toplevel.height);
   dragAt(fromX, fromY, toX, toY);
-  // The release is what stores the size, so this reads a settled layout, never a mid-drag one.
-  await browser.pause(250);
+  // The release is what stores the size, and the layout settles after it. Waited for rather than
+  // slept through: 250 ms was a guess, and this file reads exact pixel sizes (N93).
+  await settledSizes();
 }
 
 /** The ceiling the grid edge declares, which is the height it stops the block at. */
@@ -150,7 +176,7 @@ async function walkGridEdgeDown(toplevel) {
   for (let press = 0; press < 80; press += 1) {
     pressKey("Down");
   }
-  await browser.pause(250);
+  await settledSizes();
 }
 
 async function clickElement(toplevel, selector) {
