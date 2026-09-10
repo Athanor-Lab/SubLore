@@ -172,6 +172,37 @@ pub enum Edit {
     },
 }
 
+impl Edit {
+    /// A short, stable name for logs. Never the content: a subtitle line is the user's own
+    /// writing, and the line that carries this already says so. The match has no wildcard, so a
+    /// new variant does not compile until it is named here. See BACKLOG.md N83.
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Edit::SetText { .. } => "set-text",
+            Edit::SetTexts { .. } => "set-texts",
+            Edit::ClearText { .. } => "clear-text",
+            Edit::SetStyleField { .. } => "set-style-field",
+            Edit::SetOverrideTags { .. } => "set-override-tags",
+            Edit::SetTimes { .. } => "set-times",
+            Edit::SetManyTimes { .. } => "set-many-times",
+            Edit::PasteOverCues { .. } => "paste-over-cues",
+            Edit::SetField { .. } => "set-field",
+            Edit::ToggleStyle { .. } => "toggle-style",
+            Edit::SetComment { .. } => "set-comment",
+            Edit::Insert { .. } => "insert",
+            Edit::Paste { .. } => "paste",
+            Edit::Delete { .. } => "delete",
+            Edit::DeleteMany { .. } => "delete-many",
+            Edit::Duplicate { .. } => "duplicate",
+            Edit::Join { .. } => "join",
+            Edit::Split { .. } => "split",
+            Edit::SplitInTwo { .. } => "split-in-two",
+            Edit::Merge { .. } => "merge",
+            Edit::Reorder { .. } => "reorder",
+        }
+    }
+}
+
 /// What a paste over takes from one clipboard cue. Every part is optional, and absent means "keep
 /// what is there": the eleven checkboxes of the reference's own dialog, in the shape this crate can
 /// write. See docs/paste-over-tasks.md.

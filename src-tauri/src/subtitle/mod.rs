@@ -1590,11 +1590,13 @@ pub fn apply_edit(
         .apply(&edit, Run::New, Instant::now())
         .map_err(SubtitleError::from_edit)?;
     // One line per committed edit, not per keystroke: the editor sends a field when it is finished.
-    // It is the only outside evidence that an edit landed. The text length is here and the text is
-    // not: a length is enough to tell a real edit from a field committed unchanged, and a subtitle
-    // line is the user's own writing.
+    // It is the only outside evidence that an edit landed. The kind is named because a character
+    // count says nothing about a retime and does not move when one happens, so a reader of a CI
+    // artefact could not tell a drag on the waveform from a field committed in the grid (N83). The
+    // text length is here and the text is not: a subtitle line is the user's own writing.
     crate::log::info!(
-        "subtitle: edit committed, revision {}, {}, {} cues, cue {} now {} chars",
+        "subtitle: edit committed, {}, revision {}, {}, {} cues, cue {} now {} chars",
+        edit.kind_name(),
         session.revision(),
         if session.dirty() { "dirty" } else { "clean" },
         patch.cues.len(),
