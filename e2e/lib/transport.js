@@ -1,0 +1,86 @@
+/* global document, window, Event */
+import { browser } from "@wdio/globals";
+
+/**
+ * The transport's slider: the only seek a spec can make without a hand on a mouse.
+ *
+ * Three specs carried a copy of this and of `settledPlayhead`, and the copies had drifted: one
+ * paused 300 ms after the dispatch, one did not, and only one of them carried the landing guard
+ * below. All three are the ones that retry on the CI runner. See BACKLOG.md N84 and N87.
+ */
+
+/** How far from the second it was given a seek may stop, because it stops on a frame. */
+export const SEEK_TOLERANCE_SECONDS = 0.5;
+/** Between readings, and long enough for the app to draw the slider from the picture again. */
+const SEEK_POLL_MS = 200;
+/** How long a seek has to land before the failure is worth reporting. */
+const SEEK_TIMEOUT_MS = 15000;
+
+/**
+ * Where the playhead is once it has stopped moving there, in seconds.
+ *
+ * The pause between readings is the point: the slider's value can be set from outside for a moment
+ * before the app draws it again from where the picture really is, and two readings taken back to
+ * back would both see that moment.
+ */
+export async function settledPlayhead() {
+  const read = () =>
+    browser.execute(() => Number(document.querySelector(".controls__slider")?.value ?? -1));
+  let last = await read();
+  for (let tries = 0; tries < 30; tries += 1) {
+    await browser.pause(300);
+    const now = await read();
+    if (now === last) {
+      return now;
+    }
+    last = now;
+  }
+  throw new Error(`the playhead never stopped moving; it last read ${last}`);
+}
+
+/**
+ * Seek, and wait until the picture is there.
+ *
+ * Landed, not sent. On CI the seek was still on its way when the caller read the playhead, so the
+ * caller computed its expectation from where the picture used to be while the app worked from
+ * where it had got to, and the two never met: forty seconds burned on a comparison that named
+ * neither number (N84). Moving the cursor also sends the picture to that line's start, and a seek
+ * sent into that window is the one that is lost.
+ * @returns {Promise<number>} where the playhead actually landed, in seconds
+ */
+export async function seekTo(seconds) {
+  await browser.execute((target) => {
+    const slider = document.querySelector(".controls__slider");
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(slider, String(target));
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    slider.dispatchEvent(new Event("change", { bubbles: true }));
+  }, seconds);
+
+  // One loop with one cadence, not a `waitFor` wrapped around `settledPlayhead`: that nests a
+  // hundred millisecond poll around a function that sleeps three hundred and can take nine
+  // seconds, and the three specs using it got slow enough to move the whole parallel schedule.
+  // Measured on 2026-09-10: the battery went from green every run to one red spec in each of two
+  // consecutive runs, in files this change does not touch (N87).
+  const read = () =>
+    browser.execute(() => Number(document.querySelector(".controls__slider")?.value ?? -1));
+  let previous = null;
+  let now = -1;
+  const deadline = Date.now() + SEEK_TIMEOUT_MS;
+  for (;;) {
+    await browser.pause(SEEK_POLL_MS);
+    now = await read();
+    // Settled and where it was asked to be: either alone is not enough, because the slider holds a
+    // value written from outside for a moment before the app draws it again from the picture.
+    if (now === previous && Math.abs(now - seconds) <= SEEK_TOLERANCE_SECONDS) {
+      return now;
+    }
+    previous = now;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `the seek to ${seconds}s never landed: the playhead settled at ${now}s. Nothing read ` +
+          `after this would be about the position the test asked for.`,
+      );
+    }
+  }
+}

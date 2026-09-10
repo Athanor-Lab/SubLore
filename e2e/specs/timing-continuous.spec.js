@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window, Event */
+/* global describe, it, before, document, window */
 /**
  * The three timing commands that move more than one line: shift the selection to the playhead, and
  * make the times continuous by changing either the starts or the ends.
@@ -17,6 +17,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
+import { seekTo, settledPlayhead } from "../lib/transport.js";
 import { findToplevel } from "../lib/x11.js";
 
 /** Three cues with a gap between each pair, which is what closing the gaps has to close. */
@@ -29,8 +30,6 @@ const OPENED = [
 /** Where the picture is put before the shift. Where it lands is read, not assumed: a seek stops on
  * a frame, which is near the second it was given and not on it. */
 const PLAYHEAD_SECONDS = 10;
-/** How far from the second it was given a seek may stop, because it stops on a frame. */
-const SEEK_TOLERANCE_SECONDS = 0.5;
 
 /** The same spelling the grid uses, so the two can be compared as strings. */
 function timecode(millis) {
@@ -201,51 +200,6 @@ async function timingItem(toplevel, token) {
 }
 
 /** Put the playhead somewhere, the way the transport's own slider does. */
-async function seekTo(seconds) {
-  await browser.execute((target) => {
-    const slider = document.querySelector(".controls__slider");
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-    setter.call(slider, String(target));
-    slider.dispatchEvent(new Event("input", { bubbles: true }));
-    slider.dispatchEvent(new Event("change", { bubbles: true }));
-  }, seconds);
-  // Landed, not sent. On CI the seek was still on its way when the caller read the playhead, so
-  // the caller computed its expectation from where the picture used to be while the app shifted by
-  // where it had got to, and the two never met: forty seconds burned on a grid comparison that
-  // named neither number (N84). Waited rather than read once, because the slider is a controlled
-  // input and React puts the app's own position back over a value written straight into the DOM.
-  // A seek stops on a frame, hence the tolerance.
-  let last = -1;
-  return waitFor(
-    async () => {
-      last = await settledPlayhead();
-      return Math.abs(last - seconds) <= SEEK_TOLERANCE_SECONDS ? last : null;
-    },
-    {
-      timeout: 20000,
-      interval: 100,
-      message: () =>
-        `the seek to ${seconds}s to land; the playhead settled at ${last}s. Nothing read after ` +
-        `this would be about the position the test asked for.`,
-    },
-  );
-}
-
-/** Where the playhead is once it has stopped moving there, in seconds. */
-async function settledPlayhead() {
-  const read = () =>
-    browser.execute(() => Number(document.querySelector(".controls__slider")?.value ?? -1));
-  let last = await read();
-  for (let tries = 0; tries < 30; tries += 1) {
-    await browser.pause(300);
-    const now = await read();
-    if (now === last) {
-      return now;
-    }
-    last = now;
-  }
-  throw new Error(`the playhead never stopped moving; it last read ${last}`);
-}
 
 /** Undo, and wait for the grid to be the file as it was opened. */
 async function undoToOpened(toplevel) {

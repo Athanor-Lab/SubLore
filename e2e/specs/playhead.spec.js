@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window, Event */
+/* global describe, it, before, document, window */
 /**
  * The five commands that tie the times to where the video is, driven from the Timing menu.
  *
@@ -23,6 +23,7 @@ import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { appLog } from "../lib/applog.js";
 import { waitFor } from "../lib/proc.js";
+import { seekTo, settledPlayhead } from "../lib/transport.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -165,16 +166,15 @@ async function runFromMenu(toplevel, token) {
   });
 }
 
-async function seekTo(seconds) {
-  await browser.execute((target) => {
-    const slider = document.querySelector(".controls__slider");
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-    setter.call(slider, String(target));
-    slider.dispatchEvent(new Event("input", { bubbles: true }));
-    slider.dispatchEvent(new Event("change", { bubbles: true }));
-  }, seconds);
-  await browser.pause(300);
-}
+/**
+ * The fixture's own frame rate, read from the script that makes it rather than pinned here: a stop
+ * is allowed to overshoot by a frame and the number of milliseconds that is belongs to the media.
+ */
+const FIXTURE_FPS = Number(
+  /rate=(\d+)/.exec(
+    readFileSync(path.join(repoRoot, "fixtures", "video", "make-sample.sh"), "utf8"),
+  )?.[1] ?? "0",
+);
 
 /** Put the cursor on a row by clicking its number cell, which never opens an editor. */
 async function cursorTo(toplevel, position) {
@@ -199,38 +199,6 @@ async function cursorTo(toplevel, position) {
     message: `the cursor to reach row ${position}`,
   });
 }
-
-/**
- * The playhead once it has stopped moving.
- *
- * Moving the cursor sends the picture to that line's start, and that follow is on its way when the
- * next line of a test runs: a seek sent into that window is the one that is lost, and the picture
- * stays where the follow put it. The same wait `cue-insert.spec.js` uses, for the same reason.
- */
-async function settledPlayhead() {
-  const read = () =>
-    browser.execute(() => Number(document.querySelector(".controls__slider")?.value ?? -1));
-  let last = await read();
-  for (let tries = 0; tries < 30; tries += 1) {
-    await browser.pause(300);
-    const now = await read();
-    if (now === last) {
-      return now;
-    }
-    last = now;
-  }
-  throw new Error(`the playhead never stopped moving; it last read ${last}`);
-}
-
-/**
- * The fixture's own frame rate, read from the script that makes it rather than pinned here: a stop
- * is allowed to overshoot by a frame and the number of milliseconds that is belongs to the media.
- */
-const FIXTURE_FPS = Number(
-  /rate=(\d+)/.exec(
-    readFileSync(path.join(repoRoot, "fixtures", "video", "make-sample.sh"), "utf8"),
-  )?.[1] ?? "0",
-);
 
 describe("the times follow the playhead", () => {
   let toplevel = null;
