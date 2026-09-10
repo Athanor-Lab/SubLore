@@ -253,6 +253,34 @@ describe("stepping the picture and walking a line's edges", () => {
     });
   });
 
+  it("steps once, not twice, when the numpad sends the same arrow", async () => {
+    // Measured on 2026-09-10: with NumLock off the numpad's 4 arrives as `code` "Numpad4" with a
+    // `key` of "ArrowLeft", so an accelerator matched on `key` answers both keys (N107).
+    const from = await playheadSettles();
+    pressKey("KP_Left");
+    pressKey("Left");
+    // Read once the picture has stopped moving, not at the first sign of movement: a wait that
+    // returns on "it went back a bit" is satisfied by the first of two steps and would pass with
+    // the defect in place, which is how the first version of this check passed.
+    const landed = await playheadSettles();
+    // One frame back and no more. Two is the numpad press stepping as well. The real Left is the
+    // positive control inside the same assertion, so a playhead that never moved fails here too.
+    expect(landed).toBeLessThan(from - FRAME / 2);
+    expect(landed).toBeGreaterThan(from - FRAME * 1.5);
+
+    // The numpad's 4 is the start nudge now, so this check edits the document on its way past.
+    // Put it back: the checks after this one read the fixture's own boundaries, and one undo
+    // spending the whole history is what says the edit was the only one.
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(
+      () =>
+        browser.execute(
+          () => document.querySelector(".toolbar__edit-undo")?.disabled === true || null,
+        ),
+      { timeout: 20000, message: "the one nudge to be undone, leaving nothing to undo" },
+    );
+  });
+
   it("leaves a picture that is playing where it is going", async () => {
     await clickElement(toplevel, ".controls__button");
     await waitFor(async () => ((await textOf(".controls__button")) === "Pause" ? 1 : null), {
