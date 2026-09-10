@@ -281,6 +281,20 @@ describe("stepping the picture and walking a line's edges", () => {
     );
   });
 
+  it("steps a frame on the numpad's own chord, which the arrows no longer answer", async () => {
+    const from = await playheadSettles();
+    // `ctrl+KP_Left` is `Ctrl+Num 4`, the reference's own frame step. Its `key` is "ArrowLeft", so
+    // before the arrows moved to `code` this chord was `Ctrl+Left`, the boundary walk (N109).
+    pressKey("ctrl+KP_Left");
+    const landed = await playheadSettles();
+    expect(landed).toBeLessThan(from - FRAME / 2);
+    expect(landed).toBeGreaterThan(from - FRAME * 1.5);
+
+    pressKey("ctrl+KP_Right");
+    const back = await playheadSettles();
+    expect(back).toBeGreaterThan(landed + FRAME / 2);
+  });
+
   it("leaves a picture that is playing where it is going", async () => {
     await clickElement(toplevel, ".controls__button");
     await waitFor(async () => ((await textOf(".controls__button")) === "Pause" ? 1 : null), {

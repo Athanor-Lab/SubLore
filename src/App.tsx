@@ -2100,9 +2100,10 @@ export default function App() {
     {
       id: "time.commit",
       label: en.menu.timing.commit,
-      // The key the reference binds it to in the audio context. Its two variants carry none there
-      // either, and they are reached from the panel's own strip.
-      accelerator: "G",
+      // Both the keys the reference binds it to: the letter in the audio context, and the numpad's
+      // own Enter, which answers there whatever has the focus. Its two variants carry neither, and
+      // are reached from the panel's own strip.
+      accelerator: [en.menu.keys.commitTiming, en.menu.keys.commitTimingNumpad],
       // Nothing to commit into without a line; the markers belong to the cursor's cue (5).
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void commitTimes("auto"),
@@ -2234,14 +2235,14 @@ export default function App() {
     {
       id: "video.step-prev-frame",
       label: en.menu.video.stepPrevFrame,
-      accelerator: en.menu.keys.videoStepBack,
+      accelerator: [en.menu.keys.videoStepBack, en.menu.keys.videoStepBackNumpad],
       enabled: state.status === "ready",
       run: () => void stepVideo(-1),
     },
     {
       id: "video.step-next-frame",
       label: en.menu.video.stepNextFrame,
-      accelerator: en.menu.keys.videoStepForward,
+      accelerator: [en.menu.keys.videoStepForward, en.menu.keys.videoStepForwardNumpad],
       enabled: state.status === "ready",
       run: () => void stepVideo(1),
     },
