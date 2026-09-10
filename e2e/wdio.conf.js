@@ -23,7 +23,13 @@ import {
   windowHeight,
   windowWidth,
 } from "./lib/paths.js";
-import { passedTests, recordPassedTest, resetTally } from "./lib/tally.js";
+import {
+  failedTests,
+  passedTests,
+  recordFailedTest,
+  recordPassedTest,
+  resetTally,
+} from "./lib/tally.js";
 
 /**
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
@@ -185,6 +191,8 @@ export const config = {
   afterTest: (test, context, result) => {
     if (result.passed) {
       recordPassedTest(`${test.parent} ${test.title}`);
+    } else {
+      recordFailedTest(`${test.parent} ${test.title}`);
     }
   },
 
@@ -237,8 +245,18 @@ export const config = {
   },
 
   onComplete: (exitCode, capabilities, config_, results) => {
-    // A failed run keeps its tree: what the app wrote is the evidence for why it failed.
-    if (results.failed > 0) {
+    // A failed run keeps its tree: what the app wrote is the evidence for why it failed. `failed`
+    // is spec files that ended red, so it is zero when a retry saved the run, and the tree was
+    // thrown away in exactly the run whose logs are wanted. The tally knows every test that did
+    // not pass at least once (N86).
+    const stumbled = failedTests();
+    if (results.failed > 0 || stumbled.length > 0) {
+      if (results.failed === 0) {
+        console.log(
+          `E2E: the run is green but ${stumbled.length} test(s) needed a retry, so its tree is ` +
+            `kept at ${runDataHome}: ${stumbled.join("; ")}`,
+        );
+      }
       return;
     }
     if (ownDataHome !== null) {
