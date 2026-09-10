@@ -143,12 +143,29 @@ describe("the waveform's window on the media", () => {
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, requireWaveformFixture(), "video");
     focusWindow(toplevel.id);
+    // Settled, not merely counted. A drawing still filling in can hold five boundaries already,
+    // in places that are not their final ones, and the test below turns a position into a second:
+    // on CI one of them read 1.91 seconds out while the count was right (N91). Two readings that
+    // agree, on the boundaries and on the width the seconds are divided by.
+    let previous = null;
     await waitFor(
       async () => {
         const read = await boundaries();
-        return read !== null && read.changes.length >= 5 ? read : null;
+        const same =
+          read !== null &&
+          previous !== null &&
+          read.width === previous.width &&
+          read.changes.length >= 5 &&
+          JSON.stringify(read.changes) === JSON.stringify(previous.changes);
+        previous = read;
+        return same ? read : null;
       },
-      { timeout: 30000, message: "the whole file to be drawn, with its five block boundaries" },
+      {
+        timeout: 30000,
+        message: () =>
+          `the whole file to be drawn and to stop moving, with its five block boundaries. The ` +
+          `last reading was ${JSON.stringify(previous)}`,
+      },
     );
   });
 
