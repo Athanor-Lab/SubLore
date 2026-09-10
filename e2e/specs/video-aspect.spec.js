@@ -131,14 +131,40 @@ function forget() {
   });
 }
 
-/** The size the interface ends up holding, which is the last thing it was told. */
+/**
+ * The size the interface ends up holding, which is the last thing it was told and not the first.
+ *
+ * An anamorphic picture can arrive twice: mpv reports the frame it stores before it knows the pixel
+ * aspect, and the box it fills a moment later. `tell_picture` sends every change, so it sends both,
+ * and a wait that returns as soon as a size has arrived reads 640 where the answer is 1280. Read
+ * out of the tree a red battery kept on 2026-09-10: one open, two lines, `the picture is drawn 640
+ * by 360` and then `1280 by 360`, in the same second. It does not happen every time, because a
+ * first report equal to what the interface was already told is not sent at all (N111).
+ *
+ * What is waited on is the count standing still, not the size being right: the check would say
+ * nothing if the wait already knew the answer. A count that has stopped growing is the interface
+ * having been told everything it is going to be told, which is the same sentence as the name of
+ * this function. The window is what is left to judge, and 400 ms is wider than the gap measured
+ * above by more than an order of magnitude; a machine that stretched it further would still be
+ * read early, and that is the honest limit of this shape.
+ */
+const TOLD_EVERYTHING_MS = 400;
 async function drawnSize(what) {
+  let before = -1;
   return waitFor(
     async () => {
       const recorded = await seen();
-      return recorded.picture.at(-1) ?? null;
+      const told = recorded.picture.length;
+      const last = recorded.picture.at(-1) ?? null;
+      const stopped = told > 0 && told === before && last !== null;
+      before = told;
+      return stopped ? last : null;
     },
-    { timeout: 30000, message: `the drawn size of ${what}` },
+    {
+      timeout: 30000,
+      interval: TOLD_EVERYTHING_MS,
+      message: `the drawn size of ${what} to stop changing`,
+    },
   );
 }
 
