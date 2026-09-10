@@ -33,7 +33,7 @@ import { killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
 import { childWindows, findToplevel, rootTree } from "../lib/x11.js";
 
 /** Gutting an assertion has to be as red as failing one, so the checks count themselves. */
-const EXPECTED_CHECKS = 5;
+const EXPECTED_CHECKS = 6;
 let checksRun = 0;
 
 /** No mpv accepts this, which is the point: the name has to be refused to test the refusal. */
@@ -64,19 +64,26 @@ async function main() {
   const dataHome = mkdtempSync(path.join(os.tmpdir(), "sublore-e2e-mpvctx-"));
   const app = spawn(requireAppBinary(), [videoFixture], {
     detached: true,
-    stdio: ["ignore", "ignore", "inherit"],
+    // Captured rather than inherited: when the surface never arrives, the app's own panic is the
+    // whole diagnosis and it is on stderr (N78).
+    stdio: ["ignore", "ignore", "pipe"],
     env: appEnv({ XDG_DATA_HOME: dataHome, SUBLORE_MPV_GPU_CONTEXT: REFUSED }),
   });
   const pgid = app.pid;
   let exit = null;
+  let stderr = "";
+  app.stderr.setEncoding("utf8");
+  app.stderr.on("data", (chunk) => {
+    stderr += chunk;
+    process.stderr.write(chunk);
+  });
   app.on("exit", (code, signal) => {
     exit = { code, signal };
   });
 
   try {
-    // The assertion, not a precondition: before the fix the refusal propagated out of Player::new
-    // and out of Tauri's setup hook, and the process ended here with no window and nothing on
-    // screen. `waitFor` is given the exit so the failure names it instead of timing out blind.
+    // Measured on 2026-09-10 rather than assumed: with the refusal propagating, Tauri maps this
+    // window and then panics in its setup hook, so the window appearing is not survival (N78).
     const toplevel = await waitFor(
       () => {
         if (exit !== null) {
@@ -91,16 +98,40 @@ async function main() {
     );
     check("the app came up with a gpu-context mpv cannot give it", toplevel !== null);
 
+    // The exit is read here too, and this is the assertion the file exists for: the old defect
+    // reaches this wait, not the one above, and without it the run times out for thirty seconds
+    // without ever naming the crash (N78).
     const surface = await waitFor(
       () => {
+        if (exit !== null) {
+          throw new Error(
+            `the app exited (code ${exit.code}, signal ${exit.signal}) after its window appeared ` +
+              `and before the video surface. A gpu-context mpv refuses must cost the request, ` +
+              `not the launch.`,
+          );
+        }
         const children = childWindows(toplevel.id).filter(
           (child) => child.width > 50 && child.height > 50,
         );
         return children.length > 0 ? children[0] : null;
       },
       { timeout: 30000, message: `the native video surface\n${rootTree()}` },
+      // `waitFor` builds its message before it waits, so the panic has to be read here: with the
+      // refusal propagating the app does not exit at all, it hangs with its window mapped, and
+      // without this the run times out saying only that no surface appeared (N78).
+    ).catch((error) => {
+      const panic = /thread '[^']*'[\s\S]*/u.exec(stderr);
+      throw new Error(
+        `${error.message}\n` +
+          (panic === null
+            ? "the app printed no panic, so it is not the setup hook that failed"
+            : `the app panicked and kept its window:\n${panic[0].trim()}`),
+      );
+    });
+    check(
+      "the video surface was created, so the app survived its own setup hook",
+      surface !== null,
     );
-    check("the video surface was created", surface !== null);
 
     // The fallback, not merely the survival: mpv attaching its own window inside ours is what the
     // pin buys, and a run that started but never attached would pass the first check while having
@@ -130,6 +161,14 @@ async function main() {
     // Read after the process is gone: a live run has no point at which the log is guaranteed to
     // have reached the disk.
     const log = appLog(dataHome);
+    // Separate from the attachment above, and it is the one that measures the fallback: with the
+    // pin removed altogether mpv still attaches under Xvfb, because there is no Wayland display for
+    // `auto` to pick wrongly, so attachment alone proves nothing here (N78).
+    check(
+      "the log says it fell back to the pin, which attaching alone does not prove",
+      log.includes("gpu-context fell back to x11egl"),
+      `the log never said it fell back:\n${log}`,
+    );
     check(
       "the refusal is in the log, naming the value that was refused",
       log.includes(`gpu-context=${REFUSED}`) && log.includes("SUBLORE_MPV_GPU_CONTEXT"),
