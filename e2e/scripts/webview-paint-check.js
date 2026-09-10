@@ -139,7 +139,7 @@ async function launch(armed, outDir) {
     );
     await waitFor(() => mapState(window.id) === "IsViewable", {
       timeout: 20000,
-      message: `the window to be mapped.\n${rootTree()}`,
+      message: () => `the window to be mapped.\n${rootTree()}`,
     });
 
     // Poll rather than sleep: the first painted frame is what the cold-start number wants, and a

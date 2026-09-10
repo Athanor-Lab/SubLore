@@ -93,7 +93,7 @@ async function launchAndClose(args, what) {
   try {
     const toplevel = await waitFor(appToplevel, {
       timeout: 40000,
-      message: `the app's window to appear for ${what}\n${rootTree()}`,
+      message: () => `the app's window to appear for ${what}\n${rootTree()}`,
     });
     // The mark must not be there yet: a line written at startup would pass the assertion below
     // without the close path ever running.

@@ -118,7 +118,7 @@ async function main() {
 
     const surface = await waitFor(() => surfaceWindow(toplevel), {
       timeout: 30000,
-      message: `the native surface among the toplevel's children.\n${rootTree()}`,
+      message: () => `the native surface among the toplevel's children.\n${rootTree()}`,
     });
     check("the native surface is mapped", mapState(surface.id) === "IsViewable", rootTree());
 
@@ -126,7 +126,7 @@ async function main() {
     // the pixels are the honest signal that it is drawing where we told it to.
     const attached = await waitFor(
       () => (childWindows(surface.id).length > 0 ? childWindows(surface.id) : null),
-      { timeout: 20000, message: `mpv's own window inside the surface.\n${rootTree()}` },
+      { timeout: 20000, message: () => `mpv's own window inside the surface.\n${rootTree()}` },
     ).catch(() => null);
     check(
       "mpv attached its own window inside the surface",

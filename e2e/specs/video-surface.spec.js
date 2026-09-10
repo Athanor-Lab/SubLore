@@ -168,7 +168,7 @@ describe("video surface hide and show", () => {
         const found = surfaceWindow(toplevel);
         return found !== null && childWindows(found.id).length > 0 ? found : null;
       },
-      { timeout: 30000, message: `the surface with mpv attached inside it.\n${rootTree()}` },
+      { timeout: 30000, message: () => `the surface with mpv attached inside it.\n${rootTree()}` },
     );
     // The picture is deliberately NOT a precondition here. Under Xvfb with llvmpipe the first
     // frame is presented unreliably — measured at 2 appearances in 10 while mpv was attached all
@@ -208,7 +208,7 @@ describe("video surface hide and show", () => {
     await stageCollapsed(true);
     await waitFor(() => (mapState(currentSurface(toplevel).id) === "IsUnMapped" ? true : null), {
       timeout: 10000,
-      message: `the surface to hide when the region goes empty.\n${rootTree()}`,
+      message: () => `the surface to hide when the region goes empty.\n${rootTree()}`,
     });
 
     await stageCollapsed(false);
@@ -219,7 +219,10 @@ describe("video surface hide and show", () => {
           ? true
           : null;
       },
-      { timeout: 15000, message: `the surface to come back with mpv still on it.\n${rootTree()}` },
+      {
+        timeout: 15000,
+        message: () => `the surface to come back with mpv still on it.\n${rootTree()}`,
+      },
     );
 
     // "playback continues", the second half of the AC: the clock is still moving afterwards.
@@ -298,7 +301,10 @@ describe("video surface hide and show", () => {
           ? true
           : null;
       },
-      { timeout: 15000, message: `the paused surface to come back with no nudge.\n${rootTree()}` },
+      {
+        timeout: 15000,
+        message: () => `the paused surface to come back with no nudge.\n${rootTree()}`,
+      },
     );
 
     // Still the same frame: the position never moved, so nothing restarted to redraw it. Checked

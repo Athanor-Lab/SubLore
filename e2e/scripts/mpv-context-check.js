@@ -127,7 +127,7 @@ async function main() {
         );
         return children.length > 0 ? children[0] : null;
       },
-      { timeout: 30000, message: `the native video surface\n${rootTree()}` },
+      { timeout: 30000, message: () => `the native video surface\n${rootTree()}` },
       // `waitFor` builds its message before it waits, so the panic has to be read here: with the
       // refusal propagating the app does not exit at all, it hangs with its window mapped, and
       // without this the run times out saying only that no surface appeared (N78).
@@ -150,7 +150,7 @@ async function main() {
     // lost exactly what N2b fixed.
     const attached = await waitFor(
       () => (childWindows(surface.id).length > 0 ? childWindows(surface.id) : null),
-      { timeout: 20000, message: `mpv's own window inside the surface\n${rootTree()}` },
+      { timeout: 20000, message: () => `mpv's own window inside the surface\n${rootTree()}` },
     ).catch(() => null);
     check(
       "mpv still attached, so the refused name fell back to the pin",

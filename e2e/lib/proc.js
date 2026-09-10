@@ -20,9 +20,13 @@ const PATIENCE = (() => {
 /**
  * Poll until `probe` returns something truthy. Never a fixed sleep: every wait has a deadline and
  * a message saying what was expected (design section 10).
+ *
+ * `message` may be a function, and then it is called when the wait times out rather than before it
+ * starts. A message holding `rootTree()` needs that: built eagerly it shows the display as it was
+ * before the wait, which for "the window never appeared" is guaranteed not to hold it (N79).
  * @template T
  * @param {() => T | Promise<T>} probe
- * @param {{timeout?: number, interval?: number, message: string}} options
+ * @param {{timeout?: number, interval?: number, message: string | (() => string)}} options
  * @returns {Promise<T>}
  */
 export async function waitFor(probe, { timeout: asked = 30000, interval = 250, message }) {
@@ -41,7 +45,8 @@ export async function waitFor(probe, { timeout: asked = 30000, interval = 250, m
     }
     if (Date.now() >= deadline) {
       const cause = lastError === null ? "" : `\nlast error: ${lastError.message}`;
-      throw new Error(`timed out after ${timeout}ms waiting for ${message}${cause}`);
+      const said = typeof message === "function" ? message() : message;
+      throw new Error(`timed out after ${timeout}ms waiting for ${said}${cause}`);
     }
     await sleep(interval);
   }
