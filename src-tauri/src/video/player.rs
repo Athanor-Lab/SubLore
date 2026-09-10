@@ -302,6 +302,16 @@ impl Shared {
         }
         if let Some(app) = &self.app {
             let _ = app.emit(EVENT_PICTURE, PicturePayload { picture: size });
+            // What is on the frame is worth saying once there is a frame. `video::open` refreshes
+            // the preview when its task resolves, which on a slow machine is before mpv has drawn
+            // anything, so mpv answered "no line at the playhead" and nothing ever asked again
+            // (N88). Off this thread, because a refresh sends commands back into mpv and this is
+            // mpv's own event thread. Only on a picture arriving: a size going to `None` is a file
+            // closing, and there is nothing to draw a document on.
+            if size.is_some() {
+                let handle = app.clone();
+                tauri::async_runtime::spawn_blocking(move || crate::preview::refresh_now(&handle));
+            }
         }
     }
 

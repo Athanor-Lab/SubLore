@@ -246,7 +246,10 @@ pub async fn refresh(app: &AppHandle) {
     }
 }
 
-fn refresh_now(app: &AppHandle) {
+/// The refresh without the async wrapper, for a caller that is already off the poll thread. The
+/// mpv event thread reaches it through `spawn_blocking`, never inline: these commands go back into
+/// mpv and that thread is mpv's own. See BACKLOG.md N88.
+pub(crate) fn refresh_now(app: &AppHandle) {
     let (Some(preview), Some(subtitle)) = (
         app.try_state::<PreviewState>(),
         app.try_state::<SubtitleState>(),
