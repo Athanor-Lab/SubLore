@@ -279,7 +279,7 @@ describe("the current line", () => {
     expect((await gridRow(1)).cursor).toBe(false);
   });
 
-  it("commits through the command the grid commits with, and the grid row shows it", async () => {
+  it("commits through the command the grid commits with, and goes on to the next line", async () => {
     await watchCommands();
     await typeIntoBox(toplevel, EDITED_TEXT);
     key("Return");
@@ -289,7 +289,19 @@ describe("the current line", () => {
       message: "the third grid row to show what the tools column committed",
     });
 
-    expect(await takeCommands()).toEqual(["subtitle_set_text"]);
+    // Two operations, because Return does two things: it commits what was typed and then goes on,
+    // and the cursor was on the last line, so going on made one. That is the reference's own
+    // Return, which commits, moves, and creates when there is nowhere to move to (N113).
+    expect(await takeCommands()).toEqual(["subtitle_set_text", "subtitle_insert"]);
+    // The line it made, read rather than assumed: it starts where the one before it ends, which is
+    // the reference's rule, and the cursor is on it. Read positively, so the undo check below is
+    // asserting a row that was really there.
+    const made = await waitFor(async () => (await gridRow(4)) ?? null, {
+      timeout: 20000,
+      message: "the line Return made past the last one",
+    });
+    expect(made.start).toBe(THIRD.end);
+    expect(made.text).toBe("");
     expect(await present(".statusbar__dirty")).toBe(true);
     expect(await present(".statusbar__error")).toBe(false);
     // The inline editor never opened: this edit was made in the tools column and nowhere else.
@@ -298,15 +310,21 @@ describe("the current line", () => {
     expect(readFileSync(copy).equals(originalBytes)).toBe(true);
   });
 
-  it("is undone in one step, which is what a grid edit costs", async () => {
+  it("gives the new line back and then the text, one undo each", async () => {
+    // Two edits, two undos, and in that order: the line Return made comes off first, and the text
+    // it committed second. The claim underneath is unchanged, that each is one step and not two,
+    // which is what a grid edit costs (N113).
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await gridRow(4)) === null ? true : null), {
+      timeout: 20000,
+      message: "the line Return made to come back off",
+    });
     await clickElement(toplevel, ".toolbar__edit-undo");
 
     await waitFor(async () => (await gridRow(3))?.text === THIRD.text, {
       timeout: 20000,
       message: "the third grid row to go back to the text the file was opened with",
     });
-    // One step off the top of the stack put the document back where it opened. A commit that had
-    // gone through a second operation, or through two, would leave something unsaved here.
     await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
       timeout: 20000,
       message: "the unsaved marker to clear after a single undo",
