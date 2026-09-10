@@ -123,5 +123,8 @@ drawn.
 - Backups of files it has written over: `~/.local/share/com.sublore.app/backups/`, ten per file.
   Nothing deletes them but you.
 - Whisper models you have downloaded: `~/.local/share/com.sublore.app/models/`
+- The waveform's own reading of your media: `~/.cache/com.sublore.app/peaks/`, capped at 512 MB,
+  which is about thirty-five hours of it. Deleting the folder costs you the time to read a waveform
+  again and nothing else.
 - Its own log: `~/.local/share/com.sublore.app/logs/`, capped at 2 MB with two older files kept
   beside it. If Sublore ever crashes, the report lands in the same folder.
