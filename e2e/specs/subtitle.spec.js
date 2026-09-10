@@ -7,6 +7,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { menuItemDisabled, runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, windowHeight, windowTitle, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -126,9 +127,6 @@ function heldDocument() {
 }
 
 /** A drawn control's greying, or null when the control is not drawn at all. */
-function disabledOf(selector) {
-  return browser.execute((css) => document.querySelector(css)?.disabled ?? null, selector);
-}
 
 /** Open a subtitle through the system chooser, which is the only route since T1. */
 async function openSubtitle(toplevel, file) {
@@ -140,7 +138,7 @@ async function openSubtitle(toplevel, file) {
 
 /** Name the file in the save chooser. Its filename field is what the destination box used to be. */
 async function saveAsTo(toplevel, destination) {
-  await clickElement(toplevel, ".toolbar__file-save-as");
+  await runFromMenu((css) => clickElement(toplevel, css), "file", "file-save-as");
   const chooser = await waitForChooser("Save the subtitle as");
   await answerChooser(chooser, destination, "save as");
   focusWindow(toplevel.id);
@@ -320,10 +318,16 @@ describe("subtitle open and save", () => {
     // Discard is drawn from the start and usable only where it is meant: an open the unsaved edit
     // refused. Reopening the same file is that refusal at its plainest, and what comes back is the
     // file on disk (owner ruling 2026-09-03).
-    expect(await disabledOf(".toolbar__file-discard")).toBe(true);
+    expect(
+      await menuItemDisabled((css) => clickElement(toplevel, css), "file", "file-discard"),
+    ).toBe(true);
     await openSubtitle(toplevel, file);
     await waitFor(
-      async () => ((await disabledOf(".toolbar__file-discard")) === false ? true : null),
+      async () =>
+        (await menuItemDisabled((css) => clickElement(toplevel, css), "file", "file-discard")) ===
+        false
+          ? true
+          : null,
       { timeout: 20000, message: "the discard button to come alive once the edit refused an open" },
     );
     // The two readings taken together at the moment of the refusal, which is what N30 asked for:
@@ -336,7 +340,7 @@ describe("subtitle open and save", () => {
       held: { name: path.basename(file), dirty: true },
     });
 
-    await clickElement(toplevel, ".toolbar__file-discard");
+    await runFromMenu((css) => clickElement(toplevel, css), "file", "file-discard");
     await waitFor(async () => (await rowText(DISCARD_POSITION)) === original, {
       timeout: 20000,
       message: `row ${DISCARD_POSITION} to go back to the text it was opened with`,
@@ -344,7 +348,9 @@ describe("subtitle open and save", () => {
     expect(await waitForStatus(LF_STATUS)).toBe(LF_STATUS);
     expect(await present(".statusbar__dirty")).toBe(false);
     // Back to greyed, and still drawn: there is nothing left to discard.
-    expect(await disabledOf(".toolbar__file-discard")).toBe(true);
+    expect(
+      await menuItemDisabled((css) => clickElement(toplevel, css), "file", "file-discard"),
+    ).toBe(true);
     expect(await present(".statusbar__error")).toBe(false);
     // Discarding is not a write: the file is still every byte it was opened with.
     expect(readFileSync(file).equals(opened)).toBe(true);

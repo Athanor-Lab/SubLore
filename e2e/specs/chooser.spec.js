@@ -368,7 +368,7 @@ describe("the chooser is the only way in", () => {
   it("writes nothing when the save chooser is dismissed", async () => {
     expect(readdirSync(saveFolder)).toEqual([]);
 
-    await cancelFrom(toplevel, ".toolbar__file-save-as", "Save the subtitle as", "subtitle-save");
+    await cancelFromMenu(toplevel, "file", "file-save-as", "Save the subtitle as", "subtitle-save");
 
     expect(readdirSync(saveFolder)).toEqual([]);
     expect(await textOf(".statusbar__error")).toBe(null);

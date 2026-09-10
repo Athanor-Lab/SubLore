@@ -712,7 +712,7 @@ describe("the grid's style and actor columns", () => {
     await waitForHead(ASS_HEAD, "both columns before the save");
 
     const destination = path.join(saveDir, path.basename(source));
-    await clickElement(toplevel, ".toolbar__file-save-as");
+    await runFromMenu((css) => clickElement(toplevel, css), "file", "file-save-as");
     const chooser = await waitForChooser("Save the subtitle as");
     await answerChooser(chooser, destination, "save as");
     focusWindow(toplevel.id);
