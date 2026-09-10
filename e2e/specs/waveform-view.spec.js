@@ -226,7 +226,13 @@ describe("the waveform's window on the media", () => {
 
     // And the window does move when there is somewhere to go.
     pressKey("Right");
-    await browser.pause(150);
-    expect(await signature()).not.toBe(atStart);
+    // Waited for: this is the positive half of the pair, and a sleep decides how long a redraw is
+    // allowed to take (N93). The negative half above keeps its pause, because proving the window
+    // did not move needs a settling period and has nothing to wait on.
+    await waitFor(async () => ((await signature()) === atStart ? null : true), {
+      timeout: 15000,
+      interval: 100,
+      message: "the window to move when there is somewhere to go",
+    });
   });
 });
