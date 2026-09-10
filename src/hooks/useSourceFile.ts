@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import {
@@ -37,14 +37,32 @@ export function useSourceFile(): SourceFile {
   const [cues, setCues] = useState<CueRow[]>([]);
   const [error, setError] = useState<SubtitleError | null>(null);
 
+  /**
+   * Which request the column is showing. Every call takes a number before it asks and reads it
+   * again when it answers, so an answer that is no longer the current one applies nothing: two
+   * opens started close together used to land in whichever order the backend replied, and a close
+   * answering after an open emptied the column over a document that was loaded (N61). The video
+   * player has had this since its own opens could overlap.
+   */
+  const asking = useRef(0);
+
   const open = useCallback(async (path: string) => {
+    asking.current += 1;
+    const mine = asking.current;
     setError(null);
     try {
       const opened = await invoke<SubtitleOpened>("subtitle_open_source", { path });
+      if (mine !== asking.current) {
+        return;
+      }
       setSummary(opened.summary);
       setCues(opened.cues);
     } catch (failure) {
-      // A refused open leaves no half-read document behind: the column goes with it.
+      // A refused open leaves no half-read document behind: the column goes with it. Only when it
+      // is still the open the column is waiting for, or a refusal would clear a later good one.
+      if (mine !== asking.current) {
+        return;
+      }
       setSummary(null);
       setCues([]);
       setError(refusal(failure));
@@ -52,11 +70,18 @@ export function useSourceFile(): SourceFile {
   }, []);
 
   const close = useCallback(async () => {
+    asking.current += 1;
+    const mine = asking.current;
     setError(null);
     try {
       await invoke<void>("subtitle_close_source");
     } catch (failure) {
-      setError(refusal(failure));
+      if (mine === asking.current) {
+        setError(refusal(failure));
+      }
+      return;
+    }
+    if (mine !== asking.current) {
       return;
     }
     setSummary(null);
