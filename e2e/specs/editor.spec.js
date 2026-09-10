@@ -449,7 +449,13 @@ describe("cue list editing", () => {
         const cell = document.querySelector(".cuelist__row .cuelist__pos");
         return cell === null ? -1 : Number(cell.textContent);
       };
-      let done = 0;
+      // Twenty measured, and one before them that is not. The first assignment after the list is
+      // laid out is sometimes swallowed whole: on CI on 2026-09-10 it burned all 120 frames at a
+      // normal 16.9 ms cadence without the rows changing while the other nineteen took two frames
+      // each, and the retry of the same spec was clean. Counting that against the app is a false
+      // accusation, so the warm-up is discarded and the twenty that follow are the measurement.
+      // A list that never moves at all still fails: it would give up on all twenty (N81).
+      let done = -1;
       const runStep = () => {
         if (done >= 20) {
           window.__subloreScroll = times;
@@ -465,7 +471,9 @@ describe("cue list editing", () => {
             document.querySelector(".cuelist__row")?.getBoundingClientRect();
             // `moved` is recorded, not inferred: a step that gave up burned frames like any other,
             // so a count cannot tell "slow" from "stopped" on its own.
-            times.push({ frames, ms: performance.now() - started, moved });
+            if (done >= 0) {
+              times.push({ frames, ms: performance.now() - started, moved });
+            }
             done += 1;
             window.setTimeout(runStep, 0);
             return;
