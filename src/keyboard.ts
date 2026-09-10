@@ -139,6 +139,13 @@ const ARROWS: Record<string, string> = {
 /** `Num 5` and `Num5` alike: the space is how the menu reads best, and it is one token either way. */
 const NUMPAD_KEY = /^num\s*([0-9])$/i;
 
+/** The numpad's keys that are not digits, and the `code` each arrives as, measured 2026-09-10. */
+const NUMPAD_NAMED: Record<string, string> = {
+  enter: "NumpadEnter",
+  add: "NumpadAdd",
+  subtract: "NumpadSubtract",
+};
+
 /** Anything this cannot express returns null: the menu draws the string and no key fires it. */
 function parseAccelerator(text: string | undefined): Chord | null {
   if (text === undefined) {
@@ -182,6 +189,13 @@ function parseAccelerator(text: string | undefined): Chord | null {
   if (numpad !== null) {
     return { ctrl, shift, alt, on: "code", value: `Numpad${numpad[1]}` };
   }
+  const numpadNamed = /^num\s*(\w+)$/i.exec(token);
+  if (numpadNamed !== null) {
+    const code = NUMPAD_NAMED[numpadNamed[1].toLowerCase()];
+    if (code !== undefined) {
+      return { ctrl, shift, alt, on: "code", value: code };
+    }
+  }
   // The function keys, whose `code` is the name they are drawn with (F5).
   const functionKey = FUNCTION_KEY.exec(token);
   if (functionKey !== null) {
@@ -206,17 +220,27 @@ export function commandFor(commands: CommandRegistry, event: KeyboardEvent): Com
   }
   const pressed = event.key.toLowerCase();
   for (const command of Object.values(commands)) {
-    const chord = parseAccelerator(command.accelerator);
-    if (
-      chord === null ||
-      chord.ctrl !== event.ctrlKey ||
-      chord.shift !== event.shiftKey ||
-      chord.alt !== event.altKey
-    ) {
-      continue;
-    }
-    if (chord.on === "code" ? chord.value === event.code : chord.value === pressed) {
-      return command.id;
+    // Every key the command declares, not only the one the menu draws: the reference gives several
+    // commands two, and a second one nothing answers would be a key that does not exist (N109).
+    const declared =
+      command.accelerator === undefined
+        ? []
+        : typeof command.accelerator === "string"
+          ? [command.accelerator]
+          : command.accelerator;
+    for (const text of declared) {
+      const chord = parseAccelerator(text);
+      if (
+        chord === null ||
+        chord.ctrl !== event.ctrlKey ||
+        chord.shift !== event.shiftKey ||
+        chord.alt !== event.altKey
+      ) {
+        continue;
+      }
+      if (chord.on === "code" ? chord.value === event.code : chord.value === pressed) {
+        return command.id;
+      }
     }
   }
   return null;

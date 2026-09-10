@@ -184,11 +184,16 @@ function Item({
         </span>
         <span className="menubar__label">{command.label}</span>
       </span>
-      {command.accelerator !== undefined && (
-        <span className="menubar__accelerator">{command.accelerator}</span>
+      {drawnAccelerator(command) !== undefined && (
+        <span className="menubar__accelerator">{drawnAccelerator(command)}</span>
       )}
     </button>
   );
+}
+
+/** The one a menu item draws: the first, when a command answers more than one key (N109). */
+function drawnAccelerator(command: Command): string | undefined {
+  return typeof command.accelerator === "string" ? command.accelerator : command.accelerator?.[0];
 }
 
 /**

@@ -308,4 +308,32 @@ describe("the commit family", () => {
       message: "one undo to put the committed times back",
     });
   });
+
+  it("commits on the numpad's own Enter, the second key the reference gives it", async () => {
+    await cursorToRow(toplevel, "2");
+    await waitFor(async () => ((await startColumn()) === null ? null : 1), {
+      timeout: 20000,
+      message: "the second cue's start marker",
+    });
+    await dragStartLater(toplevel);
+    expect((await gridRows())[1].start).toBe(SECOND_START);
+
+    // `KP_Enter` and not Return: the numpad's Enter carries its own `code`, which is the whole
+    // reason the parser needed a branch for a numpad key that is not a digit (N109).
+    pressKey("KP_Enter");
+    const written = await waitFor(
+      async () => {
+        const rows = await gridRows();
+        return rows[1]?.start !== SECOND_START ? rows : null;
+      },
+      { timeout: 20000, message: "the numpad Enter to commit the pending start" },
+    );
+    expect(written[1].end).toBe(SECOND_END);
+
+    await clickElement(toplevel, ".toolbar__edit-undo");
+    await waitFor(async () => ((await gridRows())[1]?.start === SECOND_START ? 1 : null), {
+      timeout: 20000,
+      message: "one undo to put the times back",
+    });
+  });
 });

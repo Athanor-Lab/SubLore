@@ -46,8 +46,12 @@ export type Command = {
   /** The registry key, turned into a class/id suffix by `commandToken` wherever one is drawn. */
   id: CommandId;
   label: string;
-  /** Drawn beside the menu item. The key itself is handled by whoever owns the command. */
-  accelerator?: string;
+  /**
+   * The keys that run this command. A list answers every one of them and draws the first, which is
+   * how the reference gives commit both `Enter` and the numpad's own; the ones it leaves off a menu
+   * it draws nowhere, so which to draw is Sublore's choice and the discoverable one wins (N109).
+   */
+  accelerator?: string | readonly string[];
   /** Set only on a command that turns something on and off, which is drawn with a mark. */
   checked?: boolean;
   /** With `checked`, names the radio set this is one option of (interface-spec 2.2). */
