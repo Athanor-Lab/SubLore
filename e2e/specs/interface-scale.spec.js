@@ -194,6 +194,30 @@ async function expectGridShows(rows) {
  * The destination is kept inside the window: `xdotool` refuses a pointer off the screen, and a drag
  * that asks for one fails as an error rather than as an edge that stopped where it was told to.
  */
+/**
+ * Wait until a sash has stopped moving, and answer with where it is.
+ *
+ * A sleep after a drag is a guess at how long a layout takes, and this file reads exact sizes
+ * afterwards. Two readings that agree is the settled one (N93).
+ */
+async function settledSash(selector) {
+  let previous = null;
+  return waitFor(
+    async () => {
+      const now = await rectOf(selector);
+      const same =
+        now !== null && previous !== null && JSON.stringify(now) === JSON.stringify(previous);
+      previous = now;
+      return same ? now : null;
+    },
+    {
+      timeout: 15000,
+      interval: 100,
+      message: () => `${selector} to stop moving. The last reading was ${JSON.stringify(previous)}`,
+    },
+  );
+}
+
 async function dragSash(toplevel, selector, dx, dy) {
   const sash = await rectOf(selector);
   if (sash === null) {
@@ -206,8 +230,9 @@ async function dragSash(toplevel, selector, dx, dy) {
     toplevel.absX + inside(sash.midX + dx, toplevel.width),
     toplevel.absY + inside(sash.midY + dy, toplevel.height),
   );
-  // The release is what stores the size, so this reads a settled layout, never a mid-drag one.
-  await browser.pause(250);
+  // The release is what stores the size, and the layout settles after it. Waited for rather than
+  // slept through: 250 ms was a guess and this file reads exact sizes (N93).
+  await settledSash(selector);
 }
 
 async function clickElement(toplevel, selector) {

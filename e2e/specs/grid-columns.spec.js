@@ -175,6 +175,30 @@ async function clickElement(toplevel, selector) {
 }
 
 /** Drag one edge and wait for the release to settle, the way `dividers.spec.js` drags one. */
+/**
+ * Wait until a sash has stopped moving, and answer with where it is.
+ *
+ * A sleep after a drag is a guess at how long a layout takes, and this file reads exact sizes
+ * afterwards. Two readings that agree is the settled one (N93).
+ */
+async function settledSash(selector) {
+  let previous = null;
+  return waitFor(
+    async () => {
+      const now = await rectOf(selector);
+      const same =
+        now !== null && previous !== null && JSON.stringify(now) === JSON.stringify(previous);
+      previous = now;
+      return same ? now : null;
+    },
+    {
+      timeout: 15000,
+      interval: 100,
+      message: () => `${selector} to stop moving. The last reading was ${JSON.stringify(previous)}`,
+    },
+  );
+}
+
 async function dragSash(toplevel, selector, dx, dy) {
   const sash = await rectOf(selector);
   if (sash === null) {
@@ -187,7 +211,9 @@ async function dragSash(toplevel, selector, dx, dy) {
     toplevel.absX + inside(sash.midX + dx, toplevel.width),
     toplevel.absY + inside(sash.midY + dy, toplevel.height),
   );
-  await browser.pause(250);
+  // Waited for rather than slept through: 250 ms was a guess and this file reads exact column
+  // edges afterwards (N93).
+  await settledSash(selector);
 }
 
 /** Click one cell of the row at a 1-based list position, if that row is rendered. */
