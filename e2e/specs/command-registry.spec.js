@@ -78,8 +78,6 @@ const DECLARED = [
   "time-shift-to-playhead",
   "time-continuous-start",
   "time-continuous-end",
-  "video-to-cue-start",
-  "video-to-cue-end",
   "edit-select-at-playhead",
   "wave-play-selection",
   "time-play-line",
@@ -383,6 +381,7 @@ function itemsIn(selector) {
       Array.from(document.querySelectorAll(css)).map((item) => ({
         id: item.id.replace("menuitem-", ""),
         label: item.querySelector(".menubar__label")?.textContent ?? null,
+        accelerator: item.querySelector(".menubar__accelerator")?.textContent ?? null,
         disabled: item.disabled,
       })),
     selector,
@@ -409,6 +408,7 @@ async function itemsOfOpenMenu(toplevel) {
               item: {
                 id: row.id.replace("menuitem-", ""),
                 label: row.querySelector(".menubar__label")?.textContent ?? null,
+                accelerator: row.querySelector(".menubar__accelerator")?.textContent ?? null,
                 disabled: row.disabled,
               },
             }
@@ -565,6 +565,29 @@ describe("the command registry", () => {
         disabled: item.disabled,
       });
     }
+  });
+
+  it("draws each accelerator against one command, because only one of two can fire", async () => {
+    const claimed = new Map();
+    const doubled = [];
+    for (const item of everyMenuItem(empty)) {
+      if (item.accelerator === null) {
+        continue;
+      }
+      const first = claimed.get(item.accelerator);
+      if (first === undefined) {
+        claimed.set(item.accelerator, item.id);
+      } else if (first !== item.id) {
+        doubled.push(`${item.accelerator}: ${first} and ${item.id}`);
+      }
+    }
+    // The positive control, without which this passes by reading nothing: the walk found
+    // accelerators at all, and one that is known by name.
+    expect(claimed.size).toBeGreaterThan(20);
+    expect(claimed.get("Ctrl+S")).toBe("file-save");
+    // `commandFor` returns the first entry in the registry whose chord matches, so a second claim
+    // on the same accord is a menu item drawing a key that runs the other one (N107).
+    expect(doubled).toEqual([]);
   });
 
   it("draws every command with nothing open, greyed rather than absent", async () => {

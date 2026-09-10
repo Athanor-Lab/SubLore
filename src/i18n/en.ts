@@ -92,8 +92,6 @@ export const en = {
       continuous: "Make times continuous",
       continuousStart: "Change start",
       continuousEnd: "Change end",
-      toCueStart: "Jump to cue start",
-      toCueEnd: "Jump to cue end",
       selectAtPlayhead: "Select cue at playhead",
       /** The 500 ms is in the label on purpose: the key says what it will do before you press it. */
       playLine: "Play line",

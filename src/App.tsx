@@ -1692,16 +1692,6 @@ export default function App() {
     }
   }
 
-  /** The video goes to one of the cursor's cue's boundaries. */
-  async function videoToBoundary(which: "start" | "end") {
-    const at = selection.active;
-    const cue = at === null ? null : (subtitle.cues[at] ?? null);
-    if (cue === null) {
-      return;
-    }
-    await seek((which === "start" ? cue.startMs : cue.endMs) / 1000);
-  }
-
   /**
    * The cursor goes to the cue the video is inside. In a gap it goes to the one that starts next,
    * because timing runs forwards, and past the last cue it does nothing.
@@ -2007,20 +1997,6 @@ export default function App() {
       label: en.menu.timing.continuousEnd,
       enabled: subtitle.summary !== null && selectionIsContiguous,
       run: () => void makeTimesContinuous("end"),
-    },
-    {
-      id: "video.to-cue-start",
-      label: en.menu.timing.toCueStart,
-      accelerator: en.menu.keys.videoToCueStart,
-      enabled: subtitle.summary !== null && selection.active !== null && ready,
-      run: () => void videoToBoundary("start"),
-    },
-    {
-      id: "video.to-cue-end",
-      label: en.menu.timing.toCueEnd,
-      accelerator: en.menu.keys.videoToCueEnd,
-      enabled: subtitle.summary !== null && selection.active !== null && ready,
-      run: () => void videoToBoundary("end"),
     },
     {
       id: "time.start-earlier",
@@ -2942,8 +2918,6 @@ export default function App() {
           label: en.menu.timing.continuous,
           items: ["time.continuous-start", "time.continuous-end"],
         },
-        "video.to-cue-start",
-        "video.to-cue-end",
         "edit.select-at-playhead",
         SEPARATOR,
         "wave.play-selection",

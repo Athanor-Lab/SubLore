@@ -42,8 +42,6 @@ const TIMING_ITEMS = [
   "time-next-cue",
   "time-start-to-playhead",
   "time-end-to-playhead",
-  "video-to-cue-start",
-  "video-to-cue-end",
   "edit-select-at-playhead",
   "wave-play-selection",
   "time-play-line",
@@ -160,6 +158,20 @@ async function openMenu(toplevel) {
   await waitFor(() => present(".menubar__menu"), {
     timeout: 15000,
     message: "the Timing menu to open",
+  });
+}
+
+/** The Video menu, where the two jump commands live (interface-spec 3.5, N107). */
+async function runFromVideoMenu(toplevel, token) {
+  await clickElement(toplevel, ".menubar__title--video");
+  await waitFor(() => present(".menubar__menu"), {
+    timeout: 15000,
+    message: "the Video menu to open",
+  });
+  await clickElement(toplevel, `.menubar__item--${token}`);
+  await waitFor(async () => ((await present(".menubar__menu")) === false ? true : null), {
+    timeout: 15000,
+    message: `the menu to close after ${token}`,
   });
 }
 
@@ -326,7 +338,7 @@ describe("the times follow the playhead", () => {
   it("moves the video to the cursor's cue start, and to its end", async () => {
     await cursorTo(toplevel, 3);
 
-    await runFromMenu(toplevel, "video-to-cue-start");
+    await runFromVideoMenu(toplevel, "video-jump-cue-start");
     const atStart = await waitFor(
       async () => {
         const now = asTimecode(await playhead());
@@ -336,7 +348,7 @@ describe("the times follow the playhead", () => {
     );
     expect(atStart).toBe(THIRD_START);
 
-    await runFromMenu(toplevel, "video-to-cue-end");
+    await runFromVideoMenu(toplevel, "video-jump-cue-end");
     // The end, or up to one frame past it. Playing to a target stops on a frame boundary and mpv
     // reports `time-pos` at frame rate, so the app overshoots by design and says so in its own log:
     // `range stopped at 11.767 for a target of 11.760` (N20, and N97 for this wait). Only forward:
