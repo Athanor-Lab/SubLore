@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { en } from "../i18n/en";
 
 /** One of the open media's audio tracks, as `src-tauri/src/video/player.rs` reports it. */
@@ -42,6 +42,15 @@ export function useAudioTracks(
 } {
   const [list, setList] = useState<AudioTrackList>(NO_TRACKS);
 
+  /**
+   * Which reading the menu is showing. A switch and the read that follows a new file both write the
+   * same list, and neither used to say which request it belonged to: two switches picked in quick
+   * succession applied in whichever order they answered, and the mark could go back to the track
+   * before while the backend played the one after. The menu's own comment below says why that is
+   * the state to avoid. See BACKLOG.md N64.
+   */
+  const asking = useRef(0);
+
   // Ready, not merely open: `video_open` sets the path and says Loading before mpv has the file,
   // and the backend refuses a track list at that point for the reason `loaded_path` gives. Asking
   // then answered nothing, and the path did not change again when the load finished, so the menu
@@ -51,30 +60,37 @@ export function useAudioTracks(
       setList(NO_TRACKS);
       return;
     }
-    let alive = true;
+    asking.current += 1;
+    const mine = asking.current;
     void invoke<AudioTrackList>("audio_tracks")
       .then((listed) => {
-        if (alive) {
+        if (mine === asking.current) {
           setList(listed);
         }
       })
       .catch(() => {
         // No tracks to offer is the same shape as a media with none, and the panel's own line
         // already says that. Nothing here is worth a second message.
-        if (alive) {
+        if (mine === asking.current) {
           setList(NO_TRACKS);
         }
       });
-    return () => {
-      alive = false;
-    };
   }, [path, ready]);
 
   const switchTo = useCallback(
     (id: number) => {
+      asking.current += 1;
+      const mine = asking.current;
       void invoke<AudioTrackList>("audio_switch_track", { id })
-        .then(setList)
+        .then((listed) => {
+          if (mine === asking.current) {
+            setList(listed);
+          }
+        })
         .catch(() => {
+          if (mine !== asking.current) {
+            return;
+          }
           // The waveform's failure line covers one half of this, a switch whose peak job started
           // and then failed. It does not cover the other: a switch refused before any job exists
           // emits no event at all, so the waveform says nothing and the command did nothing in
@@ -83,7 +99,11 @@ export function useAudioTracks(
           // And the menu is asked again, because one that silently keeps its old mark would be
           // claiming a track the app is not drawing.
           void invoke<AudioTrackList>("audio_tracks")
-            .then(setList)
+            .then((listed) => {
+              if (mine === asking.current) {
+                setList(listed);
+              }
+            })
             .catch(() => undefined);
         });
     },
