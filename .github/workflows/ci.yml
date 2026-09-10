@@ -363,11 +363,13 @@ jobs:
       # `pnpm e2e:wayland` needs a real Wayland socket; without one mpv falls back to X11 and the
       # check would be green for the wrong reason, so it refuses to run instead. Same owner-machine
       # rule. Neither is silently skippable: both fail loudly when their prerequisite is absent.
-      # `pnpm e2e:memory` measures section 7's idle memory budget, which nothing measured before it.
-      # It is out for a different reason: it passes here at 384 to 389 MB against a 400 MB budget,
-      # measured four times, and eleven megabytes of headroom on one machine is not a number to hand
-      # a runner nobody has measured. It goes in when a runner's own figure exists, with that figure
-      # written down beside it. See sublore-meta/docs/memory-budget-tasks.md.
+      # `pnpm e2e:memory` and `pnpm e2e:cold-start` measure section 7's other two budgets, which
+      # nothing measured before them. They are out for a different reason from the two above: both
+      # pass here, memory at 384 to 389 MB against 400 and cold start at 410 to 895 ms against 2000,
+      # but neither number has ever been taken on a runner. `continue-on-error` does not make that
+      # safe, because `e2e-verdict.sh` reads the exit codes and turns any non-zero into a red job.
+      # They go in when a runner's own figures exist, written down beside them. See
+      # sublore-meta/docs/memory-budget-tasks.md and cold-start-tasks.md.
 
       # WebDriver forwards the app's stderr and drops its stdout, so the log the app writes about
       # itself never reached CI and a failing check could only be read from the outside. Every
