@@ -134,6 +134,9 @@ const ARROWS: Record<string, string> = {
   down: "arrowdown",
 };
 
+/** `Num 5` and `Num5` alike: the space is how the menu reads best, and it is one token either way. */
+const NUMPAD_KEY = /^num\s*([0-9])$/i;
+
 /** Anything this cannot express returns null: the menu draws the string and no key fires it. */
 function parseAccelerator(text: string | undefined): Chord | null {
   if (text === undefined) {
@@ -168,6 +171,14 @@ function parseAccelerator(text: string | undefined): Chord | null {
   }
   if (/^[0-9]$/.test(token)) {
     return { ctrl, shift, alt, on: "code", value: `Digit${token}` };
+  }
+  // The numpad, spelled `Num 5` because that is what the menu draws. `code` for the same reason
+  // the digit row uses it, and the reason is stronger here: it is NumLock rather than the layout
+  // that moves the glyph, and with NumLock off `Numpad5`'s `key` is not a digit at all. Measured
+  // on 2026-09-10: a press arrives as `code` "Numpad5" whatever `key` says. See BACKLOG.md N106.
+  const numpad = NUMPAD_KEY.exec(token);
+  if (numpad !== null) {
+    return { ctrl, shift, alt, on: "code", value: `Numpad${numpad[1]}` };
   }
   // The function keys, whose `code` is the name they are drawn with (F5).
   const functionKey = FUNCTION_KEY.exec(token);

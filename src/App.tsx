@@ -2049,18 +2049,21 @@ export default function App() {
     {
       id: "time.prev-cue",
       label: en.menu.timing.prevCue,
+      accelerator: en.menu.keys.prevCue,
       enabled: selection.active !== null && selection.active > 0,
       run: () => selection.move((selection.active ?? 0) - 1, "plain"),
     },
     {
       id: "time.next-cue",
       label: en.menu.timing.nextCue,
+      accelerator: en.menu.keys.nextCue,
       enabled: selection.active !== null && selection.active < subtitle.cues.length - 1,
       run: () => selection.move((selection.active ?? 0) + 1, "plain"),
     },
     {
       id: "wave.play-selection",
       label: en.menu.timing.playSelection,
+      accelerator: en.menu.keys.playSelection,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playSelection(),
     },
@@ -2081,12 +2084,14 @@ export default function App() {
     {
       id: "time.play-before",
       label: en.menu.timing.playBefore,
+      accelerator: en.menu.keys.playBefore,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("before"),
     },
     {
       id: "time.play-after",
       label: en.menu.timing.playAfter,
+      accelerator: en.menu.keys.playAfter,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("after"),
     },

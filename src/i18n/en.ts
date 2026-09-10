@@ -233,6 +233,13 @@ export const en = {
       /** Bare letters, run only outside a text field where they are not a character. */
       /** The reference's own timing keys, taken as they are. See BACKLOG.md N105. */
       playLine: "R",
+      /** The reference puts these five on the numpad, which is its own tradeoff and stays
+       *  its own: a laptop without one loses them. See BACKLOG.md N106. */
+      playSelection: "Num 5",
+      playBefore: "Num 1",
+      playAfter: "Num 3",
+      prevCue: "Ctrl+Num 8",
+      nextCue: "Ctrl+Num 2",
       playFirst: "E",
       playLast: "D",
       playToEnd: "T",
