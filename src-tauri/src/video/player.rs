@@ -412,6 +412,12 @@ impl Player {
                             crate::log::warn!(
                                 "video: no gpu-context pinned; if the video area stays black, this is why"
                             );
+                        } else {
+                            // Said, not left silent: only the failure was logged, so a support log
+                            // could not tell a pin in force from no pin at all (N78).
+                            crate::log::info!(
+                                "video: gpu-context fell back to {GPU_CONTEXT_PIN}"
+                            );
                         }
                     }
                 }
