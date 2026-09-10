@@ -112,6 +112,32 @@ function lastPreviewReport() {
  * The newest and not any: the log keeps every line, so "somewhere in the file" would let a reading
  * from before a toggle answer for the state after it.
  */
+/**
+ * Which of the four facts differs, rather than two long strings to compare by eye.
+ *
+ * The wait below matches `external tracks 1, selected yes, visible no, 21 chars at the playhead`
+ * as one string, so any one of the four being momentarily other than wanted fails the whole thing
+ * and the failure named none of them (N95).
+ */
+function whatDiffers(expected, line) {
+  if (line === null) {
+    return "the app has said nothing about the overlay yet";
+  }
+  const want = expected.split(", ");
+  const said = line.slice(line.indexOf("external tracks")).split(", ");
+  const off = [];
+  for (let index = 0; index < want.length; index += 1) {
+    if (said[index] !== want[index]) {
+      off.push(
+        `wanted ${JSON.stringify(want[index])}, saw ${JSON.stringify(said[index] ?? "nothing")}`,
+      );
+    }
+  }
+  return off.length === 0
+    ? `every field matches, so the line itself is shaped differently: ${line}`
+    : off.join("; ");
+}
+
 async function waitForDrawn(expected, what, timeout = 30000) {
   const deadline = Date.now() + timeout;
   for (;;) {
@@ -121,7 +147,8 @@ async function waitForDrawn(expected, what, timeout = 30000) {
     }
     if (Date.now() >= deadline) {
       throw new Error(
-        `the app never reported ${what} within ${timeout}ms. It last said: ${line ?? "(nothing about the overlay yet)"}`,
+        `the app never reported ${what} within ${timeout}ms. ${whatDiffers(expected, line)}. ` +
+          `It last said: ${line ?? "(nothing about the overlay yet)"}`,
       );
     }
     await sleep(100);
