@@ -55,7 +55,6 @@ function toProjectError(failure: unknown): ProjectError {
 }
 
 export type Project = {
-  busy: boolean;
   project: ProjectView | null;
   /** Newest first, what File > Recent projects draws (interface-spec 3.1 item 5). */
   recent: string[];
@@ -78,7 +77,6 @@ export type Project = {
 };
 
 export function useProject(): Project {
-  const [busy, setBusy] = useState(false);
   const [project, setProject] = useState<ProjectView | null>(null);
   const [deleted, setDeleted] = useState<ProjectDeletedView | null>(null);
   const [error, setError] = useState<ProjectError | null>(null);
@@ -123,7 +121,6 @@ export function useProject(): Project {
     async (command: string, args: Record<string, unknown>, replacesProject: boolean) => {
       asking.current += 1;
       const mine = asking.current;
-      setBusy(true);
       setError(null);
       setDeleted(null);
       try {
@@ -141,7 +138,6 @@ export function useProject(): Project {
         setError(toProjectError(failure));
       } finally {
         if (mine === asking.current) {
-          setBusy(false);
           // Opening and creating move the remembered list; an edit inside the project does not.
           if (replacesProject) {
             void refreshRecent();
@@ -198,7 +194,6 @@ export function useProject(): Project {
   const close = useCallback(async () => {
     asking.current += 1;
     const mine = asking.current;
-    setBusy(true);
     setError(null);
     setDeleted(null);
     try {
@@ -211,17 +206,12 @@ export function useProject(): Project {
       if (mine === asking.current) {
         setError(toProjectError(failure));
       }
-    } finally {
-      if (mine === asking.current) {
-        setBusy(false);
-      }
     }
   }, []);
 
   const remove = useCallback(async () => {
     asking.current += 1;
     const mine = asking.current;
-    setBusy(true);
     setError(null);
     // The backend closes and clears the project before it removes a single file, so nothing is
     // open afterwards whether the removal worked or not.
@@ -238,7 +228,6 @@ export function useProject(): Project {
       }
     } finally {
       if (mine === asking.current) {
-        setBusy(false);
         // A deleted project leaves the remembered list too (session.rs forgotten()).
         void refreshRecent();
       }
@@ -246,7 +235,6 @@ export function useProject(): Project {
   }, [refreshRecent]);
 
   const choosePath = useCallback(async (kind: "project-folder" | "project-file") => {
-    setBusy(true);
     setError(null);
     try {
       // Null means the user cancelled the dialog, which is not a failure.
@@ -254,8 +242,6 @@ export function useProject(): Project {
     } catch (failure) {
       setError(toProjectError(failure));
       return null;
-    } finally {
-      setBusy(false);
     }
   }, []);
 
@@ -303,7 +289,6 @@ export function useProject(): Project {
   }, [restored, selectedId]);
 
   return {
-    busy,
     project,
     recent,
     deleted,
