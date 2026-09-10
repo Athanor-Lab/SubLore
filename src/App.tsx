@@ -9,7 +9,7 @@ import EventLogDialog from "./components/EventLogDialog";
 import StyleEditor from "./components/StyleEditor";
 import CueList from "./components/CueList";
 import { type TagMode } from "./components/cueView";
-import CurrentLine from "./components/CurrentLine";
+import CurrentLine, { type ColourSlot } from "./components/CurrentLine";
 import FindBar, { type FindMode } from "./components/FindBar";
 import MenuBar from "./components/MenuBar";
 import ModulePanel from "./components/ModulePanel";
@@ -273,6 +273,43 @@ const STYLE_FLAGS: { id: CommandId; flag: StyleFlagName; label: string }[] = [
   { id: "edit.style-italic", flag: "italic", label: en.menu.edit.italic },
   { id: "edit.style-underline", flag: "underline", label: en.menu.edit.underline },
   { id: "edit.style-strikeout", flag: "strikeout", label: en.menu.edit.strikeout },
+];
+
+/**
+ * The four colours as registry commands, with the keys the reference gives them. They open the
+ * picker the panel's own buttons open; the buttons stay, because a colour is picked with the mouse
+ * more often than with a key.
+ */
+const COLOUR_COMMANDS: {
+  id: CommandId;
+  slot: ColourSlot;
+  label: string;
+  accelerator: string;
+}[] = [
+  {
+    id: "edit.colour-primary",
+    slot: "primary",
+    label: en.menu.edit.colourPrimary,
+    accelerator: en.menu.keys.colourPrimary,
+  },
+  {
+    id: "edit.colour-secondary",
+    slot: "secondary",
+    label: en.menu.edit.colourSecondary,
+    accelerator: en.menu.keys.colourSecondary,
+  },
+  {
+    id: "edit.colour-outline",
+    slot: "outline",
+    label: en.menu.edit.colourOutline,
+    accelerator: en.menu.keys.colourOutline,
+  },
+  {
+    id: "edit.colour-shadow",
+    slot: "shadow",
+    label: en.menu.edit.colourShadow,
+    accelerator: en.menu.keys.colourShadow,
+  },
 ];
 
 /** What a recent-video row shows: the file's own name, which is what a person recognises. A path
@@ -769,6 +806,8 @@ export default function App() {
   // in an editor is unsaved work whether or not it has reached the document yet.
   const flushGrid = useRef<() => Promise<void>>(() => Promise.resolve());
   const flushLine = useRef<() => Promise<void>>(() => Promise.resolve());
+  /** Filled by the current line's panel: how the four colour commands reach its picker (N112). */
+  const openColour = useRef<(slot: ColourSlot) => void>(() => {});
   const [editorOpen, setEditorOpen] = useState(false);
   const [lineEdited, setLineEdited] = useState(false);
   /**
@@ -2156,6 +2195,15 @@ export default function App() {
         }
       },
     })),
+    // The four colours, on the same gate as the four styles above: both write a tag at the caret,
+    // so both need one. The reference has them as commands too, on these keys (N112).
+    ...COLOUR_COMMANDS.map(({ id, slot, label, accelerator }): Command => ({
+      id,
+      label,
+      accelerator,
+      enabled: writesAtCaret,
+      run: () => openColour.current(slot),
+    })),
     {
       id: "video.close",
       label: en.menu.video.close,
@@ -2843,6 +2891,10 @@ export default function App() {
         "edit.style-italic",
         "edit.style-underline",
         "edit.style-strikeout",
+        "edit.colour-primary",
+        "edit.colour-secondary",
+        "edit.colour-outline",
+        "edit.colour-shadow",
         SEPARATOR,
         "edit.find",
         "edit.find-next",
@@ -3245,6 +3297,7 @@ export default function App() {
                 cue={activeCue}
                 multiline={subtitle.summary?.format !== "ass"}
                 flushRef={flushLine}
+                openColourRef={openColour}
                 onDraftChange={setLineEdited}
                 onCaret={(offset, to) =>
                   setCaret(
