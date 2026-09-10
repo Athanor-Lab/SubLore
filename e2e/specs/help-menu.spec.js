@@ -80,6 +80,22 @@ function helpItems() {
   );
 }
 
+/**
+ * The menu's rows in the order it draws them, a rule being its own row: what the items alone cannot
+ * say is where the groups begin and end, and the groups are part of the layout (N119).
+ */
+function helpRows() {
+  return browser.execute(() =>
+    Array.from(document.querySelector(".menubar__menu")?.children ?? []).map((row) =>
+      row.classList.contains("menubar__separator")
+        ? "----"
+        : (Array.from(row.classList)
+            .find((name) => name.startsWith("menubar__item--"))
+            ?.replace("menubar__item--", "") ?? ""),
+    ),
+  );
+}
+
 /** The manual's address, as the app logs it before handing it to the browser. */
 const MANUAL_LOGGED =
   /help: opening https:\/\/github\.com\/Athanor-Lab\/SubLore\/blob\/main\/docs\/manual\.md /g;
@@ -126,6 +142,18 @@ describe("the Help menu", () => {
       "help-contents",
       "help-website",
       "help-report-bug",
+      "help-check-updates",
+      "help-event-log",
+      "help-about",
+    ]);
+    // Three blocks, which is how the reference divides this menu: the manual, then the web, then
+    // what the build says about itself (N119).
+    expect(await helpRows()).toEqual([
+      "help-contents",
+      "----",
+      "help-website",
+      "help-report-bug",
+      "----",
       "help-check-updates",
       "help-event-log",
       "help-about",

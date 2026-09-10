@@ -3089,10 +3089,15 @@ export default function App() {
       // separators (no menu draws one yet; filed as its own task). See help-menu-tasks.md.
       id: "help",
       title: en.menu.help.title,
+      // Three blocks, as the reference draws them and the interface spec's table records: the
+      // manual, then where to go on the web, then what the build itself says. About stays last,
+      // which is the spec's own order and not the reference's, and is written down (N119).
       items: [
         "help.contents",
+        SEPARATOR,
         "help.website",
         "help.report-bug",
+        SEPARATOR,
         "help.check-updates",
         "help.event-log",
         "help.about",
