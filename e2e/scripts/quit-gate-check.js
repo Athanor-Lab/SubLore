@@ -47,8 +47,16 @@ import { findToplevel, rootTree } from "../lib/x11.js";
 const EXPECTED_CHECKS = 17;
 let checksRun = 0;
 
-/** The line the `quit` command writes, and nothing else does. Contract with src-tauri/src/lib.rs. */
-const QUIT_TAKEN = "quitting through AppHandle::exit";
+/**
+ * The line the route writes, not the one the request writes. Contract with src-tauri/src/lib.rs.
+ *
+ * It used to be `quit`'s own line, which that command writes before it calls anything: a quit that
+ * closed the window instead of exiting wrote it too, so the three assertions built on it passed
+ * against the very route they say was not taken. Measured, 17 of 17 green with the route changed.
+ * `RunEvent::ExitRequested` with a code is reached only by `AppHandle::exit`, so this line is the
+ * route speaking for itself. See BACKLOG.md N69.
+ */
+const QUIT_TAKEN = "ExitRequested with a code, which only AppHandle::exit raises";
 
 /** How long the menu is given to open before the keys that walk it are sent. */
 const MENU_MS = 600;
@@ -220,9 +228,11 @@ async function waitForQuitTaken(dataHome, wanted) {
     message: `the app to log "${QUIT_TAKEN}" ${wanted} time(s)`,
   }).catch((error) => {
     throw new Error(
-      `${error.message}\nThe app never reached its quit command, so nothing drove the route this ` +
-        "check is about: either the File menu did not open on Alt, or its last enabled item is no " +
-        "longer Quit.\n" +
+      `${error.message}\nNothing drove the route this check is about. Three things look like ` +
+        "this: the File menu did not open on Alt, its last enabled item is no longer Quit, or the " +
+        "quit no longer goes through `AppHandle::exit`. The third is the one this line was " +
+        "changed to catch, and the log below tells them apart: `quit: asked for from the chrome` " +
+        "present without the line above it means the command ran and took another road.\n" +
         `the app's log held:\n${appLog(dataHome) || "(nothing yet)"}`,
     );
   });
