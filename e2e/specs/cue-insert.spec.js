@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window, Event */
+/* global describe, it, before, document, window */
 /**
  * The four ways of asking for a new cue, which the interface keeps in a list of their own: before
  * the current line or after it, timed from the line beside it or from where the picture is.
@@ -19,6 +19,7 @@ import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { intoList } from "../lib/menu.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
+import { seekTo, settledPlayhead } from "../lib/transport.js";
 import { findToplevel } from "../lib/x11.js";
 
 /** Three cues with a small gap after the first and a wide one after the second. */
@@ -172,39 +173,6 @@ async function closeMenus() {
 }
 
 /** Drive the transport's own slider, which is the only seek a spec can make without a hand. */
-async function seekTo(seconds) {
-  await browser.execute((target) => {
-    const slider = document.querySelector(".controls__slider");
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-    setter.call(slider, String(target));
-    slider.dispatchEvent(new Event("input", { bubbles: true }));
-    slider.dispatchEvent(new Event("change", { bubbles: true }));
-  }, seconds);
-}
-
-/**
- * Where the playhead is once it has stopped moving there, in seconds. A seek lands on a frame near
- * the second it was given and not on it, and the slider is drawn from the app's own position, so
- * this is what the app will time a new line from.
- *
- * The pause between readings is the point: the slider's value can be set from outside for a moment
- * before the app draws it again from where the picture really is, and two readings taken back to
- * back would both see that moment.
- */
-async function settledPlayhead() {
-  const read = () =>
-    browser.execute(() => Number(document.querySelector(".controls__slider")?.value ?? -1));
-  let last = await read();
-  for (let tries = 0; tries < 30; tries += 1) {
-    await browser.pause(300);
-    const now = await read();
-    if (now === last) {
-      return now;
-    }
-    last = now;
-  }
-  throw new Error(`the playhead never stopped moving; it last read ${last}`);
-}
 
 describe("the four ways of asking for a cue", () => {
   let toplevel = null;
