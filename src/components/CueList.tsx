@@ -13,7 +13,7 @@ import { type CueSelection } from "../hooks/useCueSelection";
 import { en } from "../i18n/en";
 import { type CommandId, type CommandRegistry, type Separator } from "../types/chrome";
 import { type CueRow } from "../types/subtitle";
-import { CPS_LIMIT, drawnText, readingRate, timecode, type TagMode } from "./cueView";
+import { drawnText, readingRate, timecode, type TagMode } from "./cueView";
 import RailMenu from "./RailMenu";
 
 /**
@@ -37,6 +37,8 @@ type CueListProps = {
   sourceCues: CueRow[];
   /** How the grid draws override tags. The editor below it always shows the file's own text. */
   tagMode: TagMode;
+  /** The reading rate a line is flagged above, from the preferences (N103). */
+  cpsLimit: number;
   /** The cursor and the selection, held by the shell: the tools column reads the cursor too (T5). */
   selection: CueSelection;
   /** ASS writes line breaks as `\N` inside one field, so a real one cannot be committed there. */
@@ -65,6 +67,7 @@ export default function CueList({
   cues,
   sourceCues,
   tagMode,
+  cpsLimit,
   selection,
   multiline,
   flushRef,
@@ -397,7 +400,7 @@ export default function CueList({
             }
             const rate = readingRate(cue);
             const cpsClasses = ["cuelist__cps"];
-            if (rate !== null && rate > CPS_LIMIT) {
+            if (rate !== null && rate > cpsLimit) {
               cpsClasses.push("cuelist__cps--over");
             }
             return (

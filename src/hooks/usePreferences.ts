@@ -9,6 +9,8 @@ export type Preferences = {
   leadOutMs: number;
   /** How long a cue the user has just made lasts, in milliseconds. */
   newCueMs: number;
+  /** The reading rate a line is flagged above, in characters a second. */
+  cpsLimit: number;
 };
 
 /**
@@ -19,10 +21,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
   leadInMs: 100,
   leadOutMs: 350,
   newCueMs: 3000,
+  cpsLimit: 21,
 };
 
 /**
- * The three numbers a translator may change. Read once when the shell mounts and written when the
+ * The four numbers a translator may change. Read once when the shell mounts and written when the
  * dialog is confirmed: losing the file costs a preference, so nothing here fails loudly, and the
  * backend answers with the defaults and says so in its log.
  */

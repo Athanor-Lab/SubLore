@@ -7,14 +7,22 @@
  */
 import { type CueRow } from "../types/subtitle";
 
-/** Reading rate a line is flagged above, fixed and not configurable in v1. Decision 24 A8. */
+/**
+ * Reading rate a line is flagged above, when nothing has said otherwise. Decision 24 A8 fixed it
+ * because there was no preferences surface to hold it; that surface exists now, so question 42 put
+ * it there and this is only the fallback the store answers with. See BACKLOG.md N103.
+ */
 export const CPS_LIMIT = 21;
 /**
- * Characters a line is flagged above, fixed and not configurable either. It is the rate above held
- * for the two seconds a line is on screen, so the two numbers in the band say the same thing in two
- * units. See edit-bar-first-tasks.md D2.
+ * Characters a line is flagged above. It is the rate above held for the two seconds a line is on
+ * screen, so the two numbers in the band say the same thing in two units, which is why this follows
+ * the rate rather than standing on its own: a fixed 42 beside a rate the user moved would flag a
+ * line in one unit and clear it in the other. See edit-bar-first-tasks.md D2.
  */
-export const CHARACTER_LIMIT = 42;
+export function characterLimit(cpsLimit: number): number {
+  return cpsLimit * 2;
+}
+export const CHARACTER_LIMIT = characterLimit(CPS_LIMIT);
 /** The markup A8 does not count: ASS override blocks and HTML-style tags. */
 const MARKUP = /\{[^}]*\}|<[^>]*>/g;
 /** Line breaks in both spellings a cue holds: a real one, and the `\N` of an ASS field. */

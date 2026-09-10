@@ -29,8 +29,7 @@ import {
   type Hsv,
 } from "../colour";
 import {
-  CHARACTER_LIMIT,
-  CPS_LIMIT,
+  characterLimit,
   fieldValues,
   characterCount,
   lengthOf,
@@ -48,6 +47,8 @@ type CurrentLineProps = {
   onNotice: (text: string) => void;
   /** Which way the picker draws its square, remembered in the layout (N53). */
   spectrumMode: SpectrumMode;
+  /** The reading rate a line is flagged above, from the preferences (N103). */
+  cpsLimit: number;
   onSpectrumMode: (mode: SpectrumMode) => void;
   /** The row the cursor is on, or null while the document has none. */
   index: number | null;
@@ -278,6 +279,7 @@ function byteOffset(text: string, at: number): number {
 export default function CurrentLine({
   onNotice,
   spectrumMode,
+  cpsLimit,
   onSpectrumMode,
   index,
   cue,
@@ -827,14 +829,14 @@ export default function CurrentLine({
 
   const rate = readingRate(cue);
   const cpsClasses = ["currentline__cps"];
-  if (rate !== null && rate > CPS_LIMIT) {
+  if (rate !== null && rate > cpsLimit) {
     cpsClasses.push("currentline__cps--over");
   }
   // Off the draft and not off the document: the number is a measure of the text, and the text a
   // translator is judging is the one under their hands. See edit-bar-first-tasks.md E1.3.
   const characters = characterCount(draft);
   const charClasses = ["currentline__chars"];
-  if (characters > CHARACTER_LIMIT) {
+  if (characters > characterLimit(cpsLimit)) {
     charClasses.push("currentline__chars--over");
   }
 
