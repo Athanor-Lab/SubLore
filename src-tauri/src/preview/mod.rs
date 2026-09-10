@@ -175,13 +175,17 @@ impl Preview {
         // user's own writing, the rule `subtitle::apply_edit` follows for the same reason.
         match drawn {
             Some(drawn) => log::info!(
-                "preview: mpv holds the document, external tracks {}, selected {}, visible {}, {} at the playhead",
+                "preview: mpv holds the document, external tracks {}, selected {}, visible {}, {} at the playhead, which is at {}",
                 drawn.tracks,
                 yes_or_no(drawn.selected),
                 yes_or_no(drawn.visible),
                 match drawn.chars {
                     Some(chars) => format!("{chars} chars"),
                     None => "no line".to_owned(),
+                },
+                match drawn.at {
+                    Some(seconds) => format!("{seconds:.3} s"),
+                    None => "a position mpv would not report".to_owned(),
                 }
             ),
             None => log::info!("preview: the document is shadowed, and no video is open to draw it on"),

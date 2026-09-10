@@ -144,8 +144,9 @@ const WAVE_SCROLL_PX = 128;
 
 /**
  * How many lines of its own type the current line's text box asks for. A translator writes one or
- * two and reads a third; past that the box is taking height nothing in it uses. Fixed here for the
- * same reason CPS is fixed at 21: there is no preferences surface to hold it (decision 24 A8).
+ * two and reads a third; past that the box is taking height nothing in it uses. Fixed here because
+ * nobody has asked for it to move, which is a different reason from the one CPS had: that one was
+ * fixed for want of a preferences surface, and question 42 put it in the one that now exists (N103).
  */
 const TEXT_BOX_LINES = 3;
 
@@ -3246,6 +3247,7 @@ export default function App() {
               <CurrentLine
                 key={subtitle.openId}
                 spectrumMode={layout?.spectrumMode ?? "hsvH"}
+                cpsLimit={preferences.cpsLimit}
                 onNotice={say}
                 onSpectrumMode={(mode) => storeLayout({ spectrumMode: mode })}
                 index={selection.active}
@@ -3309,6 +3311,7 @@ export default function App() {
           <CueList
             key={subtitle.openId}
             cues={subtitle.cues}
+            cpsLimit={preferences.cpsLimit}
             sourceCues={source.cues}
             tagMode={tagMode}
             selection={selection}

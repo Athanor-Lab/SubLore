@@ -125,6 +125,10 @@ pub struct SubtitlesDrawn {
     /// Characters in the line mpv has at the playhead, or none where no line covers it. The line
     /// itself stays out of here: a subtitle line is the user's own writing.
     pub chars: Option<usize>,
+    /// Where the playhead was when `chars` was read, or none when mpv would not say. Without it
+    /// "no line at the playhead" cannot be told from "the playhead is somewhere no line covers",
+    /// which are two defects with two cures (N102).
+    pub at: Option<f64>,
 }
 
 /// What the details dialog reads off the open media. Every field but the path is optional: a
@@ -939,6 +943,7 @@ impl Player {
             .awaiting_sub_text
             .store(chars.unwrap_or(0) == 0, Ordering::Relaxed);
         Ok(SubtitlesDrawn {
+            at: mpv.get_property::<f64>("time-pos").ok(),
             tracks: tracks.len(),
             selected: tracks
                 .iter()

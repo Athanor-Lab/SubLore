@@ -307,13 +307,14 @@ export const en = {
     licence: "GNU General Public License, version 3 or later.",
     close: "Close",
   },
-  /** The three numbers a translator may change (interface-spec 9.6). */
+  /** The four numbers a translator may change (interface-spec 9.6). */
   preferences: {
     title: "Preferences",
     leadIn: "Lead-in (ms)",
     leadOut: "Lead-out (ms)",
     newCue: "New cue length (ms)",
-    refused: "Each of these is a whole number of milliseconds, and none of them is negative.",
+    cpsLimit: "Reading rate limit (characters a second)",
+    refused: "Each of these is a whole number, and none of them is negative.",
     confirm: "Save",
     cancel: "Cancel",
   },

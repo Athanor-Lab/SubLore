@@ -48,6 +48,14 @@ function gridRows() {
 }
 
 /** The cursor onto the row carrying that number, by its position cell. */
+/** How many grid rows are flagged over the reading rate, and whether the current line is. */
+function overTheRate() {
+  return browser.execute(() => ({
+    rows: document.querySelectorAll(".cuelist__cps--over").length,
+    line: document.querySelector(".currentline__cps--over") !== null,
+  }));
+}
+
 async function cursorToRow(toplevel, number) {
   const centre = await browser.execute((wanted) => {
     const cell = Array.from(document.querySelectorAll(".cuelist__row"))
@@ -192,6 +200,7 @@ describe("Preferences", () => {
     expect(await valueOf(".preferences__leadInMs")).toBe("100");
     expect(await valueOf(".preferences__leadOutMs")).toBe("350");
     expect(await valueOf(".preferences__newCueMs")).toBe("3000");
+    expect(await valueOf(".preferences__cpsLimit")).toBe("21");
 
     pressKey("Escape");
     await waitForClosed();
@@ -255,6 +264,40 @@ describe("Preferences", () => {
 
     pressKey("Escape");
     await waitForClosed();
+  });
+
+  it("flags a different set of lines when the reading rate limit moves", async () => {
+    // The fixture's three lines run at about 14.5, 24.6 and 13.5 characters a second, so the
+    // default of 21 flags exactly the middle one. The counts are asserted rather than one row's
+    // class: a limit that stopped being read would flag the same rows at every setting, and a
+    // count catches that where a single row cannot (N103).
+    await cursorToRow(toplevel, 1);
+    expect(await overTheRate()).toEqual({ rows: 1, line: false });
+
+    await openPreferences(toplevel);
+    await typeInto("cpsLimit", 30);
+    await clickElement(toplevel, ".preferences__confirm");
+    await waitForClosed();
+    await waitFor(async () => ((await overTheRate()).rows === 0 ? true : null), {
+      timeout: 15000,
+      message: "no line to be over a limit of 30",
+    });
+
+    await openPreferences(toplevel);
+    await typeInto("cpsLimit", 5);
+    await clickElement(toplevel, ".preferences__confirm");
+    await waitForClosed();
+    // Every line over, and the current line's band with them: they are two views of one row
+    // (decision 5) and a limit that reached one and not the other would let them disagree.
+    await waitFor(
+      async () => {
+        const now = await overTheRate();
+        return now.rows === 3 && now.line ? now : null;
+      },
+      { timeout: 15000, message: "every line and the current line's band to be over a limit of 5" },
+    );
+
+    expect(JSON.parse(readFileSync(storePath(), "utf8")).cpsLimit).toBe(5);
   });
 
   it("makes a new cue as long as the preference says", async () => {

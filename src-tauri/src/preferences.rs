@@ -1,8 +1,12 @@
 //! The three numbers a translator may change, remembered beside the layout (interface-spec 9.6).
 //!
-//! Small on purpose: lead-in, lead-out and how long a cue the user has just made lasts. The CPS
-//! limit stays fixed (decision 24 A8) and the interface language has a dialog of its own, so
-//! neither is here. The defaults are the reference's own, inherited rather than reinvented.
+//! Small on purpose: lead-in, lead-out, how long a cue the user has just made lasts, and the
+//! reading rate a line is flagged above. The interface language has a dialog of its own, so it is
+//! not here. The defaults are the reference's own, inherited rather than reinvented.
+//!
+//! The CPS limit was fixed under decision 24 A8, whose recorded reason was that there was no
+//! preferences surface to hold it. That surface exists now, so the premise expired rather than the
+//! decision being contradicted, and question 42 puts the number here. See BACKLOG.md N103.
 
 use std::path::{Path, PathBuf};
 
@@ -20,6 +24,8 @@ const PREFERENCES_FILE: &str = "preferences.json";
 const DEFAULT_LEAD_IN_MS: u32 = 100;
 const DEFAULT_LEAD_OUT_MS: u32 = 350;
 const DEFAULT_NEW_CUE_MS: u32 = 3000;
+/// What the grid and the current line have flagged above all along (decision 24 A8).
+const DEFAULT_CPS_LIMIT: u32 = 21;
 
 /// What a number may be. A lead of a whole minute is not a lead, and a cue of no length is not a
 /// cue: a value outside these comes back inside rather than being refused, because a preference
@@ -28,6 +34,9 @@ const MIN_LEAD_MS: u32 = 0;
 const MAX_LEAD_MS: u32 = 10_000;
 const MIN_NEW_CUE_MS: u32 = 100;
 const MAX_NEW_CUE_MS: u32 = 60_000;
+/// A rate of nothing flags every line and a rate of a thousand flags none, and neither is a limit.
+const MIN_CPS_LIMIT: u32 = 1;
+const MAX_CPS_LIMIT: u32 = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +47,8 @@ pub struct Preferences {
     pub lead_out_ms: u32,
     /// How long a cue the user has just made lasts, in milliseconds.
     pub new_cue_ms: u32,
+    /// The reading rate a line is flagged above, in characters a second.
+    pub cps_limit: u32,
 }
 
 impl Default for Preferences {
@@ -46,6 +57,7 @@ impl Default for Preferences {
             lead_in_ms: DEFAULT_LEAD_IN_MS,
             lead_out_ms: DEFAULT_LEAD_OUT_MS,
             new_cue_ms: DEFAULT_NEW_CUE_MS,
+            cps_limit: DEFAULT_CPS_LIMIT,
         }
     }
 }
@@ -55,13 +67,24 @@ impl Preferences {
     /// because the file on disk is editable by hand.
     fn sane(self) -> Self {
         Self {
-            lead_in_ms: clamp(self.lead_in_ms, MIN_LEAD_MS, MAX_LEAD_MS, "a lead-in"),
-            lead_out_ms: clamp(self.lead_out_ms, MIN_LEAD_MS, MAX_LEAD_MS, "a lead-out"),
+            lead_in_ms: clamp(self.lead_in_ms, MIN_LEAD_MS, MAX_LEAD_MS, "a lead-in in ms"),
+            lead_out_ms: clamp(
+                self.lead_out_ms,
+                MIN_LEAD_MS,
+                MAX_LEAD_MS,
+                "a lead-out in ms",
+            ),
             new_cue_ms: clamp(
                 self.new_cue_ms,
                 MIN_NEW_CUE_MS,
                 MAX_NEW_CUE_MS,
-                "a new cue's length",
+                "a new cue's length in ms",
+            ),
+            cps_limit: clamp(
+                self.cps_limit,
+                MIN_CPS_LIMIT,
+                MAX_CPS_LIMIT,
+                "a reading-rate limit in characters a second",
             ),
         }
     }
@@ -70,7 +93,7 @@ impl Preferences {
 fn clamp(value: u32, min: u32, max: u32, what: &str) -> u32 {
     let kept = value.clamp(min, max);
     if kept != value {
-        log::warn!("preferences: {what} of {value} ms is outside {min}..{max}, using {kept}");
+        log::warn!("preferences: {what} of {value} is outside {min}..{max}, using {kept}");
     }
     kept
 }
@@ -191,6 +214,7 @@ mod tests {
             lead_in_ms: 999_999,
             lead_out_ms: 0,
             new_cue_ms: 1,
+            cps_limit: 0,
         };
         let kept = wild.sane();
         assert_eq!(kept.lead_in_ms, MAX_LEAD_MS);
@@ -199,6 +223,10 @@ mod tests {
             "no lead at all is a choice, not a mistake"
         );
         assert_eq!(kept.new_cue_ms, MIN_NEW_CUE_MS);
+        assert_eq!(
+            kept.cps_limit, MIN_CPS_LIMIT,
+            "a limit of nothing would flag every line"
+        );
     }
 
     /// The round trip: what was written is what is read (P2).
@@ -210,6 +238,7 @@ mod tests {
             lead_in_ms: 500,
             lead_out_ms: 120,
             new_cue_ms: 5000,
+            cps_limit: 17,
         };
         write_to(&path, &wanted).expect("the write");
         assert_eq!(read_from(&path), wanted);

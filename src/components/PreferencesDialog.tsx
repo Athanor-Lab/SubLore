@@ -15,11 +15,13 @@ const FIELDS: readonly { key: keyof Preferences; label: string }[] = [
   { key: "leadInMs", label: en.preferences.leadIn },
   { key: "leadOutMs", label: en.preferences.leadOut },
   { key: "newCueMs", label: en.preferences.newCue },
+  { key: "cpsLimit", label: en.preferences.cpsLimit },
 ];
 
 /**
- * What View > Preferences opens: the small set interface-spec 9.6 keeps for v1. The CPS limit is
- * fixed (decision 24 A8) and the interface language has its own dialog, so neither is here.
+ * What View > Preferences opens: the small set interface-spec 9.6 keeps for v1. The interface
+ * language has its own dialog, so it is not here. The CPS limit was fixed under decision 24 A8
+ * because there was no surface to hold it, and question 42 put it here once there was (N103).
  *
  * A field is refused where it is typed rather than quietly turned into something else: a number the
  * app cannot use is a number the user should see refused, and the backend clamps besides.
@@ -34,6 +36,7 @@ export default function PreferencesDialog({
     leadInMs: String(preferences.leadInMs),
     leadOutMs: String(preferences.leadOutMs),
     newCueMs: String(preferences.newCueMs),
+    cpsLimit: String(preferences.cpsLimit),
   });
   const [refused, setRefused] = useState(false);
   // Mounted only while the panel is open, so the video surface hides for exactly that long (T8).
