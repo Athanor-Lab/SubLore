@@ -483,6 +483,22 @@ describe("the waveform panel's ruler, strip and window", () => {
       message: "R to start the cursor's line playing, which is what un-greys Stop",
     });
 
+    // The numpad half, read the same way.
+    await clickElement(toplevel, ".wavebar__wave-stop");
+    await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === true ? true : null), {
+      timeout: 20000,
+      message: "Stop to grey itself before the numpad key is tried",
+    });
+    // `KP_Begin`, not `KP_5`: it is what the same physical key sends with NumLock off, so its
+    // `key` is not a digit and only `code` can match it. Measured on 2026-09-10, matching on
+    // `key` leaves this check red, and `KP_5` cannot tell the two apart because xdotool turns
+    // NumLock on around it. See BACKLOG.md N106.
+    pressKey("KP_Begin");
+    await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === false ? true : null), {
+      timeout: 20000,
+      message: "the numpad 5 to play the selection, which is what un-greys Stop",
+    });
+
     // Left as it was found: the next check reads a transport nothing is driving.
     await clickElement(toplevel, ".wavebar__wave-stop");
     await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === true ? true : null), {
