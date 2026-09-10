@@ -41,10 +41,10 @@ const ELSEWHERE = 2;
  * command drawing a key it does not answer on fails as loudly as one answering a key it never drew.
  */
 const BOUND = [
-  { token: "video-to-cue-start", key: "Ctrl+1" },
-  { token: "video-to-cue-end", key: "Ctrl+2" },
-  { token: "time-start-to-playhead", key: "Ctrl+3" },
-  { token: "time-end-to-playhead", key: "Ctrl+4" },
+  { token: "video-jump-cue-start", key: "Ctrl+1", menu: "video" },
+  { token: "video-jump-cue-end", key: "Ctrl+2", menu: "video" },
+  { token: "time-start-to-playhead", key: "Ctrl+3", menu: "timing" },
+  { token: "time-end-to-playhead", key: "Ctrl+4", menu: "timing" },
 ];
 
 function dataHome() {
@@ -238,23 +238,25 @@ describe("the shortcut is the one the menu draws", () => {
   });
 
   it("draws a key beside each of the four the window context binds", async () => {
-    await clickElement(toplevel, ".menubar__title--timing");
-    await waitFor(() => present(".menubar__menu"), {
-      timeout: 15000,
-      message: "the Timing menu to open",
-    });
-    for (const { token, key } of BOUND) {
+    // Two menus, because the two jump commands are Video menu items and only that menu draws
+    // them: one command, one home, one key (N107).
+    for (const { token, key, menu } of BOUND) {
+      await clickElement(toplevel, `.menubar__title--${menu}`);
+      await waitFor(() => present(".menubar__menu"), {
+        timeout: 15000,
+        message: `the ${menu} menu to open`,
+      });
       const drawn = await browser.execute(
         (css) => document.querySelector(css)?.textContent ?? null,
         `.menubar__item--${token} .menubar__accelerator`,
       );
       expect({ token, drawn }).toEqual({ token, drawn: key });
+      pressKey("Escape");
+      await waitFor(async () => ((await present(".menubar__menu")) === false ? true : null), {
+        timeout: 15000,
+        message: "the menu to close",
+      });
     }
-    pressKey("Escape");
-    await waitFor(async () => ((await present(".menubar__menu")) === false ? true : null), {
-      timeout: 15000,
-      message: "the menu to close",
-    });
   });
 
   it("sets the cursor's cue to start where the video is, on ctrl+3", async () => {
