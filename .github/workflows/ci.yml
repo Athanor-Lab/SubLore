@@ -407,6 +407,21 @@ jobs:
             echo "$found $logs" >> ci-logs/app-log/where-each-came-from.txt
           done
           echo "app log directories collected: $found"
+          # The battery's are three levels deeper: wdio.conf.js gives every spec its own data home
+          # under <run>/spec/<name>, so the loop above never saw one and a failing spec's own log
+          # was the one piece of evidence the artefact did not carry (N82). Named by the spec, not
+          # numbered, because the name is what a reader is looking for. The run's tree is removed
+          # on a green battery, so this collects nothing unless something failed.
+          specs=0
+          for logs in "${TMPDIR:-/tmp}"/sublore-e2e-*/spec/*/com.sublore.app/logs; do
+            [ -d "$logs" ] || continue
+            name=$(basename "$(dirname "$(dirname "$logs")")")
+            specs=$((specs + 1))
+            mkdir -p "ci-logs/app-log/spec-$name"
+            cp -r "$logs/." "ci-logs/app-log/spec-$name"
+            echo "spec-$name $logs" >> ci-logs/app-log/where-each-came-from.txt
+          done
+          echo "spec log directories collected: $specs"
 
       # A diagnostic run collects every failure instead of stopping at the first, but it must not
       # end green while a check is red: the artefact is the evidence, this step is the verdict.
