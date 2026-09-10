@@ -26,7 +26,8 @@
     "e2e:picker-thread": "node e2e/scripts/picker-thread-check.js",
     "e2e:n1b-battery": "node e2e/scripts/n1b-load-battery.js",
     "e2e:n11-battery": "node e2e/scripts/n11-exit-battery.js",
-    "e2e:waveform-budget": "node e2e/scripts/waveform-budget-check.js"
+    "e2e:waveform-budget": "node e2e/scripts/waveform-budget-check.js",
+    "e2e:memory": "node e2e/scripts/memory-budget-check.js"
   },
   "pnpm": {
     "onlyBuiltDependencies": [],
