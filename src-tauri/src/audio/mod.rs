@@ -517,9 +517,9 @@ pub fn start_for_playing_track(app: &AppHandle, player: &Player, media: &str) {
     };
     if !track.playing {
         // Said out loud rather than passed over: the panel is right either way, and this is the one
-        // line that shows mpv had not marked a track yet. See BACKLOG.md N14.
+        // line that shows decoding had not started yet. See BACKLOG.md N14.
         log::info!(
-            "waveform: mpv has marked no audio track of {media} as playing, so stream {} is peaked; it listed {}",
+            "waveform: mpv is not decoding any audio track of {media} yet, so stream {} is peaked; it listed {}",
             track.ff_index,
             listed_tracks(&tracks)
         );
@@ -532,13 +532,16 @@ pub fn start_for_playing_track(app: &AppHandle, player: &Player, media: &str) {
     }
 }
 
-/// The track to peak: the one mpv is playing, or the first audio track when mpv has marked none.
+/// The track to peak: the one mpv is decoding, or the first audio track when it is decoding none.
 ///
-/// `selected` is read on the thread that has just loaded the file, and mpv does not always have it
-/// set by then on a loaded machine. W5 found the same shape one field over, where asking mpv for
-/// the path right after a successful open answered `None`. A file that carries audio has a
-/// waveform to draw whichever track mpv has got round to choosing, so the panel no longer depends
-/// on that timing; a file that carries none still spawns no child, which is the empty list here.
+/// `playing` is mpv's `track-list/N/selected`, and mpv defines that as whether the track is
+/// **currently decoded**, not which one it has chosen. `file-loaded` fires when the file is loaded
+/// and playback begins, so on a loaded machine decoding of the audio can trail it and every track
+/// reads false. That is mpv answering the question it was asked, not mpv being late. W5 found the
+/// same shape one field over, where asking for the path right after a successful open answered
+/// `None`. A file that carries audio has a waveform to draw whichever track is decoded first, so
+/// the panel does not depend on that timing; a file that carries none still spawns no child, which
+/// is the empty list here.
 fn track_to_peak(tracks: &[AudioTrack]) -> Option<&AudioTrack> {
     tracks
         .iter()
