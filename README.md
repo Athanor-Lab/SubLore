@@ -4,11 +4,13 @@
 
 **Translation memory for subtitles.** A local-first desktop app for translating subtitles across a whole series: your terminology, enforced everywhere it appears, instead of remembered episode by episode.
 
-Whisper transcription is a commodity Sublore wraps. The product is the memory — a persistent termbase and translation memory that follows the translator through every episode, and a QA pass that flags every line where an approved term was not used.
+Whisper transcription is a commodity Sublore wraps. The product is the memory: a persistent termbase and translation memory that follows the translator through every episode, and a QA pass that flags every line where an approved term was not used.
 
 `CONTRIBUTING.md` is the honest description of how this is built and what the rules are, including the ones about what is verified and what is merely assumed. `BACKLOG.md` is what is left.
 
-Sublore works offline. It does not phone home, has no accounts, and collects no telemetry.
+Sublore works offline. It does not phone home, has no accounts, and collects no telemetry. Two
+things reach the network and only when you press them: downloading a Whisper model, and Help > Check
+for updates, which asks once and never on its own.
 
 Local transcription runs whisper.cpp as a separate process, on your machine. Transcription accuracy is Whisper's, and we say so; what Sublore adds is consistency across episodes.
 
@@ -84,7 +86,7 @@ pnpm tauri dev
 
 Sublore opens SRT, VTT and ASS files, shows the format, the cue count and the line endings, and lists the cues. A cue's text can be edited in place, with undo and redo, and the file can be saved over itself or as a copy elsewhere. It plays the video beside the list, draws the sound as a waveform with the current cue's start and end marked on it, and opens a second document as the source to translate from. Everything the termbase needs is not built yet.
 
-A file is written only when you ask for it, by saving. Both routes — over the file you opened, and as a copy elsewhere — write atomically: a temporary file first, then a rename, so the destination is always either the old file or the new one and never something in between. Whatever was there before is kept as a timestamped backup, inside Sublore's own folder rather than next to your file:
+A file is written only when you ask for it, by saving. Both routes, over the file you opened and as a copy elsewhere, write atomically: a temporary file first, then a rename, so the destination is always either the old file or the new one and never something in between. Whatever was there before is kept as a timestamped backup, inside Sublore's own folder rather than next to your file:
 
 - Linux: `~/.local/share/com.sublore.app/backups/`
 
@@ -145,7 +147,7 @@ Development builds can be made to crash on purpose, to check that path: set `SUB
 
 On Linux, WebKitGTK cannot allocate a DMABUF buffer on the NVIDIA proprietary driver and the window opens blank, so Sublore looks for `/sys/module/nvidia` when it starts and, if it is there, sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` and `__NV_DISABLE_EXPLICIT_SYNC=1` for itself before the webview exists. `SUBLORE_WEBKIT_WORKAROUNDS` overrides that check in either direction. `0`, `false`, `no` or `off` turns the workarounds off: worth trying if your window paints without them, because they cost some input latency. `1`, `true`, `yes` or `on` turns them on where the check finds nothing, which is what a hybrid laptop rendering through NVIDIA needs. Case and surrounding spaces are ignored. An empty value means the same as not setting the variable at all, and so does any other word: the `/sys/module/nvidia` check decides. Either way the app prints which path it took to stderr as it starts, and unlike `SUBLORE_FORCE_PANIC` this variable is read in release builds too.
 
-Also on Linux, mpv draws into a child window of Sublore's own, and with a Wayland display in the environment mpv's `gpu-context=auto` picks Wayland and draws past that window, so Sublore asks for `x11egl` instead. It is a request, not a requirement: an mpv built without that context refuses the name, Sublore says so in the log and lets mpv choose, and the app still starts. `SUBLORE_MPV_GPU_CONTEXT` overrides the request with any context name your mpv accepts — `x11`, `x11vk`, `wayland`, `auto` — and is worth reaching for only if the video area stays black while the rest of the window is fine. Surrounding spaces are ignored; an empty value means the same as not setting it, as with `SUBLORE_WEBKIT_WORKAROUNDS`. A name mpv rejects costs you the request and not the video: Sublore falls back to `x11egl` and writes both names to the log.
+Also on Linux, mpv draws into a child window of Sublore's own, and with a Wayland display in the environment mpv's `gpu-context=auto` picks Wayland and draws past that window, so Sublore asks for `x11egl` instead. It is a request, not a requirement: an mpv built without that context refuses the name, Sublore says so in the log and lets mpv choose, and the app still starts. `SUBLORE_MPV_GPU_CONTEXT` overrides the request with any context name your mpv accepts (`x11`, `x11vk`, `wayland`, `auto`) and is worth reaching for only if the video area stays black while the rest of the window is fine. Surrounding spaces are ignored; an empty value means the same as not setting it, as with `SUBLORE_WEBKIT_WORKAROUNDS`. A name mpv rejects costs you the request and not the video: Sublore falls back to `x11egl` and writes both names to the log.
 
 ## Known limitations
 
