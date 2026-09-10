@@ -15,6 +15,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -234,7 +235,7 @@ describe("Preferences", () => {
     expect(asMillis(before.start) - asMillis(moved.start)).toBe(500);
 
     // One undo takes it back, like any other edit.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await gridRows())[0]?.start === before.start ? 1 : null), {
       timeout: 20000,
       message: "one undo to put the start back",
@@ -322,7 +323,7 @@ describe("Preferences", () => {
     const made = grown[grown.length - 1];
     expect(asMillis(made.end) - asMillis(made.start)).toBe(5000);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await gridRows()).length === rows.length ? 1 : null), {
       timeout: 20000,
       message: "one undo to take the new line back",

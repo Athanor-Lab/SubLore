@@ -17,6 +17,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -510,7 +511,7 @@ describe("the find band", () => {
     expect(await rowText(3)).toBe(third.replace(IN_TWO_CUES, () => REPLACEMENT_ALL));
 
     // One step for the whole replace, which is the reason the many-cue edit exists (F1).
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await rowText(2)) === second ? true : null), {
       timeout: 20000,
       message: "one undo to put the second row back",
@@ -518,7 +519,7 @@ describe("the find band", () => {
     expect(await rowText(3)).toBe(third);
 
     // And the single replace under it is its own step, so a second undo leaves the file as opened.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
       timeout: 20000,
       message: "the document to come back to the bytes it was opened with",
@@ -555,7 +556,7 @@ describe("the find band", () => {
     });
     expect(await rowText(3)).toBe(before.replace("fog", () => "[ogf]"));
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
       timeout: 20000,
       message: "one undo to leave the file as it was opened",
@@ -668,7 +669,7 @@ describe("the find band", () => {
     expect(await rowText(2)).not.toBe(second);
 
     await setBox(toplevel, ".findbar__scope", false);
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
       timeout: 20000,
       message: "one undo to leave the file as it was opened",

@@ -14,6 +14,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -168,8 +169,8 @@ describe("lead-in and lead-out on the keyboard", () => {
     expect(asMillis(now.start)).toBe(startWas - LEAD_IN_MS);
 
     // Each lead is one undo; two undos put the cue back exactly.
-    await clickElement(toplevel, ".toolbar__edit-undo");
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(
       async () => {
         const back = await rowTimes(2);

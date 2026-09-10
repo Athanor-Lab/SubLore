@@ -8,6 +8,8 @@
  */
 import { browser } from "@wdio/globals";
 
+import { waitFor } from "./proc.js";
+
 const present = (selector) =>
   browser.execute((css) => document.querySelector(css) !== null, selector);
 
@@ -32,4 +34,26 @@ export async function intoList(click, token) {
       return;
     }
   }
+}
+
+/**
+ * Run a command from the menu that draws it, given the caller's own clicker.
+ *
+ * The suite reaches a good many commands through a toolbar button instead, and five of those
+ * buttons are Sublore's own rather than the reference's, so they come off the strip when it is made
+ * to match it (BACKLOG.md N120). A check that wants a command run should ask for the command, not
+ * for the button that happens to carry it today.
+ */
+export async function runFromMenu(click, menu, token) {
+  await click(`.menubar__title--${menu}`);
+  await waitFor(() => present(".menubar__menu"), {
+    timeout: 15000,
+    message: `the ${menu} menu to open`,
+  });
+  await intoList(click, token);
+  await click(`.menubar__item--${token}`);
+  await waitFor(async () => ((await present(".menubar__menu")) ? null : 1), {
+    timeout: 15000,
+    message: `the menu to close after ${token}`,
+  });
 }

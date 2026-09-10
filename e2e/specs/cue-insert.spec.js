@@ -16,7 +16,7 @@ import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
-import { intoList } from "../lib/menu.js";
+import { intoList, runFromMenu } from "../lib/menu.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
 import { seekTo, settledPlayhead } from "../lib/transport.js";
@@ -244,7 +244,7 @@ describe("the four ways of asking for a cue", () => {
     // And the line that landed is the one the cursor is on.
     expect(grown.map((row) => row.cursor)).toEqual([false, true, false, false]);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, SECOND, THIRD], "the fixture again");
   });
 
@@ -284,7 +284,7 @@ describe("the four ways of asking for a cue", () => {
       end: timecode(startMs + NEW_CUE_MS),
     });
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, SECOND, THIRD], "the fixture again");
   });
 });
