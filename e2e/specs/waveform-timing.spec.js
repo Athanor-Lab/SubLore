@@ -18,7 +18,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
-import { runFromMenu } from "../lib/menu.js";
+import { menuItemDisabled, runFromMenu } from "../lib/menu.js";
 import { clickAt, dragAt, focusWindow } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.js";
@@ -67,10 +67,6 @@ function present(selector) {
 
 function textOf(selector) {
   return browser.execute((css) => document.querySelector(css)?.textContent ?? null, selector);
-}
-
-function disabledOf(selector) {
-  return browser.execute((css) => document.querySelector(css)?.disabled ?? null, selector);
 }
 
 async function clickElement(toplevel, selector) {
@@ -390,7 +386,9 @@ describe("dragging a cue boundary on the waveform", () => {
     );
     expect(rows[1].end).toBe(SECOND_END);
     // Nothing left to undo: the whole travel was one history entry, not one per pointer move.
-    expect(await disabledOf(".toolbar__edit-undo")).toBe(true);
+    expect(await menuItemDisabled((css) => clickElement(toplevel, css), "edit", "edit-undo")).toBe(
+      true,
+    );
     expect(readFileSync(copy).equals(openedBytes)).toBe(true);
   });
 
@@ -448,7 +446,9 @@ describe("dragging a cue boundary on the waveform", () => {
       { timeout: 20000, message: "one undo to put the second row back" },
     );
     expect(back[1].end).toBe(SECOND_END);
-    expect(await disabledOf(".toolbar__edit-undo")).toBe(true);
+    expect(await menuItemDisabled((css) => clickElement(toplevel, css), "edit", "edit-undo")).toBe(
+      true,
+    );
   });
 
   it("refuses a drag that would leave the end at or before the start", async () => {

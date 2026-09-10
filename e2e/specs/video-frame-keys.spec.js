@@ -273,12 +273,13 @@ describe("stepping the picture and walking a line's edges", () => {
     // Put it back: the checks after this one read the fixture's own boundaries, and one undo
     // spending the whole history is what says the edit was the only one.
     await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
+    // Waited on the unsaved marker rather than on Undo's greying: this is inside a wait, and asking
+    // the menu would open and close it on every turn of the loop. The marker clears exactly when
+    // the document is back where it was opened, which is the same sentence (N121).
     await waitFor(
       () =>
-        browser.execute(
-          () => document.querySelector(".toolbar__edit-undo")?.disabled === true || null,
-        ),
-      { timeout: 20000, message: "the one nudge to be undone, leaving nothing to undo" },
+        browser.execute(() => (document.querySelector(".statusbar__dirty") === null ? 1 : null)),
+      { timeout: 20000, message: "the one nudge to be undone, clearing the unsaved marker" },
     );
   });
 

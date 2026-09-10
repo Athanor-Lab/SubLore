@@ -17,6 +17,7 @@ import {
   stubPid,
 } from "../lib/asr.js";
 import { answerChooser, cancelChooser, findChooser, waitForChooser } from "../lib/chooser.js";
+import { menuItemDisabled } from "../lib/menu.js";
 import {
   answerDialog,
   findUnsavedDialog,
@@ -485,7 +486,9 @@ describe("transcription", () => {
     await editRow(toplevel, 1, CORRECTION);
     expect(await present(".statusbar__error")).toBe(false);
     // The document's own undo took it, which is the undo the editor uses everywhere else.
-    expect(await propertyOf(".toolbar__edit-undo", "disabled")).toBe(false);
+    expect(await menuItemDisabled((css) => clickElement(toplevel, css), "edit", "edit-undo")).toBe(
+      false,
+    );
 
     const destination = path.join(saveDir, "from-transcription.srt");
     await clickElement(toplevel, ".toolbar__file-save-as");

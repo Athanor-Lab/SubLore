@@ -13,6 +13,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { menuItemDisabled } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -193,10 +194,11 @@ describe("a translation begun from the source", () => {
     // The emptying is not a step in this document's history: it happened before the translator was
     // given it. Undo is greyed, and the line stays empty.
     expect(await fileItem(toplevel, "file-open-source")).toEqual({ drawn: true, disabled: false });
-    const undo = await browser.execute(
-      () => document.querySelector(".toolbar__edit-undo")?.disabled === true,
+    // Read where the command is drawn and not off a toolbar button, which is a thing that moves
+    // (N121).
+    expect(await menuItemDisabled((css) => clickElement(toplevel, css), "edit", "edit-undo")).toBe(
+      true,
     );
-    expect(undo).toBe(true);
     expect((await rows())[0].text).toBe("");
   });
 
