@@ -231,6 +231,11 @@ export const en = {
       findNext: "F3",
       replace: "Ctrl+H",
       /** Bare letters, run only outside a text field where they are not a character. */
+      /** The reference's own timing keys, taken as they are. See BACKLOG.md N105. */
+      playLine: "R",
+      playFirst: "E",
+      playLast: "D",
+      playToEnd: "T",
       leadIn: "C",
       leadOut: "V",
       moveCuesUp: "Alt+Up",
