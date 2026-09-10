@@ -22,6 +22,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import { STUB_DIR_NAME } from "../lib/browserstub.js";
 import { appEnv } from "../lib/env.js";
 import { requireAppBinary } from "../lib/paths.js";
 import { killGroup, processGroupMembers, waitFor } from "../lib/proc.js";
@@ -110,8 +111,9 @@ async function main() {
       lines.length === 1 && lines[0].includes("DISPLAY") && lines[0].includes("xvfb-run"),
       `the line was:\n${lines[0] ?? "<nothing on stderr>"}`,
     );
-    // The panic path writes one; a refusal has nothing to report.
-    const left = readdirSync(home);
+    // The panic path writes one; a refusal has nothing to report. The stub launchers are the
+    // harness's own and are here before the app starts, so they are not something it wrote (N81).
+    const left = readdirSync(home).filter((entry) => entry !== STUB_DIR_NAME);
     check(
       "it leaves no crash report behind",
       left.length === 0,

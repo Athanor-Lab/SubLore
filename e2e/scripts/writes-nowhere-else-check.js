@@ -43,6 +43,12 @@ const EXPECTED_XDG_ENTRIES = new Map([
   ["mesa_shader_cache", "Mesa's compiled shaders, which XDG_CACHE_HOME is exactly for"],
   ["mesa_shader_cache_db", "the same, under Mesa's newer name"],
   [
+    "mpv",
+    "mpv's own shader cache, which XDG_CACHE_HOME is for: reproduced on 2026-09-10 by running " +
+      "mpv with the gpu video output over a fresh cache home, which fills it with SHA-named " +
+      "files. It appears on the CI runner and not on this repository's own machine (N81)",
+  ],
+  [
     "ibus",
     "the ibus input method, which GTK loads as an immodule at runtime: not linked into the " +
       "binary, and it makes its own bus directory wherever XDG_CONFIG_HOME points",
@@ -198,7 +204,12 @@ async function main() {
     ]) {
       for (const entry of readdirSync(root)) {
         if (!EXPECTED_XDG_ENTRIES.has(entry)) {
-          strangers.push(`${name}/${entry}`);
+          // With what is inside it: a bare name is not enough to work out whose it is from a CI
+          // artefact, which is how this check reported `mpv` for a day (N81).
+          const inside = everythingUnder(path.join(root, entry)).slice(0, 10);
+          strangers.push(
+            `${name}/${entry}${inside.length === 0 ? " (empty)" : ` holding ${inside.join(", ")}`}`,
+          );
         }
       }
     }

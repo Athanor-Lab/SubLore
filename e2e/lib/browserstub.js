@@ -21,6 +21,12 @@ import path from "node:path";
  */
 const LAUNCHERS = ["xdg-open", "gio", "gnome-open", "kde-open"];
 
+/**
+ * The directory the stubs live in, named here so a harness inspecting the same tree can tell what
+ * it put there itself from what the app wrote. Spelled once, never twice (N81).
+ */
+export const STUB_DIR_NAME = "no-browser";
+
 /** Where the URLs land, for a harness that wants to assert on them. */
 export function openedPath(dataHome) {
   return path.join(dataHome, "opened-urls.txt");
@@ -35,7 +41,7 @@ export function openedPath(dataHome) {
  */
 export function browserStubDir(dataHome) {
   const home = typeof dataHome === "string" && dataHome !== "" ? dataHome : os.tmpdir();
-  const directory = path.join(home, "no-browser");
+  const directory = path.join(home, STUB_DIR_NAME);
   mkdirSync(directory, { recursive: true });
   const script = [
     "#!/bin/sh",
