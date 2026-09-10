@@ -9,9 +9,21 @@
  * which meant **no window at all** rather than no video.
  *
  * This check drives the case with the one lever that reproduces it without a second mpv build: the
- * `SUBLORE_MPV_GPU_CONTEXT` override, set to a name no mpv accepts. Before the fix the app exits
- * before its window exists; after it, the request is refused, the refusal is logged, mpv falls back
- * to the pin, and the video still attaches.
+ * `SUBLORE_MPV_GPU_CONTEXT` override, set to a name no mpv accepts. With the fix, the request is
+ * refused, the refusal is logged, the app says it fell back to the pin, and the video still
+ * attaches.
+ *
+ * **What the defect looks like today, measured on 2026-09-10 and not inherited from the entry.**
+ * Tauri maps the window and then panics in its setup hook, and the process does not exit: it hangs
+ * with a window on screen. So the first assertion below passes with the defect present, and the one
+ * that catches it is the video surface never arriving. Its failure reads the app's own stderr, or
+ * the run says only that no surface appeared and names nothing (N78).
+ *
+ * **What this check cannot measure here.** The pin exists for a machine with a Wayland display in
+ * the environment, where mpv's `auto` picks Wayland and draws past our window. Under Xvfb there is
+ * no such display, so removing the fallback altogether still leaves mpv attaching: attachment
+ * proves survival, never the fallback. That is why the app logs the fallback and this check reads
+ * the line rather than inferring it from the picture.
  */
 import { execFileSync, spawn } from "node:child_process";
 import console from "node:console";
