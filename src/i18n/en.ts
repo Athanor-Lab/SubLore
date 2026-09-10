@@ -233,6 +233,9 @@ export const en = {
       playLine: "R",
       /** The reference puts these five on the numpad, which is its own tradeoff and stays
        *  its own: a laptop without one loses them. See BACKLOG.md N106. */
+      /** The two splits at the current frame, on the reference's own keys. See BACKLOG.md N110. */
+      splitBeforePlayhead: "Ctrl+D",
+      splitAfterPlayhead: "Ctrl+Shift+D",
       /** Second keys, answered but not drawn: the reference gives these commands two, and the
        *  drawn one stays the one a machine without a numpad can press. See BACKLOG.md N109. */
       commitTiming: "G",
