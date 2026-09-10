@@ -338,7 +338,7 @@ describe("the find band", () => {
       { timeout: 20000, message: "the status bar to report the open subtitle" },
     );
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const video = await waitForChooser("Choose a video");
     await answerChooser(video, requireVideoFixture(), "video");
     focusWindow(toplevel.id);

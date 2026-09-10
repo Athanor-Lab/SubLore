@@ -206,7 +206,7 @@ describe("the commit family", () => {
       message: "the fixture to open",
     });
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const video = await waitForChooser("Choose a video");
     await answerChooser(video, requireWaveformFixture(), "video");
     focusWindow(toplevel.id);

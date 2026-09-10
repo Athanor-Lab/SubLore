@@ -2280,7 +2280,7 @@ describe("the current line's bands", () => {
   });
 
   it("keeps every control reachable with the waveform above it, which is the least room there is", async () => {
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, requireWaveformFixture(), "video");
     focusWindow(toplevel.id);

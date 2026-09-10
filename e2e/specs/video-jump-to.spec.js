@@ -9,6 +9,7 @@
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -116,7 +117,7 @@ describe("jumping the picture to a typed time", () => {
     // The key is on the item, so a translator learns it from the menu rather than from a document.
     expect(item?.key).toContain("Ctrl+G");
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, requireVideoFixture(), "video");
     focusWindow(toplevel.id);

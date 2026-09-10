@@ -8,6 +8,7 @@
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -108,7 +109,7 @@ describe("what the open media is", () => {
   it("greys the item with nothing open, and wakes it when a video is loaded", async () => {
     expect(await videoItem(toplevel, "video-details")).toEqual({ drawn: true, disabled: true });
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, requireVideoFixture(), "video");
     focusWindow(toplevel.id);

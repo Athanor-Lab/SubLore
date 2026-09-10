@@ -333,7 +333,7 @@ describe("the waveform panel's ruler, strip and window", () => {
       { timeout: 20000, message: "the status bar to report the open subtitle" },
     );
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     await answerChooser(await waitForChooser("Choose a video"), requireWaveformFixture(), "video");
     focusWindow(toplevel.id);
     await waitFor(() => present(".waveform"), {

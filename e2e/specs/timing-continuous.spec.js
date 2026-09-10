@@ -356,7 +356,7 @@ describe("timing over more than one line", () => {
   });
 
   it("shifts every selected line to the playhead, keeping the gaps between them", async () => {
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const video = await waitForChooser("Choose a video");
     await answerChooser(video, requireVideoFixture(), "video");
     focusWindow(toplevel.id);

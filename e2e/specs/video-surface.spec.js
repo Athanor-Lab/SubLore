@@ -20,6 +20,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow } from "../lib/input.js";
 import { requireVideoFixture, videoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -146,7 +147,7 @@ describe("video surface hide and show", () => {
     });
     focusWindow(toplevel.id);
     await waitFor(
-      () => browser.execute(() => document.querySelector(".toolbar__video-open") !== null),
+      () => browser.execute(() => document.querySelector(".toolbar__file-open-subtitle") !== null),
       {
         timeout: 30000,
         message: "the app UI to render",
@@ -154,8 +155,14 @@ describe("video surface hide and show", () => {
     );
 
     // Open the fixture through the chooser, the way a person does.
-    const open = await centreOf(".toolbar__video-open");
-    clickAt(toplevel.absX + open.x, toplevel.absY + open.y);
+    await runFromMenu(
+      async (css) => {
+        const at = await centreOf(css);
+        clickAt(toplevel.absX + at.x, toplevel.absY + at.y);
+      },
+      "video",
+      "video-open",
+    );
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, videoFixture, "video");
     // The chooser had the keyboard and the transport clicks below need the app window to have it.

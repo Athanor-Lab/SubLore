@@ -249,7 +249,7 @@ describe("the four ways of asking for a cue", () => {
   });
 
   it("times a line from the playhead, taking the room it is given rather than the room there is", async () => {
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, requireVideoFixture(), "video");
     focusWindow(toplevel.id);

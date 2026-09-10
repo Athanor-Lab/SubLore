@@ -20,6 +20,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -217,7 +218,7 @@ describe("the shortcut is the one the menu draws", () => {
       { timeout: 20000, message: "the status bar to report the open subtitle" },
     );
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const video = await waitForChooser("Choose a video");
     await answerChooser(video, requireVideoFixture(), "video");
     focusWindow(toplevel.id);
