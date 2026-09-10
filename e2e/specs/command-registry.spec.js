@@ -206,7 +206,6 @@ const EDIT_ITEMS = [
   { id: "edit-copy", disabled: true },
   { id: "edit-paste", disabled: true },
   { id: "edit-paste-over", disabled: true },
-  { id: "edit-select-all", disabled: true },
   { id: "edit-revert", disabled: true },
   { id: "edit-clear", disabled: true },
   { id: "edit-clear-text", disabled: true },
@@ -222,6 +221,8 @@ const EDIT_ITEMS = [
   { id: "edit-find", disabled: true },
   { id: "edit-find-next", disabled: true },
   { id: "edit-replace", disabled: true },
+  { id: "edit-select-all", disabled: true },
+  { id: "edit-select-at-playhead", disabled: true },
   { id: "asr-transcribe", disabled: false },
 ];
 
@@ -734,7 +735,6 @@ describe("the command registry", () => {
       { route: "menu", id: "edit-copy", disabled: false },
       { route: "menu", id: "edit-paste", disabled: false },
       { route: "menu", id: "edit-paste-over", disabled: false },
-      { route: "menu", id: "edit-select-all", disabled: false },
       // The two clears need a line with something in it, which the fixture's first row is. Revert
       // beside them stays greyed, because nothing has moved it since the cursor arrived, and so
       // does Insert original, which wants a caret and a source and has neither (B13).
@@ -745,6 +745,9 @@ describe("the command registry", () => {
       // has typed one, so it stays greyed through the open (F5).
       { route: "menu", id: "edit-find", disabled: false },
       { route: "menu", id: "edit-replace", disabled: false },
+      // Select all comes after the find group now, which is where the interface spec's table puts
+      // the two selections and the order this list reads in (N118).
+      { route: "menu", id: "edit-select-all", disabled: false },
       { route: "menu", id: "subtitle-insert-before", disabled: false },
       { route: "menu", id: "subtitle-insert-after", disabled: false },
       { route: "menu", id: "subtitle-next-line", disabled: false },
