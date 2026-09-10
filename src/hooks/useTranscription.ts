@@ -118,6 +118,14 @@ export function useTranscription(adopt: (runId: number) => void): Transcription 
   /** The run we know we started, and the last one that reached an end. See `mine` below. */
   const startedRef = useRef<number | null>(null);
   const finishedRef = useRef<number | null>(null);
+  /**
+   * Whether a run has been asked for and has not ended. The Start button is greyed while one is
+   * going, but a click is answered before React repaints, so a double click sent two starts: the
+   * second was refused as busy and its refusal tore down the first run's progress and Cancel and
+   * put an error over a transcription that was still going. Read here rather than from `running`,
+   * which a callback that does not depend on it cannot see change. See BACKLOG.md N65.
+   */
+  const runningRef = useRef(false);
   /** Read through a ref: the listeners below are installed once, and reinstalling them because the
    * caller handed over a new function would drop the events that arrive in between. */
   const adoptRef = useRef(adopt);
@@ -165,6 +173,7 @@ export function useTranscription(adopt: (runId: number) => void): Transcription 
           return;
         }
         finishedRef.current = event.payload.runId;
+        runningRef.current = false;
         setRunning(false);
         setPercent(100);
         setResult(event.payload);
@@ -175,6 +184,7 @@ export function useTranscription(adopt: (runId: number) => void): Transcription 
           return;
         }
         finishedRef.current = event.payload.runId;
+        runningRef.current = false;
         setRunning(false);
         const code = event.payload.code;
         if (NOTICES.has(code)) {
@@ -203,6 +213,12 @@ export function useTranscription(adopt: (runId: number) => void): Transcription 
 
   const start = useCallback(
     async (media: string) => {
+      // One run at a time, decided here and not by the button's greying: the greying is right and
+      // it is a repaint behind the click that produced it.
+      if (runningRef.current) {
+        return;
+      }
+      runningRef.current = true;
       startedRef.current = null;
       finishedRef.current = null;
       setRunId(null);
@@ -225,6 +241,7 @@ export function useTranscription(adopt: (runId: number) => void): Transcription 
           setRunId(started.runId);
         }
       } catch (failure) {
+        runningRef.current = false;
         setRunning(false);
         const code = toErrorCode(failure);
         // The model failed its checksum in the preflight, so this one is not startable until it is
