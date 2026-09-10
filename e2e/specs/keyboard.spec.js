@@ -1,4 +1,4 @@
-/* global describe, it, before, after, document, window, Event */
+/* global describe, it, before, after, document, window */
 /**
  * K3 and K4: one dispatcher, and the four Ctrl+digit shortcuts the window context already owed.
  *
@@ -23,6 +23,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
+import { seekTo } from "../lib/transport.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -146,17 +147,6 @@ function asTimecode(seconds) {
     `${pad(Math.floor(total / 60_000) % 60, 2)}:` +
     `${pad(Math.floor(total / 1000) % 60, 2)}.${pad(total % 1000, 3)}`
   );
-}
-
-async function seekTo(seconds) {
-  await browser.execute((target) => {
-    const slider = document.querySelector(".controls__slider");
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-    setter.call(slider, String(target));
-    slider.dispatchEvent(new Event("input", { bubbles: true }));
-    slider.dispatchEvent(new Event("change", { bubbles: true }));
-  }, seconds);
-  await browser.pause(300);
 }
 
 /** Put the cursor on a row by clicking its number cell, which never opens an editor. */

@@ -56,7 +56,21 @@ export async function seekTo(seconds) {
     slider.dispatchEvent(new Event("input", { bubbles: true }));
     slider.dispatchEvent(new Event("change", { bubbles: true }));
   }, seconds);
+  return playheadAt(seconds, `the seek to ${seconds}s`);
+}
 
+/**
+ * Wait until the picture is at `seconds`, sending nothing.
+ *
+ * Moving the cursor sends the picture to that line's start, and on a loaded machine that follow
+ * arrives after a seek made straight afterwards and drags the picture back: measured on CI, where
+ * the landing guard passed at ten seconds and the test then read 2.13, the start of the row the
+ * cursor had just reached (N89). Waiting for the follow to arrive is the only thing that closes it,
+ * and its destination is the row's own start, which the callers already read.
+ * @param {number} seconds where the picture has to be
+ * @param {string} what names the wait in the failure, so it says which of the two it was waiting on
+ */
+export async function playheadAt(seconds, what = `the playhead to reach ${seconds}s`) {
   // One loop with one cadence, not a `waitFor` wrapped around `settledPlayhead`: that nests a
   // hundred millisecond poll around a function that sleeps three hundred and can take nine
   // seconds, and the three specs using it got slow enough to move the whole parallel schedule.
@@ -78,8 +92,8 @@ export async function seekTo(seconds) {
     previous = now;
     if (Date.now() >= deadline) {
       throw new Error(
-        `the seek to ${seconds}s never landed: the playhead settled at ${now}s. Nothing read ` +
-          `after this would be about the position the test asked for.`,
+        `${what} never landed: the playhead settled at ${now}s. Nothing read after this would ` +
+          `be about the position the test asked for.`,
       );
     }
   }
