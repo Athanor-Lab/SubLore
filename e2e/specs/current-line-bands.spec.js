@@ -1517,6 +1517,56 @@ describe("the current line's bands", () => {
     });
   });
 
+  it("opens the outline colour's picker on the reference's own key", async () => {
+    const caretBefore = (word) =>
+      browser.execute((wanted) => {
+        const box = document.querySelector(".currentline__text");
+        const at = box.value.indexOf(wanted);
+        box.focus();
+        box.setSelectionRange(at, at);
+        box.dispatchEvent(new Event("select", { bubbles: true }));
+        return at;
+      }, word);
+
+    if (await present(".currentline__picker")) {
+      pressKey("Escape");
+      await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+        timeout: 15000,
+        message: "a picker left open by an earlier test to close",
+      });
+    }
+    await caretBefore("harbour");
+    // The precondition, said rather than assumed: a key that finds the command greyed does nothing,
+    // and a check that could not tell that from a key that never arrived would name neither.
+    const ready = await browser.execute(
+      () => document.querySelector(".currentline__colour-outline")?.disabled,
+    );
+    expect(ready).toBe(false);
+    // Alt+3 with the caret in the box, which is where the reference binds it: the four colours are
+    // registry commands now and not buttons alone, so a key can reach them (N112).
+    pressKey("alt+3");
+    await waitFor(() => present(".currentline__picker"), {
+      timeout: 15000,
+      message: "alt+3 to open a picker",
+    });
+    // Which picker, and not merely that one opened: the button a picker is drawn over is the one
+    // that reports itself expanded, so the outline's saying so is the outline's picker.
+    const expanded = await browser.execute(() =>
+      Array.from(document.querySelectorAll(".currentline__colour"))
+        .filter((button) => button.getAttribute("aria-expanded") === "true")
+        .map((button) =>
+          Array.from(button.classList).find((name) => name.startsWith("currentline__colour-")),
+        ),
+    );
+    expect(expanded).toEqual(["currentline__colour-outline"]);
+
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".currentline__picker")) ? null : 1), {
+      timeout: 15000,
+      message: "the picker to close",
+    });
+  });
+
   it("puts each mode's quantities on the axes the reference gives them", async () => {
     const caretBefore = (word) =>
       browser.execute((wanted) => {

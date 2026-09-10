@@ -60,6 +60,11 @@ type CurrentLineProps = {
    * typed, whichever way the save was asked for. See BACKLOG.md M2.3.
    */
   flushRef: { current: () => Promise<void> };
+  /**
+   * Filled with a function that opens one colour's picker, so the four registry commands reach the
+   * same popover the buttons do rather than opening a second one of their own (N112).
+   */
+  openColourRef: { current: (slot: ColourSlot) => void };
   /** Told whenever the box holds text the document does not: that is unsaved work too. */
   onDraftChange: (pending: boolean) => void;
   /**
@@ -96,9 +101,14 @@ type CurrentLineProps = {
 };
 
 /** The four colours a line can override, in the order row three of the reference draws them. */
-type ColourSlot = "primary" | "secondary" | "outline" | "shadow";
+export type ColourSlot = "primary" | "secondary" | "outline" | "shadow";
 
-const COLOUR_SLOTS: ColourSlot[] = ["primary", "secondary", "outline", "shadow"];
+const COLOUR_SLOTS: { slot: ColourSlot; id: CommandId }[] = [
+  { slot: "primary", id: "edit.colour-primary" },
+  { slot: "secondary", id: "edit.colour-secondary" },
+  { slot: "outline", id: "edit.colour-outline" },
+  { slot: "shadow", id: "edit.colour-shadow" },
+];
 
 /** How many families the picker draws at once. A machine can have hundreds and a list that long
  * is not read, it is scrolled past: the field above it is what narrows it. */
@@ -285,6 +295,7 @@ export default function CurrentLine({
   cue,
   multiline,
   flushRef,
+  openColourRef,
   onDraftChange,
   onCaret,
   onCommit,
@@ -490,6 +501,30 @@ export default function CurrentLine({
       for (const field of ["layer", ...MARGIN_FIELDS] as NumberField[]) {
         await commitNumber(field);
       }
+    };
+  });
+
+  // The picker takes the focus when it opens, so Escape closes it however it was opened: its own
+  // handler is on the picker, and a command run from the keyboard leaves the caret in the text box,
+  // which is outside it (N112).
+  useEffect(() => {
+    if (colourAt === null) {
+      return;
+    }
+    pickerRef.current?.focus();
+  }, [colourAt]);
+
+  // The four colour commands open the picker over the button that colour already has, which is on
+  // screen whenever they are enabled: the same `canWriteTag` gates both, so there is no second
+  // placement rule to keep in step (N112).
+  useEffect(() => {
+    openColourRef.current = (slot) => {
+      const button = document.querySelector(`.currentline__colour-${slot}`);
+      if (button === null) {
+        return;
+      }
+      const box = button.getBoundingClientRect();
+      setColourAt({ slot, left: box.left, top: box.bottom });
     };
   });
 
@@ -1100,25 +1135,34 @@ export default function CurrentLine({
     await onSetOverrideTags(tags, caretAt);
   }
 
-  /** One colour, drawn as the button that opens the picker over it. */
-  function colourButton(slot: ColourSlot) {
+  /**
+   * One colour, drawn as the button that opens the picker over it. The button greys and runs by the
+   * registry's rule like every other command's button: pressing it a second time closes what it
+   * opened, which is the button's own state and not a second way to run the command (N112).
+   */
+  function colourButton(slot: ColourSlot, id: CommandId) {
+    const command = commands[id];
+    if (command === undefined) {
+      return null;
+    }
     const open = colourAt !== null && colourAt.slot === slot;
     return (
       <button
         key={slot}
         type="button"
         className={`currentline__colour currentline__colour-${slot}`}
+        // The colour's own name and not the command's: the menu item ends in an ellipsis because it
+        // opens a picker, and the button that picker is drawn over does not, which is the same
+        // distinction the reference draws between an item's label and a button's tooltip.
         aria-label={en.subtitle.currentLine.colours[slot]}
         aria-expanded={open}
-        // A tag is written at a caret, so a row without one has nothing to write against.
-        disabled={!canWriteTag}
-        onClick={(event) => {
+        disabled={!command.enabled}
+        onClick={() => {
           if (open) {
             setColourAt(null);
             return;
           }
-          const box = event.currentTarget.getBoundingClientRect();
-          setColourAt({ slot, left: box.left, top: box.bottom });
+          runCommand(commands, id);
         }}
       >
         <span aria-hidden="true">A</span>
@@ -1299,7 +1343,9 @@ export default function CurrentLine({
             <span aria-hidden="true">F</span>
           </button>
         </span>
-        <span className="currentline__group">{COLOUR_SLOTS.map((slot) => colourButton(slot))}</span>
+        <span className="currentline__group">
+          {COLOUR_SLOTS.map(({ slot, id }) => colourButton(slot, id))}
+        </span>
         {commandButton("subtitle.next-line")}
       </div>
       <textarea

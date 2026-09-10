@@ -50,6 +50,11 @@ export const en = {
       clearText: "Clear text",
       insertOriginal: "Insert original",
       strikeout: "Strikeout",
+      /** The four colours, which the reference ends with an ellipsis because each opens a picker. */
+      colourPrimary: "Primary colour…",
+      colourSecondary: "Secondary colour…",
+      colourOutline: "Outline colour…",
+      colourShadow: "Shadow colour…",
       find: "Find…",
       findNext: "Find next",
       replace: "Replace…",
@@ -233,6 +238,11 @@ export const en = {
       playLine: "R",
       /** The reference puts these five on the numpad, which is its own tradeoff and stays
        *  its own: a laptop without one loses them. See BACKLOG.md N106. */
+      /** The four colours, on the reference's own keys. See BACKLOG.md N112. */
+      colourPrimary: "Alt+1",
+      colourSecondary: "Alt+2",
+      colourOutline: "Alt+3",
+      colourShadow: "Alt+4",
       /** The two splits at the current frame, on the reference's own keys. See BACKLOG.md N110. */
       splitBeforePlayhead: "Ctrl+D",
       splitAfterPlayhead: "Ctrl+Shift+D",
