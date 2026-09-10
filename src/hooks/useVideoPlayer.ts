@@ -121,12 +121,16 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
       if (mine !== opening.current) {
         return;
       }
-      setState({
+      // Everything the open knows, and not `paused`, which belongs to the backend: it emits the
+      // ready state before this promise resolves, so the transport is on screen and clickable while
+      // this call is still in flight, and writing `true` here undid a Play the user had already
+      // pressed. See BACKLOG.md N60.
+      setState((current) => ({
         status: "ready",
         path: opened.path,
         duration: opened.duration,
-        paused: true,
-      });
+        paused: current.paused,
+      }));
     } catch (error) {
       if (mine === opening.current) {
         setErrorCode(toErrorCode(error));
