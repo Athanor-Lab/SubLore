@@ -32,10 +32,18 @@ audio files are only ever read.
   on. Click a row to move the cursor, and `Ctrl`-click or `Shift`-click to select more.
 - **The line box** under the grid holds the text of the line the cursor is on, with the styling
   controls and the margins around it. What you type reaches the document when you commit it or when
-  you move to another line.
+  you move to another line. The colour button opens a picker with a square, a slider for the hue, a
+  preview and the same colour written four ways, so you can pick it by eye or type it in whichever
+  notation you have. The five spectrum modes decide which axis is which, and the one you used last
+  is remembered. The dropper takes a colour from any pixel on the screen, and says so plainly if
+  the desktop will not let it.
 - **The video panel** shows the picture with the subtitles drawn over it, and the transport under it.
 - **The waveform panel** draws the sound around the playhead, with the current line's start and end
   marked on it. Drag either marker to retime the line, then commit.
+
+The window is named for the file you have open, with a `*` in front of it while there is unsaved
+work and `Untitled` before you have chosen a file, so two episodes are two windows you can tell
+apart.
 
 Every panel can be resized by the divider beside it and hidden from the View menu. A panel with
 nothing to show takes no room: no video means no picture, no sound means no waveform.
@@ -79,6 +87,20 @@ The work happens beside the app rather than inside it, so the window keeps answe
 shows how far it has got, and can be stopped. Stopping it kills the process and clears the scratch
 audio it extracted.
 
+## Pasting over lines
+
+`Ctrl+Shift+V` pastes over the lines you have selected rather than beside them, and asks first which
+of the eleven fields a line has to take: All, None, Times and Text are above the list as shortcuts. A
+field you do not choose is not written at all, so the line keeps exactly what it had.
+
+## Help
+
+`F1` opens this manual from anywhere, including with the cursor inside a line, and so does Help >
+Help contents. Help > Event log lists what Sublore has said since it started, stamped with the time
+and the part of the app that said it, which is the quickest way to see what it just did. Help >
+Check for updates asks once when you press it; a version with nothing newer says so rather than
+reading as a failure.
+
 ## Preferences
 
 View > Preferences, or `Alt+O`, holds the three numbers the timing commands read: the lead-in, the
@@ -93,7 +115,8 @@ drawn.
   clipping and drawing are not.
 - It does not do karaoke or animation.
 - It does not tell anyone what you are working on. Sublore reaches the network only when you press
-  something that asks it to, and today that is downloading a Whisper model.
+  something that asks it to, and there are two such things: downloading a Whisper model, and Help >
+  Check for updates, which asks once when you press it and never on its own.
 
 ## Where Sublore keeps things
 
