@@ -379,6 +379,11 @@ pub fn run() -> tauri::Result<()> {
         RunEvent::ExitRequested {
             code: Some(_), api, ..
         } => {
+            // The route speaking for itself. Only `AppHandle::exit` reaches this arm with a code,
+            // so this line is the quit route and not a request for it: `quit` logs before it calls
+            // anything, so a quit that closed the window instead would write that line too and
+            // `quit-gate-check.js` could not tell the two apart. See BACKLOG.md N69.
+            log::info!("quit: ExitRequested with a code, which only AppHandle::exit raises");
             // With no window left to ask in, holding the quit would hold it for the life of the
             // process, and the close that took the window has already asked.
             if request_close_of_every_window(app_handle) {
