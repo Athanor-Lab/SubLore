@@ -17,7 +17,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { seekTo, settledPlayhead } from "../lib/transport.js";
+import { playheadAt, seekTo, settledPlayhead } from "../lib/transport.js";
 import { findToplevel } from "../lib/x11.js";
 
 /** Three cues with a gap between each pair, which is what closing the gaps has to close. */
@@ -383,7 +383,9 @@ describe("timing over more than one line", () => {
           : null,
       { timeout: 15000, message: "the cursor to reach the first row" },
     );
-    await settledPlayhead();
+    // The follow, waited for and not assumed: moving the cursor sends the picture to that line's
+    // start, and a seek made while it is still on its way is undone when it arrives (N89).
+    await playheadAt(asMillis(OPENED[0].start) / 1000, "the follow to row 1's start");
     await seekTo(PLAYHEAD_SECONDS);
     pressKey("ctrl+a");
     await waitFor(async () => ((await selectedCount()) === 3 ? 1 : null), {

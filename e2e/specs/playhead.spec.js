@@ -23,7 +23,7 @@ import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { appLog } from "../lib/applog.js";
 import { waitFor } from "../lib/proc.js";
-import { seekTo, settledPlayhead } from "../lib/transport.js";
+import { playheadAt, seekTo, settledPlayhead } from "../lib/transport.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -147,6 +147,12 @@ function asTimecode(seconds) {
     `${pad(Math.floor(total / 60_000) % 60, 2)}:` +
     `${pad(Math.floor(total / 1000) % 60, 2)}.${pad(total % 1000, 3)}`
   );
+}
+
+/** A timecode the grid spells, as seconds, which is what the transport speaks. */
+function asSeconds(spelled) {
+  const [hours, minutes, rest] = spelled.split(":");
+  return Number(hours) * 3600 + Number(minutes) * 60 + Number(rest);
 }
 
 async function openMenu(toplevel) {
@@ -273,8 +279,10 @@ describe("the times follow the playhead", () => {
     // line's start, so a seek made before it would be undone by the move.
     await cursorTo(toplevel, 2);
     const wasAt = (await gridRows())[1]?.start;
-    // The follow has to land before the seek is sent, or the seek is the one that is lost.
-    await settledPlayhead();
+    // The follow has to land before the seek is sent, or the seek is the one that is lost. Waited
+    // for at its destination, which is this row's own start: `settledPlayhead` only proved the
+    // picture had stopped, which a follow that has not started yet satisfies too (N89).
+    await playheadAt(asSeconds(wasAt), "the follow to row 2's start");
     await seekTo(INSIDE_SECOND);
     await settledPlayhead();
     // Read, not assumed: the seek asked for a time and the player landed where it landed.
