@@ -4,7 +4,9 @@ Behavioral tests that launch the real Sublore binary on a real X server and asse
 would see. Nothing here reads Rust or TypeScript source: the harness only drives the app and looks
 at the window.
 
-Tools the harness needs on PATH: `xdotool`, `xwininfo`, `python3` with python-xlib, and `ffmpeg`.
+Tools the harness needs on PATH: `xdotool`, `xwininfo`, `python3` with python-xlib, `ffmpeg`
+and `xsettingsd`. `xsettingsd` publishes the display ratio the way a desktop does, which is the
+only way a fractional `devicePixelRatio` can be produced here: see `fractional-ratio.spec.js`.
 ffmpeg is there for the app, not for the harness: `asr.spec.js` transcribes audio the app really
 extracts from `sample.mkv` with it, which is why `wdio.conf.js` requires it at load and says so in
 the same line. No spec measures pixels: `video-surface.spec.js`'s own header says why the picture is not
