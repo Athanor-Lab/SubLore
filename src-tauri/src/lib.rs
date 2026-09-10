@@ -38,8 +38,12 @@ use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use crash::force::ForcePoint;
 
 /// Two archived files beside the active one, so the logs stay bounded without hiding history.
+///
+/// The number is the archived files and not the total: `tauri-plugin-log`'s `remove_old_files`
+/// excludes the file it is writing to before it counts. This said 3 and meant 3 archived, one more
+/// than the line above and than the two documents that describe the folder.
 const LOG_ROTATION: tauri_plugin_log::RotationStrategy =
-    tauri_plugin_log::RotationStrategy::KeepSome(3);
+    tauri_plugin_log::RotationStrategy::KeepSome(2);
 const LOG_MAX_BYTES: u128 = 2 * 1024 * 1024;
 
 /// Files named on the command line, for the frontend to open once it is up.
