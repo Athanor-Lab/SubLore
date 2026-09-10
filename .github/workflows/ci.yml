@@ -83,9 +83,25 @@ jobs:
         shell: pwsh
         run: .github/scripts/install-libmpv-windows.ps1
 
+      # `choco install` exits 0 when it installs nothing: on 2026-09-10 the community feed would not
+      # serve the package, the step said "Chocolatey installed 0/0 packages" and went green, and the
+      # job died three steps later on `ffmpeg: command not found` (N90). So the install is asked to
+      # prove itself, and retried, because what was seen was a hole in the feed rather than a
+      # package that had gone.
       - name: Install ffmpeg (Windows)
         if: runner.os == 'Windows'
-        run: choco install ffmpeg -y --no-progress
+        run: |
+          for attempt in 1 2 3; do
+            choco install ffmpeg -y --no-progress || true
+            if ffmpeg -version >/dev/null 2>&1; then
+              echo "ffmpeg is here after attempt $attempt"
+              exit 0
+            fi
+            echo "attempt $attempt installed no usable ffmpeg"
+            sleep 10
+          done
+          echo "the Chocolatey feed did not serve a usable ffmpeg in three attempts" >&2
+          exit 1
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
