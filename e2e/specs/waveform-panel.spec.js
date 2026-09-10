@@ -499,6 +499,14 @@ describe("the waveform panel's ruler, strip and window", () => {
       message: "the numpad 5 to play the selection, which is what un-greys Stop",
     });
 
+    // Stop, on the numpad's own 8. `KP_Up` for the same reason as `KP_Begin` above: with NumLock
+    // off its `key` is "ArrowUp", so this also says the arrows no longer answer for it (N107).
+    pressKey("KP_Up");
+    await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === true ? true : null), {
+      timeout: 20000,
+      message: "the numpad 8 to stop what is playing, which is what greys Stop again",
+    });
+
     // Left as it was found: the next check reads a transport nothing is driving.
     await clickElement(toplevel, ".wavebar__wave-stop");
     await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === true ? true : null), {

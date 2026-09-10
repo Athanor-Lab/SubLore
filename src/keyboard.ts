@@ -119,19 +119,21 @@ type Chord = {
 };
 
 /**
- * The keys an accelerator spells by name, and the `key` each one arrives as. `code` would be the
- * physical key, and these are the same key on every layout there is, so `key` says what it is.
+ * The keys an accelerator spells by name, and the `code` each one arrives as. `code` and not `key`
+ * because the numpad borrows these names: with NumLock off its own decimal point reports a `key`
+ * of `Delete`, measured on 2026-09-10. See BACKLOG.md N107.
  */
 const NAMED_KEYS: Record<string, string> = {
-  delete: "delete",
+  delete: "Delete",
 };
 
-/** The arrow tokens an accelerator spells, and the `key` each one arrives as. */
+/** The arrow tokens an accelerator spells, and the `code` each one arrives as, for the same reason
+ *  as the named keys above: with NumLock off the numpad's 4 reports a `key` of `ArrowLeft`. */
 const ARROWS: Record<string, string> = {
-  left: "arrowleft",
-  right: "arrowright",
-  up: "arrowup",
-  down: "arrowdown",
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  up: "ArrowUp",
+  down: "ArrowDown",
 };
 
 /** `Num 5` and `Num5` alike: the space is how the menu reads best, and it is one token either way. */
@@ -163,11 +165,11 @@ function parseAccelerator(text: string | undefined): Chord | null {
   }
   const arrow = ARROWS[token.toLowerCase()];
   if (arrow !== undefined) {
-    return { ctrl, shift, alt, on: "key", value: arrow };
+    return { ctrl, shift, alt, on: "code", value: arrow };
   }
   const named = NAMED_KEYS[token.toLowerCase()];
   if (named !== undefined) {
-    return { ctrl, shift, alt, on: "key", value: named };
+    return { ctrl, shift, alt, on: "code", value: named };
   }
   if (/^[0-9]$/.test(token)) {
     return { ctrl, shift, alt, on: "code", value: `Digit${token}` };

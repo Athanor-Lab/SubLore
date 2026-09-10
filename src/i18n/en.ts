@@ -233,6 +233,13 @@ export const en = {
       playLine: "R",
       /** The reference puts these five on the numpad, which is its own tradeoff and stays
        *  its own: a laptop without one loses them. See BACKLOG.md N106. */
+      /** The numpad half of the reference's `Always` set, which is the binding that works whatever
+       *  has the focus there. Its Audio-only letters are not taken. See BACKLOG.md N107. */
+      stopPlaying: "Num 8",
+      startEarlier: "Num 4",
+      startLater: "Num 6",
+      endEarlier: "Num 7",
+      endLater: "Num 9",
       playSelection: "Num 5",
       playBefore: "Num 1",
       playAfter: "Num 3",

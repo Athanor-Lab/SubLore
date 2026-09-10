@@ -2001,24 +2001,28 @@ export default function App() {
     {
       id: "time.start-earlier",
       label: en.menu.timing.startEarlier,
+      accelerator: en.menu.keys.startEarlier,
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void nudge("start", -NUDGE_MS),
     },
     {
       id: "time.start-later",
       label: en.menu.timing.startLater,
+      accelerator: en.menu.keys.startLater,
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void nudge("start", NUDGE_MS),
     },
     {
       id: "time.end-earlier",
       label: en.menu.timing.endEarlier,
+      accelerator: en.menu.keys.endEarlier,
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void nudge("end", -NUDGE_MS),
     },
     {
       id: "time.end-later",
       label: en.menu.timing.endLater,
+      accelerator: en.menu.keys.endLater,
       enabled: subtitle.summary !== null && selection.active !== null,
       run: () => void nudge("end", NUDGE_MS),
     },
@@ -2053,6 +2057,7 @@ export default function App() {
     {
       id: "wave.stop",
       label: en.menu.timing.stop,
+      accelerator: en.menu.keys.stopPlaying,
       // Greyed unless something is playing, which is what the reference greys it on.
       enabled: ready && !state.paused,
       run: () => void togglePlayback(),
