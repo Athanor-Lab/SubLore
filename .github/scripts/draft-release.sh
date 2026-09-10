@@ -19,10 +19,26 @@ if [ ! -d "$packages" ]; then
   exit 1
 fi
 
-# A release with nothing on it is worse than no release: it looks like a download that failed.
-count=$(find "$packages" -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) | wc -l)
-if [ "$count" -eq 0 ]; then
-  echo "draft-release: no deb, rpm or AppImage under $packages" >&2
+# A release with nothing on it is worse than no release: it looks like a download that failed. And
+# a release missing one of the three is the same thing for a third of the people who come for it, so
+# each kind is required by name rather than counted together. `sh` leaves a glob that matches nothing
+# alone, so passing the three patterns straight to `gh` handed it paths that do not exist and failed
+# on the asset instead of on the truth, which is that a package is missing. See R4.
+assets=""
+missing=""
+for kind in deb rpm AppImage; do
+  found=$(find "$packages" -type f -name "*.$kind" | sort)
+  if [ -z "$found" ]; then
+    missing="$missing $kind"
+    continue
+  fi
+  assets="$assets$found
+"
+done
+if [ -n "$missing" ]; then
+  echo "draft-release: no$missing package under $packages" >&2
+  echo "  A release is the three Linux packages. Publishing without one is a download that is" >&2
+  echo "  missing for whoever came for that kind." >&2
   exit 1
 fi
 
@@ -50,13 +66,21 @@ fi
 } >> "$notes"
 
 if [ -n "${SUBLORE_RELEASE_DRY_RUN:-}" ]; then
-  echo "draft-release: would create draft $tag with $count package(s) and these notes:"
+  echo "draft-release: would create draft $tag with these packages:"
+  printf '%s' "$assets" | sed 's/^/  /'
+  echo "draft-release: and these notes:"
   sed 's/^/  /' "$notes"
   exit 0
 fi
 
-gh release create "$tag" \
-  --draft \
-  --title "Sublore $tag" \
-  --notes-file "$notes" \
-  "$packages"/*.deb "$packages"/*.rpm "$packages"/*.AppImage
+# The files themselves, never the patterns: what reaches `gh` is what `find` found. Built as
+# positional arguments rather than piped, so a path with a space in it stays one path.
+set -- --draft --title "Sublore $tag" --notes-file "$notes"
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  set -- "$@" "$file"
+done <<ASSETS
+$assets
+ASSETS
+
+gh release create "$tag" "$@"
