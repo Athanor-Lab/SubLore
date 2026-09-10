@@ -33,6 +33,7 @@ const MAX_SUBTITLE_REMOVALS: usize = 16;
 
 const OBSERVE_TIME_POS: u64 = 1;
 const OBSERVE_PAUSE: u64 = 2;
+const OBSERVE_SUB_TEXT: u64 = 3;
 
 /// mpv defaults that would write files, read config, follow references or grab input are all
 /// turned off explicitly rather than assumed. See CONTRIBUTING.md section 3 and the M0.2 design.
@@ -260,6 +261,12 @@ struct Shared {
     /// The box the picture fills, as the interface was last told it. The event thread is the only
     /// writer; `Player::picture` reads it for callers that have no `AppHandle`.
     picture: Mutex<Option<PictureSize>>,
+    /// Set when a preview refresh found `sub-text` absent or empty, which is mpv not having drawn
+    /// the line yet rather than there being none. The event thread clears it the first time the
+    /// property arrives with words in it, and asks for one more refresh then. Bounded on purpose:
+    /// `sub-text` changes on every line during playback, and refreshing per line would be far too
+    /// much. See BACKLOG.md N92.
+    awaiting_sub_text: AtomicBool,
 }
 
 impl Shared {
@@ -438,6 +445,8 @@ impl Player {
 
         mpv.observe_property("time-pos", Format::Double, OBSERVE_TIME_POS)
             .map_err(|error| from_mpv(error, "observe time-pos"))?;
+        mpv.observe_property("sub-text", Format::String, OBSERVE_SUB_TEXT)
+            .map_err(|error| from_mpv(error, "observe sub-text"))?;
         mpv.observe_property("pause", Format::Flag, OBSERVE_PAUSE)
             .map_err(|error| from_mpv(error, "observe pause"))?;
 
@@ -450,6 +459,8 @@ impl Player {
             asked_paused: AtomicBool::new(true),
             stop_at: Mutex::new(None),
             picture: Mutex::new(None),
+            // Nothing has asked for a line yet.
+            awaiting_sub_text: AtomicBool::new(false),
         });
         let stop = Arc::new(AtomicBool::new(false));
 
@@ -916,6 +927,17 @@ impl Player {
         mpv.set_property("sub-visibility", visible)
             .map_err(|error| from_mpv(error, "sub-visibility"))?;
         let tracks = external_subtitles(&mpv)?;
+        // No line covering the playhead has no `sub-text` at all. That is absence, not failure.
+        let chars = mpv
+            .get_property::<String>("sub-text")
+            .ok()
+            .map(|line| line.chars().count());
+        // Absent or empty is mpv not having rendered yet as often as it is a playhead with no line
+        // over it, and the two cannot be told apart from here. So the event thread is asked to
+        // watch for the words arriving, once (N92).
+        self.shared
+            .awaiting_sub_text
+            .store(chars.unwrap_or(0) == 0, Ordering::Relaxed);
         Ok(SubtitlesDrawn {
             tracks: tracks.len(),
             selected: tracks
@@ -924,11 +946,7 @@ impl Player {
             visible: mpv
                 .get_property::<bool>("sub-visibility")
                 .map_err(|error| from_mpv(error, "sub-visibility"))?,
-            // No line covering the playhead has no `sub-text` at all. That is absence, not failure.
-            chars: mpv
-                .get_property::<String>("sub-text")
-                .ok()
-                .map(|line| line.chars().count()),
+            chars,
         })
     }
 
@@ -1121,6 +1139,23 @@ fn event_loop(mpv: &Mpv, shared: &Shared, stop: &AtomicBool) {
                     shared.emit_position(position);
                 } else {
                     held = Some(position);
+                }
+            }
+            Some(Ok(Event::PropertyChange {
+                name: "sub-text",
+                change: PropertyData::Str(text),
+                ..
+            })) => {
+                // Only after a refresh reported the line absent or empty, and only once: mpv fills
+                // `sub-text` when it renders, which is after the track is added, so a refresh that
+                // read it straight away saw nothing and nothing looked again (N92).
+                if !text.is_empty() && shared.awaiting_sub_text.swap(false, Ordering::Relaxed) {
+                    if let Some(app) = &shared.app {
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn_blocking(move || {
+                            crate::preview::refresh_now(&handle);
+                        });
+                    }
                 }
             }
             Some(Ok(Event::PropertyChange {
