@@ -5,10 +5,11 @@
  * GTK's own factor is 1 and the 1.5 arrives as page zoom, so the page's rectangle has to be
  * resolved to native pixels before it crosses the IPC boundary. Under `GDK_SCALE` the ratio comes
  * from GTK's factor instead, GDK re-applies it on the way to X, and the old code and the new one
- * produce the same geometry. A fractional ratio cannot be produced here at all: `Xft.dpi` through
- * `xrdb` does not reach WebKitGTK without an XSETTINGS manager, and neither does a `gtk-xft-dpi`
- * settings file — both measured, both leaving `devicePixelRatio` at 1. N2c's own criterion is met
- * on the owner's 1.5 display, and nowhere else.
+ * produce the same geometry. A fractional ratio is not produced here, and it is not unproducible:
+ * `Xft.dpi` through `xrdb` does not reach WebKitGTK, and neither does a `gtk-xft-dpi` settings file,
+ * both measured and both leaving `devicePixelRatio` at 1. **Through an XSETTINGS manager it does
+ * arrive**, which `fractional-ratio.spec.js` uses, so N2c is covered on Linux there and not here.
+ * This file's own line stays what it is: the integer path, where the ratio comes from GTK's factor.
  *
  * What this guards is the regression the N2c work nearly shipped: resolving in the page without
  * dividing GDK's factor back out made the surface land at four times its rectangle instead of two.
