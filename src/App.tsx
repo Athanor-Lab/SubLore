@@ -2924,10 +2924,14 @@ export default function App() {
         },
         "subtitle.next-line",
         "subtitle.duplicate",
-        "subtitle.delete",
+        // Delete after the three splits, which is where the reference draws it and where the
+        // interface spec's table has it: the group runs insert, duplicate, split, split, split,
+        // delete. It was before them, which is the order class the 2026-09-05 ruling calls a
+        // defect rather than a taste (N115).
         "subtitle.split",
         "subtitle.split-before-playhead",
         "subtitle.split-after-playhead",
+        "subtitle.delete",
         // The reference rules off the insert-and-split family before the join family
         // (interface-spec 3.3 separator 7). Its move and sort groups are not on this branch yet.
         SEPARATOR,
