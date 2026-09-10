@@ -47,6 +47,22 @@ const runDataHome = process.env.SUBLORE_E2E_DATA_HOME;
 // sidecar and the transcript it replays.
 process.env.SUBLORE_E2E_RUN_HOME = runDataHome;
 
+/**
+ * How many specs run at once, following the machine rather than a constant.
+ *
+ * Every worker is an app, WebKit's network and content processes and mpv's threads, and the driver,
+ * Xvfb and this harness need room of their own. Four was measured here, on sixteen cpus, at 5:22
+ * against 19:00 in series (N24). Measured on the CI runner on 2026-09-10 it was four workers on
+ * four cpus at a load of 3.20 before the battery started, green only after three retries (N85).
+ * `E2E_WORKERS` overrides it.
+ */
+const WORKERS = (() => {
+  const asked = Number(process.env.E2E_WORKERS ?? "");
+  return Number.isInteger(asked) && asked >= 1
+    ? asked
+    : Math.max(1, Math.min(4, os.cpus().length - 2));
+})();
+
 /** A spec file's name, as a directory name: what tells one spec's tree from another's. */
 function specName(specs) {
   const first = Array.isArray(specs) ? specs[0] : specs;
@@ -125,11 +141,7 @@ export const config = {
   hostname: "127.0.0.1",
   port: driverPort,
   specs: ["./specs/*.spec.js"],
-  // Four. The state that made parallel unsafe is gone (N19) and every spec passes alone, so the
-  // number went two then four, measured at 5:22 here against 19:00 in series. What it costs on a
-  // machine smaller than this one is not known, which is why `onPrepare` now prints the machine
-  // and the worker count into every run's log. See N24 and N84.
-  maxInstances: 4,
+  maxInstances: WORKERS,
   /**
    * One retry of a whole spec file, on the shared runner only. Five CI runs on 2026-09-06 each
    * failed exactly one check and a different one every time, all of them timing, none of them
