@@ -29,6 +29,8 @@ const OPENED = [
 /** Where the picture is put before the shift. Where it lands is read, not assumed: a seek stops on
  * a frame, which is near the second it was given and not on it. */
 const PLAYHEAD_SECONDS = 10;
+/** How far from the second it was given a seek may stop, because it stops on a frame. */
+const SEEK_TOLERANCE_SECONDS = 0.5;
 
 /** The same spelling the grid uses, so the two can be compared as strings. */
 function timecode(millis) {
@@ -207,7 +209,26 @@ async function seekTo(seconds) {
     slider.dispatchEvent(new Event("input", { bubbles: true }));
     slider.dispatchEvent(new Event("change", { bubbles: true }));
   }, seconds);
-  await browser.pause(300);
+  // Landed, not sent. On CI the seek was still on its way when the caller read the playhead, so
+  // the caller computed its expectation from where the picture used to be while the app shifted by
+  // where it had got to, and the two never met: forty seconds burned on a grid comparison that
+  // named neither number (N84). Waited rather than read once, because the slider is a controlled
+  // input and React puts the app's own position back over a value written straight into the DOM.
+  // A seek stops on a frame, hence the tolerance.
+  let last = -1;
+  return waitFor(
+    async () => {
+      last = await settledPlayhead();
+      return Math.abs(last - seconds) <= SEEK_TOLERANCE_SECONDS ? last : null;
+    },
+    {
+      timeout: 20000,
+      interval: 100,
+      message: () =>
+        `the seek to ${seconds}s to land; the playhead settled at ${last}s. Nothing read after ` +
+        `this would be about the position the test asked for.`,
+    },
+  );
 }
 
 /** Where the playhead is once it has stopped moving there, in seconds. */
