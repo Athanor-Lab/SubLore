@@ -42,7 +42,6 @@ const TIMING_ITEMS = [
   "time-next-cue",
   "time-start-to-playhead",
   "time-end-to-playhead",
-  "edit-select-at-playhead",
   "wave-play-selection",
   "time-play-line",
   "wave-stop",
@@ -158,6 +157,20 @@ async function openMenu(toplevel) {
   await waitFor(() => present(".menubar__menu"), {
     timeout: 15000,
     message: "the Timing menu to open",
+  });
+}
+
+/** The Edit menu, where the two selections live (interface-spec 3.2, N118). */
+async function runFromEditMenu(toplevel, token) {
+  await clickElement(toplevel, ".menubar__title--edit");
+  await waitFor(() => present(".menubar__menu"), {
+    timeout: 15000,
+    message: "the Edit menu to open",
+  });
+  await clickElement(toplevel, `.menubar__item--${token}`);
+  await waitFor(async () => ((await present(".menubar__menu")) === false ? true : null), {
+    timeout: 15000,
+    message: `the menu to close after ${token}`,
   });
 }
 
@@ -476,7 +489,7 @@ describe("the times follow the playhead", () => {
     expect(await playhead()).toBeGreaterThan(4.88);
     expect(await playhead()).toBeLessThan(5);
 
-    await runFromMenu(toplevel, "edit-select-at-playhead");
+    await runFromEditMenu(toplevel, "edit-select-at-playhead");
     const rows = await waitFor(
       async () => {
         const now = await gridRows();

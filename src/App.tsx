@@ -2881,7 +2881,6 @@ export default function App() {
         "edit.paste",
         "edit.paste-over",
         SEPARATOR,
-        "edit.select-all",
         "edit.revert",
         "edit.clear",
         "edit.clear-text",
@@ -2899,6 +2898,12 @@ export default function App() {
         "edit.find",
         "edit.find-next",
         "edit.replace",
+        // The two selections after the find group, which is the order the interface spec's table
+        // gives and the only decision written down: the reference keeps select-all in its own
+        // Subtitle menu, so it says nothing about where these two go (N118).
+        SEPARATOR,
+        "edit.select-all",
+        "edit.select-at-playhead",
         SEPARATOR,
         "asr.transcribe",
       ],
@@ -2982,7 +2987,6 @@ export default function App() {
           label: en.menu.timing.continuous,
           items: ["time.continuous-start", "time.continuous-end"],
         },
-        "edit.select-at-playhead",
         SEPARATOR,
         "wave.play-selection",
         "time.play-line",
