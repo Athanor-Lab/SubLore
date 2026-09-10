@@ -117,15 +117,35 @@ async function audioItems(toplevel) {
   await clickElement(toplevel, ".menubar__title--audio");
   // Every item the dropdown draws, not the ones carrying one chosen role: an item whose role went
   // wrong then fails on the role it reports instead of dropping out of the count.
-  return browser.execute(() =>
-    Array.from(document.querySelectorAll(".menubar__menu .menubar__item")).map((node) => ({
-      label: node.querySelector(".menubar__label")?.textContent ?? "",
-      role: node.getAttribute("role"),
-      checked: node.getAttribute("aria-checked") === "true",
-      enabled: !node.disabled,
-      id: node.id,
-    })),
+  const read = () =>
+    browser.execute(() =>
+      Array.from(document.querySelectorAll(".menubar__menu .menubar__item")).map((node) => ({
+        label: node.querySelector(".menubar__label")?.textContent ?? "",
+        role: node.getAttribute("role"),
+        checked: node.getAttribute("aria-checked") === "true",
+        enabled: !node.disabled,
+        id: node.id,
+      })),
+    );
+  // The title un-greys before the list is in the dropdown: on CI on 2026-09-10 this opened holding
+  // one disabled placeholder where three items were wanted (N98). The placeholder being enabled is
+  // the list having arrived, and it is a different fact from how many items there are, what they
+  // are called and what roles they carry, which is what the callers assert. Waiting for the count
+  // itself would be circular and would hide a menu that really did draw the wrong number.
+  let items = [];
+  await waitFor(
+    async () => {
+      items = await read();
+      return items[0]?.enabled === true ? items : null;
+    },
+    {
+      timeout: 30000,
+      interval: 100,
+      message: () =>
+        `the audio track list to reach the dropdown. It holds ${JSON.stringify(items)}`,
+    },
   );
+  return items;
 }
 
 async function closeMenu() {
