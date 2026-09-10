@@ -30,6 +30,10 @@ The first version has not been tagged. When it is, this section takes its number
 
 ### Fixed
 
+- Pressing Play the moment a video's transport appears now plays it and says so. The open could
+  land afterwards and put the button back to Play while the video ran.
+- A machine with no working audio device plays the video instead of stopping about a second in.
+
 - The new cue length now follows the preference rather than a number fixed in the code.
 - A battery no longer opens tabs in the developer's own browser.
 
