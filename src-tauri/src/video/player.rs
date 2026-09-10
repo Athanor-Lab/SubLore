@@ -52,6 +52,11 @@ const SAFE_OPTIONS: &[(&str, &str)] = &[
     ("input-cursor", "no"),
     ("osd-level", "0"),
     ("keep-open", "yes"),
+    // A machine with no working audio device still has a video to time subtitles against. mpv
+    // defaults this to no, which ends the file when the device will not open: measured at
+    // "finished playback, audio output initialization failed (reason 4)", about a second in. That
+    // is N13. See BACKLOG.md N13 and N35.
+    ("audio-fallback-to-null", "yes"),
     ("idle", "yes"),
     ("pause", "yes"),
 ];
