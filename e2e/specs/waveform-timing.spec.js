@@ -18,6 +18,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, dragAt, focusWindow } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.js";
@@ -379,7 +380,7 @@ describe("dragging a cue boundary on the waveform", () => {
   });
 
   it("takes the whole drag back in one undo", async () => {
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     const rows = await waitFor(
       async () => {
         const now = await gridRows();
@@ -438,7 +439,7 @@ describe("dragging a cue boundary on the waveform", () => {
     expect(readFileSync(copy).equals(openedBytes)).toBe(true);
 
     // One undo puts the whole gesture back, and the checks below open on the fixture's own times.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     const back = await waitFor(
       async () => {
         const now = await gridRows();

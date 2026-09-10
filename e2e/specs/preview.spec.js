@@ -31,6 +31,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { browser, expect } from "@wdio/globals";
 
 import { appLog } from "../lib/applog.js";
+import { runFromMenu } from "../lib/menu.js";
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
@@ -489,13 +490,13 @@ describe("the document on the video frame", () => {
     // Whether mpv really let the media go is not on screen, and the interface alone would say the
     // same thing if the file were still loaded. The app says it the next time it has something to
     // draw, so an edit is made here and the report that follows it is read.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(
       async () =>
         lastPreviewReport()?.includes("no video is open to draw it on") === true ? 1 : null,
       { timeout: 20000, message: "the app to report it has no frame to draw the document on" },
     );
-    await clickElement(toplevel, ".toolbar__edit-redo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-redo");
     await waitFor(async () => ((await rowText(FIRST_ROW)) === EDITED_FIRST_CUE ? 1 : null), {
       timeout: 15000,
       message: "the redo to put the edited line back",

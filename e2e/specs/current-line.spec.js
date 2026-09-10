@@ -14,6 +14,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, typeText } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
@@ -314,12 +315,12 @@ describe("the current line", () => {
     // Two edits, two undos, and in that order: the line Return made comes off first, and the text
     // it committed second. The claim underneath is unchanged, that each is one step and not two,
     // which is what a grid edit costs (N113).
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await gridRow(4)) === null ? true : null), {
       timeout: 20000,
       message: "the line Return made to come back off",
     });
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
 
     await waitFor(async () => (await gridRow(3))?.text === THIRD.text, {
       timeout: 20000,
@@ -383,12 +384,12 @@ describe("the current line", () => {
 
   it("gives each timing back one undo at a time, and a save writes the one that stands", async () => {
     // Two timing commits stand, and the backend starts a new run for each, so they are two steps.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => (await gridRow(3))?.start === EDITED_START, {
       timeout: 20000,
       message: "one undo to put the third row back on the first timing",
     });
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => (await gridRow(3))?.start === THIRD.start, {
       timeout: 20000,
       message: "a second undo to put the third row back on the timing the file was opened with",
@@ -399,8 +400,8 @@ describe("the current line", () => {
     });
     expect(readFileSync(copy).equals(originalBytes)).toBe(true);
 
-    await clickElement(toplevel, ".toolbar__edit-redo");
-    await clickElement(toplevel, ".toolbar__edit-redo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-redo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-redo");
     await waitFor(async () => (await gridRow(3))?.start === SECOND_START, {
       timeout: 20000,
       message: "two redos to bring the second timing back",
@@ -463,14 +464,14 @@ describe("the current line", () => {
   });
 
   it("gives the end back in one undo, and a save writes the length that stands", async () => {
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => (await gridRow(3))?.end === DURATION_END, {
       timeout: 20000,
       message: "one undo to put the third row back on the first typed duration",
     });
     expect((await currentLine()).duration).toBe(TYPED_DURATION);
 
-    await clickElement(toplevel, ".toolbar__edit-redo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-redo");
     await waitFor(async () => (await gridRow(3))?.end === RECOVERY_END, {
       timeout: 20000,
       message: "the redo to bring the second typed duration back",

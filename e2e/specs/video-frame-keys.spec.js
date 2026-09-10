@@ -15,6 +15,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -271,7 +272,7 @@ describe("stepping the picture and walking a line's edges", () => {
     // The numpad's 4 is the start nudge now, so this check edits the document on its way past.
     // Put it back: the checks after this one read the fixture's own boundaries, and one undo
     // spending the whole history is what says the edit was the only one.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(
       () =>
         browser.execute(

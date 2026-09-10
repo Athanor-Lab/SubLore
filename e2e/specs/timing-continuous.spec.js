@@ -14,6 +14,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -203,7 +204,7 @@ async function timingItem(toplevel, token) {
 
 /** Undo, and wait for the grid to be the file as it was opened. */
 async function undoToOpened(toplevel) {
-  await clickElement(toplevel, ".toolbar__edit-undo");
+  await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
   await waitFor(
     async () => (JSON.stringify(await gridTimes()) === JSON.stringify(OPENED) ? 1 : null),
     { timeout: 20000, message: "one undo to put every line back" },

@@ -22,7 +22,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
-import { intoList } from "../lib/menu.js";
+import { intoList, runFromMenu } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -179,7 +179,7 @@ function openMenu() {
  * its greying on the way past, so a command that ran while it was greyed cannot pass for a command
  * that ran because it was available.
  */
-async function runFromMenu(toplevel, token) {
+async function runFromSubtitleMenu(toplevel, token) {
   await clickElement(toplevel, ".menubar__title--subtitle");
   await waitFor(async () => ((await openMenu()) === "Subtitles" ? true : null), {
     timeout: 15000,
@@ -295,7 +295,7 @@ describe("the cue structure edits", () => {
     expect(before[0].cursor).toBe(true);
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-insert-after");
+    await runFromSubtitleMenu(toplevel, "subtitle-insert-after");
 
     const after = await waitForTexts(
       [FIRST, "", SECOND, THIRD],
@@ -322,7 +322,7 @@ describe("the cue structure edits", () => {
     await cursorTo(toplevel, 4);
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-delete");
+    await runFromSubtitleMenu(toplevel, "subtitle-delete");
 
     await waitForTexts([FIRST, "", SECOND], "the last cue gone");
     // One row selected is one row named: the command that carries a selection carries a set of one.
@@ -353,7 +353,7 @@ describe("the cue structure edits", () => {
 
     // One step, whatever it took: a delete of two rows that were two undo steps would leave one
     // of them out of the grid here.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, "", SECOND], "one undo to put both lines back");
   });
 
@@ -388,7 +388,7 @@ describe("the cue structure edits", () => {
       timeout: 15000,
       message: "the word the box lost to reach the row",
     });
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, "", SECOND], "the line the box was typed into, back as it was");
   });
 
@@ -404,7 +404,7 @@ describe("the cue structure edits", () => {
     );
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-duplicate");
+    await runFromSubtitleMenu(toplevel, "subtitle-duplicate");
 
     // The copies go after the run, not one after each line: two lines duplicated are two lines and
     // then two copies, which is what keeps a block of dialogue in the order it was written in.
@@ -415,7 +415,7 @@ describe("the cue structure edits", () => {
     expect(grown.map((row) => row.selected)).toEqual([false, false, true, true, false]);
     expect(grown.map((row) => row.cursor)).toEqual([false, false, true, false, false]);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, "", SECOND], "one undo to take both copies back");
   });
 
@@ -424,7 +424,7 @@ describe("the cue structure edits", () => {
     await placeCaret(toplevel, SPLIT_OFFSET);
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-split");
+    await runFromSubtitleMenu(toplevel, "subtitle-split");
 
     const after = await waitForTexts(
       [FIRST, "", SECOND_HEAD, SECOND_TAIL],
@@ -445,7 +445,7 @@ describe("the cue structure edits", () => {
     expect((await gridRows())[2].cursor).toBe(true);
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-merge");
+    await runFromSubtitleMenu(toplevel, "subtitle-merge");
 
     const after = await waitForTexts([FIRST, "", SECOND], "the two halves joined again");
     expect(await takeCommands()).toEqual(["subtitle_merge"]);
@@ -489,7 +489,7 @@ describe("the cue structure edits", () => {
     );
 
     await watchCommands();
-    await runFromMenu(toplevel, "subtitle-join-concat");
+    await runFromSubtitleMenu(toplevel, "subtitle-join-concat");
 
     const joined = await waitForTexts([`${FIRST} ${SECOND}`, ""], "the two named lines as one");
     expect(await takeCommands()).toEqual(["subtitle_join"]);
@@ -501,7 +501,7 @@ describe("the cue structure edits", () => {
     // The line it did not name is still there, and the line that stays is what is selected.
     expect(joined.map((row) => row.selected)).toEqual([true, false]);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, "", SECOND], "one undo to put all three back");
   });
 
@@ -517,20 +517,20 @@ describe("the cue structure edits", () => {
       { timeout: 15000, message: "the first and the last rows to be selected" },
     );
 
-    await runFromMenu(toplevel, "subtitle-join-keep-first");
+    await runFromSubtitleMenu(toplevel, "subtitle-join-keep-first");
 
     const joined = await waitForTexts([FIRST, ""], "the first line's words alone");
     expect(joined[0].end).toBe("00:00:08.340");
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts([FIRST, "", SECOND], "one undo to put all three back");
   });
 
   it("takes the four back one undo each, and puts them back one redo each", async () => {
     // The same undo the text edits use, which is the criterion: the toolbar's own button, not a
     // second stack of the structure edits' own.
-    const undo = () => clickElement(toplevel, ".toolbar__edit-undo");
-    const redo = () => clickElement(toplevel, ".toolbar__edit-redo");
+    const undo = () => runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
+    const redo = () => runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-redo");
 
     await undo();
     await waitForTexts([FIRST, "", SECOND_HEAD, SECOND_TAIL], "the merge undone");
@@ -606,7 +606,7 @@ describe("the cue structure edits", () => {
     // The new cue goes in under the cursor and takes both states with it: what a translator does
     // next is type into the line they just asked for, so it is the line the cursor is on and the
     // only one selected, whatever was selected before.
-    await runFromMenu(toplevel, "subtitle-insert-after");
+    await runFromSubtitleMenu(toplevel, "subtitle-insert-after");
     const grown = await waitForTexts([FIRST, "", SECOND, ""], "the inserted cue below the cursor");
     expect(grown.map((row) => row.cursor)).toEqual([false, false, false, true]);
     expect(grown.map((row) => row.selected)).toEqual([false, false, false, true]);
@@ -615,7 +615,7 @@ describe("the cue structure edits", () => {
     // onto one row first and what is asserted is where the cursor lands: on the row that took the
     // deleted one's place, never past the end.
     await cursorTo(toplevel, 3);
-    await runFromMenu(toplevel, "subtitle-delete");
+    await runFromSubtitleMenu(toplevel, "subtitle-delete");
     const shrunk = await waitForTexts([FIRST, "", ""], "the cursor's cue gone");
     expect(shrunk.map((row) => row.cursor)).toEqual([false, false, true]);
     expect(shrunk.map((row) => row.selected)).toEqual([false, false, true]);
@@ -624,7 +624,7 @@ describe("the cue structure edits", () => {
   it("never leaves the cursor past the end when the last cue is the one deleted", async () => {
     await cursorTo(toplevel, 3);
 
-    await runFromMenu(toplevel, "subtitle-delete");
+    await runFromSubtitleMenu(toplevel, "subtitle-delete");
 
     const left = await waitForTexts([FIRST, ""], "the last cue gone");
     // Nothing below to fall onto, so it clamps to the new last row. Past the end draws no cursor

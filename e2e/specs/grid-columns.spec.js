@@ -25,7 +25,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clippedAtWindowEdge } from "../lib/clipping.js";
 import { askForWindowSize, clickAt, dragAt, focusWindow, waitForWindowSize } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
-import { intoList } from "../lib/menu.js";
+import { intoList, runFromMenu } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
 import { interfaceScale } from "../lib/scale.js";
 import { findToplevel, minimumWidthHint, rootTree } from "../lib/x11.js";
@@ -362,7 +362,7 @@ function openMenu() {
 }
 
 /** Open the Subtitles menu and click an item, reading its greying on the way past. */
-async function runFromMenu(toplevel, token) {
+async function runFromSubtitleMenu(toplevel, token) {
   await clickElement(toplevel, ".menubar__title--subtitle");
   await waitFor(async () => ((await openMenu()) === "Subtitles" ? true : null), {
     timeout: 15000,
@@ -665,13 +665,13 @@ describe("the grid's style and actor columns", () => {
     expect(opened.map((row) => row.actor)).toEqual(BASIC_ACTORS);
 
     await cursorTo(toplevel, INGRID_POSITION);
-    await runFromMenu(toplevel, "subtitle-delete");
+    await runFromSubtitleMenu(toplevel, "subtitle-delete");
 
     const left = await waitForHead(STYLE_ONLY_HEAD, "the Actor column gone with its only cue");
     expect(left.map((row) => row.text)).toEqual([BASIC_TEXTS[0], BASIC_TEXTS[2]]);
     expect(left.map((row) => row.actor)).toEqual([null, null]);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
 
     const back = await waitForHead(ASS_HEAD, "the Actor column back with the cue that filled it");
     expect(back.map((row) => row.actor)).toEqual(BASIC_ACTORS);
@@ -685,7 +685,7 @@ describe("the grid's style and actor columns", () => {
   it("gives an inserted cue the style and the speaker of the line it was copied from", async () => {
     await cursorTo(toplevel, INGRID_POSITION);
 
-    await runFromMenu(toplevel, "subtitle-insert-after");
+    await runFromSubtitleMenu(toplevel, "subtitle-insert-after");
 
     const rows = await waitForTexts(
       [BASIC_TEXTS[0], BASIC_TEXTS[1], "", BASIC_TEXTS[2]],
@@ -698,7 +698,7 @@ describe("the grid's style and actor columns", () => {
     expect(rows[2].actor).toBe(BASIC_ACTORS[INGRID_POSITION - 1]);
 
     // Back to the document that was opened, so nothing below starts from an edited one.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitForTexts(BASIC_TEXTS, "the insert undone");
     await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
       timeout: 20000,

@@ -7,6 +7,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, typeText } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -654,7 +655,7 @@ describe("cue list editing", () => {
     // Undone back to the file as it was opened, so there is nothing unsaved any more.
     expect(await present(".statusbar__dirty")).toBe(false);
 
-    await clickElement(toplevel, ".toolbar__edit-redo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-redo");
     await waitFor(async () => (await rowText(EDITED_POSITION)) === EDITED_TEXT, {
       timeout: 20000,
       message: "the redone text to come back",
@@ -790,7 +791,7 @@ describe("cue list editing", () => {
 
     // The toolbar undo that follows must be the first step off the top of the stack. Had the
     // keystroke above reached the document, it would be the second, and the row below moves too.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await scrollTo(THIRD_POSITION);
     await waitFor(async () => (await rowText(THIRD_POSITION)) === thirdOriginal, {
       timeout: 20000,

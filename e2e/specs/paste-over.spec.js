@@ -16,6 +16,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -244,7 +245,7 @@ describe("choosing what a paste over takes", () => {
     expect(after[0].start).toBe(before[0].start);
     expect(after[0].style).toBe(before[0].style);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await rows())[0]?.actor === before[0]?.actor ? 1 : null), {
       timeout: 20000,
       message: "one undo to put the speaker back",

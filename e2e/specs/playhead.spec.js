@@ -18,6 +18,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
@@ -188,7 +189,7 @@ async function runFromVideoMenu(toplevel, token) {
   });
 }
 
-async function runFromMenu(toplevel, token) {
+async function runFromTimingMenu(toplevel, token) {
   await openMenu(toplevel);
   await clickElement(toplevel, `.menubar__item--${token}`);
   await waitFor(async () => ((await present(".menubar__menu")) === false ? true : null), {
@@ -318,7 +319,7 @@ describe("the times follow the playhead", () => {
     // is the precondition, named, rather than a silent pass. See BACKLOG.md N9.
     expect(paused).not.toBe(wasAt);
 
-    await runFromMenu(toplevel, "time-start-to-playhead");
+    await runFromTimingMenu(toplevel, "time-start-to-playhead");
     const rows = await waitFor(
       async () => {
         const now = await gridRows();
@@ -340,7 +341,7 @@ describe("the times follow the playhead", () => {
   });
 
   it("takes that back in one undo", async () => {
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await gridRows())[1]?.start === "00:00:05.000" ? true : null), {
       timeout: 20000,
       message: "one undo to put the second row's start back",
@@ -389,7 +390,7 @@ describe("the times follow the playhead", () => {
     expect(before.start).toBe(THIRD_START);
     expect(before.end).toBe(THIRD_END);
 
-    await runFromMenu(toplevel, "time-start-later");
+    await runFromTimingMenu(toplevel, "time-start-later");
     const later = await waitFor(
       async () => {
         const now = (await gridRows())[2];
@@ -400,7 +401,7 @@ describe("the times follow the playhead", () => {
     // Ten, not nine and not eleven, and the end has not moved with it.
     expect(later.end).toBe(THIRD_END);
 
-    await runFromMenu(toplevel, "time-end-earlier");
+    await runFromTimingMenu(toplevel, "time-end-earlier");
     const shorter = await waitFor(
       async () => {
         const now = (await gridRows())[2];
@@ -411,8 +412,8 @@ describe("the times follow the playhead", () => {
     expect(shorter.start).toBe("00:00:09.110");
 
     // Two edits, two undos: each nudge is its own step and neither swallowed the other.
-    await clickElement(toplevel, ".toolbar__edit-undo");
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(
       async () => {
         const now = (await gridRows())[2];
@@ -427,7 +428,7 @@ describe("the times follow the playhead", () => {
     await cursorTo(toplevel, 3);
     await seekTo(0);
 
-    await runFromMenu(toplevel, "time-play-line");
+    await runFromTimingMenu(toplevel, "time-play-line");
     // It starts: the player leaves the beginning under its own steam, which a seek alone would not
     // do because a seek leaves it paused.
     await waitFor(async () => ((await playhead()) > 9 ? true : null), {
@@ -468,7 +469,7 @@ describe("the times follow the playhead", () => {
 
   it("plays the half second before the cue, and stops where the cue starts", async () => {
     await seekTo(0);
-    await runFromMenu(toplevel, "time-play-before");
+    await runFromTimingMenu(toplevel, "time-play-before");
     const stopped = await waitFor(
       async () => {
         const label = await textOf(".controls__button");

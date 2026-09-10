@@ -18,6 +18,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clippedAtWindowEdge } from "../lib/clipping.js";
 import {
   askForWindowSize,
@@ -968,7 +969,7 @@ describe("the current line's bands", () => {
     );
 
     // One undo, not two: setting a field is a single step the way a text edit is.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await speaker()).value === "" ? 1 : null), {
       timeout: 15000,
       message: "one undo to empty the field again",
@@ -1281,7 +1282,7 @@ describe("the current line's bands", () => {
     expect((await currentTimes()).start).toBe(last.end);
 
     // One undo takes it back off, which is what an insert costs anywhere else.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await rows()) === counted ? 1 : null), {
       timeout: 15000,
       message: "one undo to remove the cue it made",
@@ -1316,7 +1317,7 @@ describe("the current line's bands", () => {
     // Only that word moved: the rest of the line is what it was.
     expect(await lineText()).toBe(before.replace("harbour", "{\\b1}harbour{\\b0}"));
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
       message: "one undo to take the tag back off",
@@ -1380,7 +1381,7 @@ describe("the current line's bands", () => {
     expect(await lineText()).toBe(before.replace("harbour", "{\\3c&H0000FF&}harbour"));
     expect(await present(".currentline__picker")).toBe(false);
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
       message: "one undo to take the colour back off",
@@ -1712,7 +1713,7 @@ describe("the current line's bands", () => {
       timeout: 15000,
       message: "the picker to close",
     });
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 20000,
       message: "one undo to take the colour back off",
@@ -1802,7 +1803,7 @@ describe("the current line's bands", () => {
     );
 
     // One step, not two: a colour and how see-through it is are one thing a translator chose.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
       message: "one undo to take the colour and its transparency back off together",
@@ -1815,7 +1816,7 @@ describe("the current line's bands", () => {
       if (!(await present(".statusbar__dirty"))) {
         return;
       }
-      await clickElement(toplevel, ".toolbar__edit-undo");
+      await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
       await new Promise((settle) => setTimeout(settle, 150));
     }
     throw new Error("the document was still dirty after twelve undos");
@@ -1872,7 +1873,7 @@ describe("the current line's bands", () => {
     expect(await present(".currentline__families")).toBe(false);
 
     // One step, not two: choosing a font is one thing a translator did.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await lineText()) === before ? 1 : null), {
       timeout: 15000,
       message: "one undo to take back the family and the size together",
@@ -1919,7 +1920,7 @@ describe("the current line's bands", () => {
     });
 
     // Two clears are two steps, so one undo puts back exactly what the first one left.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await lineText()) === "{\\b1}{\\b0}" ? 1 : null), {
       timeout: 15000,
       message: "one undo to take back the second clear and not the first",
@@ -2006,7 +2007,7 @@ describe("the current line's bands", () => {
       before.toString("utf8").replace("Dialogue: 0,0:00:01.34", "Comment: 0,0:00:01.34"),
     );
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await flag()).checked === false ? 1 : null), {
       timeout: 15000,
       message: "one undo to make it a drawn line again",
@@ -2115,7 +2116,7 @@ describe("the current line's bands", () => {
       before.toString("utf8").replace("0,0,0,,The harbour", "0,0,0,Banner,The harbour"),
     );
 
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await effectCombo()).value === "" ? 1 : null), {
       timeout: 15000,
       message: "one undo to empty the effect again",
@@ -2195,7 +2196,7 @@ describe("the current line's bands", () => {
     );
 
     // One undo, not two: setting a field is a single step the way a text edit is.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await numberFields()).layer.value === "0" ? 1 : null), {
       timeout: 15000,
       message: "one undo to put the layer back",

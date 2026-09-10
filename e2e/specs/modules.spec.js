@@ -18,6 +18,7 @@ import path from "node:path";
 import { browser, expect } from "@wdio/globals";
 
 import { appLog, dataHome } from "../lib/applog.js";
+import { runFromMenu } from "../lib/menu.js";
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
@@ -390,7 +391,7 @@ describe("modules beside the executable", () => {
     expect(readFileSync(copy).equals(openedBytes)).toBe(true);
 
     // One step, not one per cue the module touched: it went through the history like any edit.
-    await clickElement(toplevel, ".toolbar__edit-undo");
+    await runFromMenu((css) => clickElement(toplevel, css), "edit", "edit-undo");
     await waitFor(async () => ((await gridTexts())[0] === FIRST ? true : null), {
       timeout: 20000,
       message: "the undo to put the line back",
