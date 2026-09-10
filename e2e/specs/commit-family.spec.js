@@ -167,6 +167,15 @@ async function dragStartLater(toplevel) {
     throw new Error("no start marker is drawn to grab");
   }
   await dragColumns(toplevel, at, 12);
+  // Waited for, not slept through: the callers assert the marker moved, which is a positive claim
+  // about something the drag does asynchronously, and 400 ms was a guess (N93).
+  await waitFor(
+    async () => {
+      const now = await startColumn();
+      return now !== null && now > at ? now : null;
+    },
+    { timeout: 15000, interval: 100, message: `the start marker to move past column ${at}` },
+  );
   return at;
 }
 
