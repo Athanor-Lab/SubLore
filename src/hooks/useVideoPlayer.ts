@@ -256,6 +256,11 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
 
   useEffect(() => {
     covering.current = covered;
+    // The file these two belong to, taken before they are queued: a step can still be waiting behind
+    // a slower one when a different file is opened, and its refusal would then be a sentence on the
+    // status bar about a document nobody asked about. Every other call in this file reads the
+    // generation back; this one did not. See BACKLOG.md N62.
+    const mine = opening.current;
     // One at a time and in this order: the held rectangle first, so the frame is placed before it
     // may be shown, and no stale answer can leave the picture hidden with no layer open (T8).
     transitions.current = transitions.current
@@ -267,7 +272,9 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
         await invoke("video_set_layers", { open: covered });
       })
       .catch((error: unknown) => {
-        setErrorCode(toErrorCode(error));
+        if (mine === opening.current) {
+          setErrorCode(toErrorCode(error));
+        }
       });
   }, [covered]);
 
