@@ -1,3 +1,4 @@
+import console from "node:console";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -124,9 +125,10 @@ export const config = {
   hostname: "127.0.0.1",
   port: driverPort,
   specs: ["./specs/*.spec.js"],
-  // Two, not four. The state that made this unsafe is gone (N19) and every spec now passes alone,
-  // so what is left to find out is what parallel load does to the checks that measure time. Two is
-  // the smallest number that can answer it, and the number moves once it has. See N24.
+  // Four. The state that made parallel unsafe is gone (N19) and every spec passes alone, so the
+  // number went two then four, measured at 5:22 here against 19:00 in series. What it costs on a
+  // machine smaller than this one is not known, which is why `onPrepare` now prints the machine
+  // and the worker count into every run's log. See N24 and N84.
   maxInstances: 4,
   /**
    * One retry of a whole spec file, on the shared runner only. Five CI runs on 2026-09-06 each
@@ -157,6 +159,18 @@ export const config = {
     // 4, 6, 9, 13 then 17 over five consecutive runs, because the model copy above was failing on a
     // full disk and, when it ran first, taking `resetTally` down with it.
     resetTally();
+    // What machine this ran on, once, before anything else. Every question about a red battery
+    // starts with whether the host could carry the workers, and it was never in the log: a CI run
+    // taking 8:12 where this machine takes 4:53 could not be told from a defect (N84).
+    console.log(
+      `E2E host: ${os.cpus().length} cpus, ${Math.round(os.totalmem() / 1024 ** 3)} GB, load ` +
+        `${os
+          .loadavg()
+          .map((n) => n.toFixed(2))
+          .join(
+            " ",
+          )}, ${config.maxInstances} workers, patience ${process.env.E2E_PATIENCE ?? (process.env.CI === "true" ? "2 (CI default)" : "1")}`,
+    );
     // Fail before the first session rather than mid-assertion with a confusing message.
     requireDisplay();
     requireTool("xdotool", "click and type into the app");
