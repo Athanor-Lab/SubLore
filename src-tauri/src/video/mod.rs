@@ -118,8 +118,11 @@ impl VideoState {
     pub fn shutdown(&self) {
         // A core that outlived shutdown keeps its surface: GTK and Win32 tear the child window
         // down with the parent anyway, and doing it here under a live mpv is the unsafe order.
-        if self.player.shutdown() {
-            take_surface();
+        if self.player.shutdown() && take_surface() {
+            // Once per close, from the call that actually took the surface: this is the order the
+            // close gate exists to keep, and removing the call that produces it brings back the
+            // SIGSEGV on exit while every other check stays green. See BACKLOG.md N68 and N11.
+            crate::log::info!("video: mpv stopped and its surface taken, before the window goes");
         }
     }
 }
@@ -148,12 +151,18 @@ pub fn setup(app: &tauri::App) -> Result<(), VideoError> {
     }
 }
 
-fn take_surface() {
+/// Destroy the surface if this thread still holds one, and say whether this call is the one that
+/// did it. The close path runs more than once for one close, and `Player::shutdown` latches its
+/// answer, so this is the only place that can tell the first time from the rest.
+fn take_surface() -> bool {
     SURFACE.with(|slot| {
-        if let Some(surface) = slot.borrow_mut().take() {
+        let taken = slot.borrow_mut().take();
+        let had_one = taken.is_some();
+        if let Some(surface) = taken {
             let _ = surface.destroy();
         }
-    });
+        had_one
+    })
 }
 
 #[tauri::command]
