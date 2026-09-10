@@ -337,14 +337,25 @@ describe("the times follow the playhead", () => {
     expect(atStart).toBe(THIRD_START);
 
     await runFromMenu(toplevel, "video-to-cue-end");
+    // The end, or up to one frame past it. Playing to a target stops on a frame boundary and mpv
+    // reports `time-pos` at frame rate, so the app overshoots by design and says so in its own log:
+    // `range stopped at 11.767 for a target of 11.760` (N20, and N97 for this wait). Only forward:
+    // stopping short of the cue's end would be a real defect and stays red.
+    const wantEnd = asSeconds(THIRD_END);
+    const frame = FIXTURE_FPS > 0 ? 1 / FIXTURE_FPS : 0;
+    let sawEnd = -1;
     const atEnd = await waitFor(
       async () => {
-        const now = asTimecode(await playhead());
-        return now === THIRD_END ? now : null;
+        sawEnd = await playhead();
+        return sawEnd >= wantEnd - 0.001 && sawEnd <= wantEnd + frame + 0.001 ? sawEnd : null;
       },
-      { timeout: 20000, message: `the player to reach ${THIRD_END}` },
+      {
+        timeout: 20000,
+        message: () =>
+          `the player to reach ${THIRD_END}, or up to one frame past it. It read ${sawEnd}s`,
+      },
     );
-    expect(atEnd).toBe(THIRD_END);
+    expect(atEnd).toBeGreaterThanOrEqual(wantEnd - 0.001);
   });
 
   it("moves one boundary by ten milliseconds and leaves the other where it was", async () => {

@@ -976,8 +976,24 @@ impl Player {
         // Recorded before the property is set, so the event thread never sees the change while the
         // flag still says the app wanted the other thing.
         self.shared.asked_paused.store(paused, Ordering::Relaxed);
-        mpv.set_property("pause", paused)
-            .map_err(|error| from_mpv(error, "pause"))
+        let outcome = mpv
+            .set_property("pause", paused)
+            .map_err(|error| from_mpv(error, "pause"));
+        // One line per gesture, never per frame: Play and Pause are things a translator does tens
+        // of times in a session. Without it a transport that never changes cannot be told from a
+        // command that never arrived or one mpv refused, which is what left N13 open with a
+        // timeout that named neither (N96). The unrequested-pause line above stays as it is.
+        match &outcome {
+            Ok(()) => log::info!(
+                "playback: asked mpv to {}, and it took it",
+                if paused { "pause" } else { "play" }
+            ),
+            Err(error) => log::warn!(
+                "playback: asked mpv to {}, and it refused: {error}",
+                if paused { "pause" } else { "play" }
+            ),
+        }
+        outcome
     }
 }
 
