@@ -784,7 +784,10 @@ export default function CurrentLine({
         return;
       }
       event.preventDefault();
-      void commit();
+      // Commit and go on, which is what the reference binds Return to in its own box: the command
+      // flushes the editors before it moves, so nothing typed is lost, and on the last line it
+      // makes the next one. Shift keeps the real line break where the format holds one (N113).
+      runCommand(commands, "subtitle.next-line");
     }
   }
 
