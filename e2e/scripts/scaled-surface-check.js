@@ -127,7 +127,7 @@ async function measureAt(scale) {
       },
       {
         timeout: 30000,
-        message: `a settled native surface at GDK_SCALE=${scale}\n${rootTree()}`,
+        message: () => `a settled native surface at GDK_SCALE=${scale}\n${rootTree()}`,
       },
     );
     // Captured before the window closes: mapState needs a live window, and it is a fact

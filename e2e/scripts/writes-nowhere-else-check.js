@@ -148,7 +148,7 @@ async function main() {
   try {
     await waitFor(() => appToplevel(), {
       timeout: 40000,
-      message: `the app's window to appear\n${rootTree()}`,
+      message: () => `the app's window to appear\n${rootTree()}`,
     });
     // The session has to be real before its silence means anything.
     const said = await waitFor(

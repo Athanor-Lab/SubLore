@@ -120,7 +120,7 @@ async function main() {
         // 250 the same start read 505, 1009 and 506 ms, which is the poll interval showing through
         // the number rather than the app varying.
         interval: 20,
-        message: `the page's first command to reach the log at ${logFile}\n${rootTree()}`,
+        message: () => `the page's first command to reach the log at ${logFile}\n${rootTree()}`,
       },
     );
 

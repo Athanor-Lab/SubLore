@@ -118,7 +118,7 @@ async function main() {
   try {
     await waitFor(() => appToplevel(), {
       timeout: 40000,
-      message: `the app's window to appear\n${rootTree()}`,
+      message: () => `the app's window to appear\n${rootTree()}`,
     });
     await sleep(SETTLE_MS);
 

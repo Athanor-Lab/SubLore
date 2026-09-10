@@ -154,7 +154,7 @@ function currentSurface(toplevel) {
 function waitForHidden(toplevel, message) {
   return waitFor(() => (mapState(currentSurface(toplevel).id) === "IsUnMapped" ? true : null), {
     timeout: 15000,
-    message: `${message}\n${rootTree()}`,
+    message: () => `${message}\n${rootTree()}`,
   });
 }
 
@@ -167,7 +167,7 @@ function waitForFrameBack(toplevel, message) {
         ? true
         : null;
     },
-    { timeout: 15000, message: `${message}\n${rootTree()}` },
+    { timeout: 15000, message: () => `${message}\n${rootTree()}` },
   );
 }
 
