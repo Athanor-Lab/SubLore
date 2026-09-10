@@ -29,7 +29,8 @@
     "e2e:waveform-budget": "node e2e/scripts/waveform-budget-check.js",
     "e2e:memory": "node e2e/scripts/memory-budget-check.js",
     "e2e:cold-start": "node e2e/scripts/cold-start-check.js",
-    "e2e:video-shutdown": "node e2e/scripts/video-shutdown-check.js"
+    "e2e:video-shutdown": "node e2e/scripts/video-shutdown-check.js",
+    "e2e:writes-nowhere-else": "node e2e/scripts/writes-nowhere-else-check.js"
   },
   "pnpm": {
     "onlyBuiltDependencies": [],

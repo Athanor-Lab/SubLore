@@ -365,6 +365,14 @@ jobs:
         timeout-minutes: 4
         run: .github/scripts/e2e-check.sh video-shutdown e2e:video-shutdown
 
+      # CONTRIBUTING.md section 3's fifth hard rule, which nothing observed until now: the app is
+      # given a home nobody has used, and what appears there is what it writes where nobody asked.
+      # Deterministic and machine independent, so it belongs here.
+      - name: Writes test (the app writes in its own folder and nowhere else)
+        continue-on-error: true
+        timeout-minutes: 4
+        run: .github/scripts/e2e-check.sh writes e2e:writes-nowhere-else
+
       # Three behavioural checks are deliberately not steps here, and this is the record of that
       # decision rather than an oversight (gate 2 register, `package.json:19`, `ci.yml:196`).
       # `pnpm e2e:webview` needs /sys/module/nvidia for the branch it tests to be taken at all; on
