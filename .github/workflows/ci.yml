@@ -219,6 +219,7 @@ jobs:
             x11-utils \
             x11-xkb-utils \
             xdotool \
+            xsettingsd \
             xvfb
 
       - name: Set up pnpm
