@@ -17,6 +17,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import {
   clickAt,
   dragAt,
@@ -247,7 +248,7 @@ async function attachToApp() {
   });
   focusWindow(toplevel.id);
   await waitFor(
-    () => browser.execute(() => document.querySelector(".toolbar__video-open") !== null),
+    () => browser.execute(() => document.querySelector(".toolbar__file-open-subtitle") !== null),
     { timeout: 30000, message: "the app UI to render" },
   );
   return toplevel;
@@ -264,7 +265,7 @@ async function openTheFixtures(toplevel) {
     message: "the cue grid to fill",
   });
 
-  await clickElement(toplevel, ".toolbar__video-open");
+  await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
   const videoChooser = await waitForChooser("Choose a video");
   await answerChooser(videoChooser, requireWaveformFixture(), "video");
   focusWindow(toplevel.id);

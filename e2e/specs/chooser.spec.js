@@ -17,6 +17,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { appLog } from "../lib/applog.js";
+import { runFromMenu } from "../lib/menu.js";
 import { answerChooser, cancelChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, rightClickAt, typeText } from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
@@ -189,6 +190,16 @@ function cancelFrom(toplevel, selector, title, kind) {
   return cancelAfter(toplevel, () => clickElement(toplevel, selector), title, kind);
 }
 
+/** The same, for a command reached from its menu rather than from a button (N121). */
+function cancelFromMenu(toplevel, menu, token, title, kind) {
+  return cancelAfter(
+    toplevel,
+    () => runFromMenu((css) => clickElement(toplevel, css), menu, token),
+    title,
+    kind,
+  );
+}
+
 /** Answer a chooser with a path, to reach the state the cancellations below are measured from. */
 async function chooseFrom(toplevel, selector, title, chosen, what) {
   await clickElement(toplevel, selector);
@@ -338,7 +349,7 @@ describe("the chooser is the only way in", () => {
     const empty = await textOf(".stage__empty");
     expect(empty).not.toBe(null);
 
-    await cancelFrom(toplevel, ".toolbar__video-open", "Choose a video", "video");
+    await cancelFromMenu(toplevel, "video", "video-open", "Choose a video", "video");
 
     expect(await textOf(".stage__empty")).toBe(empty);
     expect(await textOf(".statusbar__video-error")).toBe(null);

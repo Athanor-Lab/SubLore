@@ -14,6 +14,7 @@ import path from "node:path";
 import { browser, expect } from "@wdio/globals";
 
 import { appLogSinceStart, dataHome } from "../lib/applog.js";
+import { runFromMenu } from "../lib/menu.js";
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow } from "../lib/input.js";
 import {
@@ -69,7 +70,7 @@ async function clickElement(toplevel, selector) {
 }
 
 async function openVideo(toplevel, fixture) {
-  await clickElement(toplevel, ".toolbar__video-open");
+  await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
   const chooser = await waitForChooser("Choose a video");
   await answerChooser(chooser, fixture, "video");
   focusWindow(toplevel.id);
@@ -226,7 +227,7 @@ describe("how wide a box the picture would fill", () => {
       message: `the ${windowWidth}x${windowHeight} "Sublore" toplevel to appear`,
     });
     focusWindow(toplevel.id);
-    await waitFor(() => present(".toolbar__video-open"), {
+    await waitFor(() => present(".toolbar__file-open-subtitle"), {
       timeout: 30000,
       message: "the app UI to render",
     });

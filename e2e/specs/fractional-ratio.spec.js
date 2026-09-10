@@ -27,6 +27,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow } from "../lib/input.js";
 import { requireTool, requireVideoFixture, videoFixture } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -180,17 +181,23 @@ describe("a fractional display ratio", () => {
     });
     focusWindow(toplevel.id);
     await waitFor(
-      () => browser.execute(() => document.querySelector(".toolbar__video-open") !== null),
+      () => browser.execute(() => document.querySelector(".toolbar__file-open-subtitle") !== null),
       { timeout: 30000, message: "the app UI to render" },
     );
 
-    const open = await browser.execute(() => {
-      const element = document.querySelector(".toolbar__video-open");
-      const rect = element.getBoundingClientRect();
-      const dpr = window.devicePixelRatio;
-      return { x: (rect.x + rect.width / 2) * dpr, y: (rect.y + rect.height / 2) * dpr };
-    });
-    clickAt(toplevel.absX + open.x, toplevel.absY + open.y);
+    await runFromMenu(
+      async (css) => {
+        const at = await browser.execute((selector) => {
+          const element = document.querySelector(selector);
+          const rect = element.getBoundingClientRect();
+          const dpr = window.devicePixelRatio;
+          return { x: (rect.x + rect.width / 2) * dpr, y: (rect.y + rect.height / 2) * dpr };
+        }, css);
+        clickAt(toplevel.absX + at.x, toplevel.absY + at.y);
+      },
+      "video",
+      "video-open",
+    );
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, videoFixture, "video");
     focusWindow(toplevel.id);

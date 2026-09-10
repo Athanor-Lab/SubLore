@@ -8,6 +8,7 @@
 import { browser } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { requireTracksFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -74,12 +75,12 @@ describe("Use the video's audio", () => {
       message: `the ${windowWidth}x${windowHeight} "Sublore" toplevel to appear`,
     });
     focusWindow(toplevel.id);
-    await waitFor(() => present(".toolbar__video-open"), {
+    await waitFor(() => present(".toolbar__file-open-subtitle"), {
       timeout: 30000,
       message: "the app UI to render",
     });
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const video = await waitForChooser("Choose a video");
     await answerChooser(video, requireTracksFixture(), "video");
     focusWindow(toplevel.id);

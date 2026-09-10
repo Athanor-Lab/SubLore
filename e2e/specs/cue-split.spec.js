@@ -13,6 +13,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
@@ -169,7 +170,7 @@ describe("splitting a cue at the playhead", () => {
       async () => ((await textOf(".statusbar__document"))?.includes("3 cues") === true ? 1 : null),
       { timeout: 20000, message: "the fixture to open" },
     );
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     await answerChooser(await waitForChooser("Choose a video"), requireVideoFixture(), "video");
     focusWindow(toplevel.id);
     await waitFor(

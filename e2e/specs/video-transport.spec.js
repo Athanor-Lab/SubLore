@@ -14,6 +14,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
+import { runFromMenu } from "../lib/menu.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -222,7 +223,7 @@ describe("the video transport", () => {
       { timeout: 20000, message: "the fixture to open" },
     );
 
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const videoChooser = await waitForChooser("Choose a video");
     await answerChooser(videoChooser, requireVideoFixture(), "video");
     focusWindow(toplevel.id);

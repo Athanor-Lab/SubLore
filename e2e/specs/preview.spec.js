@@ -243,7 +243,7 @@ async function openSubtitle(toplevel, file) {
 }
 
 async function openVideo(toplevel, file) {
-  await clickElement(toplevel, ".toolbar__video-open");
+  await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
   const chooser = await waitForChooser("Choose a video");
   await answerChooser(chooser, file, "video");
   focusWindow(toplevel.id);

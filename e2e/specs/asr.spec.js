@@ -17,7 +17,7 @@ import {
   stubPid,
 } from "../lib/asr.js";
 import { answerChooser, cancelChooser, findChooser, waitForChooser } from "../lib/chooser.js";
-import { menuItemDisabled } from "../lib/menu.js";
+import { menuItemDisabled, runFromMenu } from "../lib/menu.js";
 import {
   answerDialog,
   findUnsavedDialog,
@@ -360,7 +360,7 @@ describe("transcription", () => {
     // The transcription controls are not here to be waited on any more (T4), so the gate is the
     // chrome that is: the panel is opened by the first test, from the menu.
     await waitFor(
-      () => browser.execute(() => document.querySelector(".toolbar__video-open") !== null),
+      () => browser.execute(() => document.querySelector(".toolbar__file-open-subtitle") !== null),
       { timeout: 30000, message: "the app UI to render" },
     );
   });
@@ -404,7 +404,7 @@ describe("transcription", () => {
   });
 
   it("transcribes the open video and shows the cues", async () => {
-    await clickElement(toplevel, ".toolbar__video-open");
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
     const chooser = await waitForChooser("Choose a video");
     await answerChooser(chooser, fixture, "video");
     // The chooser took the keyboard with it; the transcribe controls below are clicked, not typed,
