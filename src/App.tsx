@@ -2067,6 +2067,7 @@ export default function App() {
     {
       id: "time.play-line",
       label: en.menu.timing.playLine,
+      accelerator: en.menu.keys.playLine,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("line"),
     },
@@ -2092,18 +2093,21 @@ export default function App() {
     {
       id: "wave.play-first",
       label: en.menu.timing.playFirst,
+      accelerator: en.menu.keys.playFirst,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("first"),
     },
     {
       id: "wave.play-last",
       label: en.menu.timing.playLast,
+      accelerator: en.menu.keys.playLast,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("last"),
     },
     {
       id: "time.play-to-end",
       label: en.menu.timing.playToEnd,
+      accelerator: en.menu.keys.playToEnd,
       enabled: subtitle.summary !== null && selection.active !== null && ready,
       run: () => void playCue("to-end"),
     },

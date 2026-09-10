@@ -18,7 +18,7 @@ import process from "node:process";
 import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
-import { clickAt, focusWindow } from "../lib/input.js";
+import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
@@ -466,6 +466,29 @@ describe("the waveform panel's ruler, strip and window", () => {
     expect(await disabledOf(".wavebar__wave-stop")).toBe(true);
     // The follow toggle draws pressed while it is on, the way a toolbar toggle does.
     expect(drawn.find((button) => button.id === "wave-toggle-autoscroll").pressed).toBe("true");
+  });
+
+  it("plays the cursor's line on the reference's own key", async () => {
+    // M2.5 asks each timing command to carry a shortcut, and nine of the twelve had none until
+    // N105. These four take the reference's own letters; play line is the one asserted here.
+    // Stop is the reading: the check above establishes it is greyed while nothing plays, so it
+    // coming alive is playback having started, and that is a different fact from the key existing.
+    await cursorToRow(toplevel, 2);
+    focusWindow(toplevel.id);
+    expect(await disabledOf(".wavebar__wave-stop")).toBe(true);
+
+    pressKey("r");
+    await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === false ? true : null), {
+      timeout: 20000,
+      message: "R to start the cursor's line playing, which is what un-greys Stop",
+    });
+
+    // Left as it was found: the next check reads a transport nothing is driving.
+    await clickElement(toplevel, ".wavebar__wave-stop");
+    await waitFor(async () => ((await disabledOf(".wavebar__wave-stop")) === true ? true : null), {
+      timeout: 20000,
+      message: "Stop to grey itself again once playback is over",
+    });
   });
 
   it("adds lead-in and lead-out from the strip, each in one undo step", async () => {
