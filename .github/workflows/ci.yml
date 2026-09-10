@@ -355,6 +355,16 @@ jobs:
         timeout-minutes: 4
         run: .github/scripts/e2e-check.sh scale e2e:scale
 
+      # The line that keeps N11 closed, which nothing else covers: the four shutdown checks never
+      # open a video, and the ones that do run a single app on an idle machine where N11 does not
+      # reproduce. This asserts the order rather than waiting for the crash, so it is deterministic
+      # and belongs here, unlike the two budget checks above whose numbers depend on the machine.
+      # See BACKLOG.md N68.
+      - name: Video shutdown test (mpv is stopped before the window goes)
+        continue-on-error: true
+        timeout-minutes: 4
+        run: .github/scripts/e2e-check.sh video-shutdown e2e:video-shutdown
+
       # Three behavioural checks are deliberately not steps here, and this is the record of that
       # decision rather than an oversight (gate 2 register, `package.json:19`, `ci.yml:196`).
       # `pnpm e2e:webview` needs /sys/module/nvidia for the branch it tests to be taken at all; on

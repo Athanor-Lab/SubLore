@@ -28,7 +28,8 @@
     "e2e:n11-battery": "node e2e/scripts/n11-exit-battery.js",
     "e2e:waveform-budget": "node e2e/scripts/waveform-budget-check.js",
     "e2e:memory": "node e2e/scripts/memory-budget-check.js",
-    "e2e:cold-start": "node e2e/scripts/cold-start-check.js"
+    "e2e:cold-start": "node e2e/scripts/cold-start-check.js",
+    "e2e:video-shutdown": "node e2e/scripts/video-shutdown-check.js"
   },
   "pnpm": {
     "onlyBuiltDependencies": [],
