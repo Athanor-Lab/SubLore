@@ -23,7 +23,7 @@ import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { seekTo } from "../lib/transport.js";
+import { playheadAt, seekTo } from "../lib/transport.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -150,6 +150,12 @@ function asTimecode(seconds) {
 }
 
 /** Put the cursor on a row by clicking its number cell, which never opens an editor. */
+/** A timecode the grid spells, as seconds, which is what the transport speaks. */
+function asSeconds(spelled) {
+  const [hours, minutes, rest] = spelled.split(":");
+  return Number(hours) * 3600 + Number(minutes) * 60 + Number(rest);
+}
+
 async function cursorTo(toplevel, position) {
   const centre = await browser.execute((wanted) => {
     const row = Array.from(document.querySelectorAll(".cuelist__row")).find(
@@ -253,6 +259,11 @@ describe("the shortcut is the one the menu draws", () => {
 
   it("sets the cursor's cue to start where the video is, on ctrl+3", async () => {
     await cursorTo(toplevel, 3);
+    // The follow, waited for at its destination: moving the cursor sends the picture to that row's
+    // start, and a seek made while it is still travelling is the one that is lost. Measured on CI
+    // on 2026-09-10, where the guard read `the seek to 6.5s never landed: the playhead settled at
+    // 9.1s`, and 9.1 is exactly this row's start (N94).
+    await playheadAt(asSeconds((await gridRows())[2].start), "the follow to row 3's start");
     await seekTo(INSIDE_SECOND);
     const paused = await playhead();
 
