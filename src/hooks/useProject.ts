@@ -111,23 +111,41 @@ export function useProject(): Project {
    * `replacesProject` says what the backend does on failure: an open that fails leaves nothing
    * open, while an edit that fails changed nothing, so the view on screen is still the truth.
    */
+  /**
+   * Which request the rail is showing. Nothing greys while a project command runs, so a second one
+   * can be asked for before the first answers, and without this they would apply in whichever order
+   * the backend replied: an open answering after a close puts back a project the user closed. The
+   * video player has had the same counter since its own opens could overlap (N62).
+   */
+  const asking = useRef(0);
+
   const run = useCallback(
     async (command: string, args: Record<string, unknown>, replacesProject: boolean) => {
+      asking.current += 1;
+      const mine = asking.current;
       setBusy(true);
       setError(null);
       setDeleted(null);
       try {
-        setProject(await invoke<ProjectView>(command, args));
+        const view = await invoke<ProjectView>(command, args);
+        if (mine === asking.current) {
+          setProject(view);
+        }
       } catch (failure) {
+        if (mine !== asking.current) {
+          return;
+        }
         if (replacesProject) {
           setProject(null);
         }
         setError(toProjectError(failure));
       } finally {
-        setBusy(false);
-        // Opening and creating move the remembered list; an edit inside the project does not.
-        if (replacesProject) {
-          void refreshRecent();
+        if (mine === asking.current) {
+          setBusy(false);
+          // Opening and creating move the remembered list; an edit inside the project does not.
+          if (replacesProject) {
+            void refreshRecent();
+          }
         }
       }
     },
@@ -178,21 +196,31 @@ export function useProject(): Project {
   );
 
   const close = useCallback(async () => {
+    asking.current += 1;
+    const mine = asking.current;
     setBusy(true);
     setError(null);
     setDeleted(null);
     try {
       await invoke("project_close");
-      setProject(null);
-      setChosenId(null);
+      if (mine === asking.current) {
+        setProject(null);
+        setChosenId(null);
+      }
     } catch (failure) {
-      setError(toProjectError(failure));
+      if (mine === asking.current) {
+        setError(toProjectError(failure));
+      }
     } finally {
-      setBusy(false);
+      if (mine === asking.current) {
+        setBusy(false);
+      }
     }
   }, []);
 
   const remove = useCallback(async () => {
+    asking.current += 1;
+    const mine = asking.current;
     setBusy(true);
     setError(null);
     // The backend closes and clears the project before it removes a single file, so nothing is
@@ -200,13 +228,20 @@ export function useProject(): Project {
     setProject(null);
     setChosenId(null);
     try {
-      setDeleted(await invoke<ProjectDeletedView>("project_delete"));
+      const gone = await invoke<ProjectDeletedView>("project_delete");
+      if (mine === asking.current) {
+        setDeleted(gone);
+      }
     } catch (failure) {
-      setError(toProjectError(failure));
+      if (mine === asking.current) {
+        setError(toProjectError(failure));
+      }
     } finally {
-      setBusy(false);
-      // A deleted project leaves the remembered list too (session.rs forgotten()).
-      void refreshRecent();
+      if (mine === asking.current) {
+        setBusy(false);
+        // A deleted project leaves the remembered list too (session.rs forgotten()).
+        void refreshRecent();
+      }
     }
   }, [refreshRecent]);
 
@@ -237,8 +272,14 @@ export function useProject(): Project {
         const session = await invoke<ProjectSession>("project_session");
         setRecent(session.recent);
         if (session.folder !== null) {
-          setProject(await invoke<ProjectView>("project_open", { folder: session.folder }));
-          setChosenId(session.episodeId);
+          // The oldest request there is, so it yields to anything the user has asked for since:
+          // reopening what was left behind must never take the rail off a project they chose.
+          const restoring = asking.current;
+          const view = await invoke<ProjectView>("project_open", { folder: session.folder });
+          if (restoring === asking.current) {
+            setProject(view);
+            setChosenId(session.episodeId);
+          }
         }
       } catch (failure) {
         // The user did not ask for this open on this launch, so a project that has moved or gone
