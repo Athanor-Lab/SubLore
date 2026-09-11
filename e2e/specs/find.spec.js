@@ -18,7 +18,7 @@ import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { runFromMenu } from "../lib/menu.js";
-import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
+import { clickAt, focusWindow, pressKey, resizeWindow, typeText } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
@@ -1010,6 +1010,33 @@ describe("the find band", () => {
       timeout: 20000,
       message: "the replace all to be undone",
     });
+  });
+
+  it("closes the list when the window moves the field under it", async () => {
+    await openSkips(toplevel, skipsCopy);
+    await search(toplevel, SKIPPED_WORD);
+    pressKey("Return");
+    await browser.pause(200);
+    const opened = await openRecent(toplevel, "needle");
+    expect(opened.terms.length).toBeGreaterThan(0);
+
+    // The list is drawn at coordinates taken when it opened, outside the band's own flow, so a
+    // window that changes shape under it would leave it where the field used to be.
+    const narrower = windowWidth - 80;
+    try {
+      resizeWindow(toplevel.id, narrower, windowHeight, 15000);
+      await waitFor(
+        async () => ((await browser.execute(() => window.innerWidth)) === narrower ? 1 : null),
+        { timeout: 15000, message: `the page to be laid out ${narrower} CSS pixels wide` },
+      );
+      expect(await offeredTerms()).toBe(null);
+    } finally {
+      resizeWindow(toplevel.id, windowWidth, windowHeight, 15000);
+      await waitFor(
+        async () => ((await browser.execute(() => window.innerWidth)) === windowWidth ? 1 : null),
+        { timeout: 15000, message: "the window to come back to the width the run opened at" },
+      );
+    }
   });
 
   it("rewrites the real text under a skipped tag, and leaves a tag outside the match alone", async () => {
