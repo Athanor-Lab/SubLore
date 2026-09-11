@@ -154,6 +154,24 @@ async function dragSash(toplevel, selector, dx, dy) {
 }
 
 /** The ceiling the grid edge declares, which is the height it stops the block at. */
+/**
+ * The block sits on the ceiling the sash declares, and says what it read when it does not.
+ *
+ * The ceiling is an integer the app publishes on `aria-valuemax`; the block is a rect and carries a
+ * fraction. Rounding them together is right, but a bare `toBe` leaves a failure showing two rounded
+ * integers and nothing to tell a layout fraction from a walk that stopped one step short. Seen once
+ * on 2026-09-11, 479 declared against a rect that rounded to 480, in one battery out of eight run
+ * back to back. See BACKLOG.md N152.
+ */
+function sitsOnCeiling(block, ceiling, which) {
+  if (Math.round(block) !== ceiling) {
+    throw new Error(
+      `the ${which} block should sit on the ceiling its sash declares, ${ceiling}, and its rect ` +
+        `reads ${block}`,
+    );
+  }
+}
+
 function declaredCeiling() {
   return browser.execute(() =>
     Number(document.querySelector(".sash--grid")?.getAttribute("aria-valuemax") ?? 0),
@@ -456,8 +474,8 @@ describe("the shell's three edges", () => {
     expect(narrow).toBeLessThan(wide);
     // And each is where the edge actually ends, not only what it says: pushed past its stop, the
     // block sits on the ceiling it declared.
-    expect(Math.round(wideBlock)).toBe(wide);
-    expect(Math.round(narrowBlock)).toBe(narrow);
+    sitsOnCeiling(wideBlock, wide, "wide");
+    sitsOnCeiling(narrowBlock, narrow, "narrow");
 
     await dragSash(toplevel, GRID_SASH, 0, -2000);
     await dragSash(toplevel, GRID_SASH, 0, 70);
