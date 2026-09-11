@@ -4,9 +4,11 @@
    Both sit in the panel flow rather than over it, beside the find band and for the same reason:
    a layer hides the native video surface, and neither of these has any business doing that. */
 
+/* Shrinkable for the transcription panel's reason (N134): the grid's floor comes first. */
 .modulepanel {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: 12rem;
   flex-direction: column;
   border-top: 1px solid var(--line);

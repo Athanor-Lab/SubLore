@@ -24,7 +24,7 @@ import {
   waitForUnsavedDialog,
   waitForUnsavedDialogGone,
 } from "../lib/gtk-dialog.js";
-import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
+import { clickAt, focusWindow, pressKey, resizeWindow, typeText } from "../lib/input.js";
 import {
   closeWindowTool,
   repoRoot,
@@ -167,7 +167,16 @@ function centreOfRow(position) {
     }
     const rect = cell.getBoundingClientRect();
     const dpr = window.devicePixelRatio;
-    return { x: (rect.x + rect.width / 2) * dpr, y: (rect.y + rect.height / 2) * dpr };
+    const at = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    // What is really under that point. A row inside a scrolling box keeps its geometry when the box
+    // has scrolled past it, so a rect alone can name a point that belongs to another panel.
+    const under = document.elementFromPoint(at.x, at.y);
+    return {
+      x: at.x * dpr,
+      y: at.y * dpr,
+      under: under === null ? null : under.className || under.tagName,
+      cell: cell.className,
+    };
   }, String(position));
 }
 
@@ -194,6 +203,12 @@ async function editRow(toplevel, position, text) {
   const centre = await centreOfRow(position);
   if (centre === null) {
     throw new Error(`row ${position} is not rendered`);
+  }
+  if (centre.under !== centre.cell) {
+    throw new Error(
+      `the centre of row ${position}'s text cell is covered by ${JSON.stringify(centre.under)}, ` +
+        "so a click there is not a click on the row",
+    );
   }
   clickAt(toplevel.absX + centre.x, toplevel.absY + centre.y);
   await waitFor(() => present(".cuelist__editor"), {
@@ -481,6 +496,56 @@ describe("transcription", () => {
     // fixture added to that folder is not a defect, and a frozen list would call it one.
     expect(readdirSync(saveDir)).toEqual([]);
     expect(readdirSync(videoDir).sort()).toEqual(mediaFolderBefore);
+  });
+
+  it("leaves the grid its own floor with the panel open, at the shortest window there is", async () => {
+    // The panel sits under the grid and takes its height from its own contents, so with wider type
+    // it wrapped, grew, and squeezed the document behind it: on the runner the second row's centre
+    // was under the panel's head and a click there reached nothing. Read at the shortest window the
+    // app allows, where the squeeze is worst and the numbers are the machine's own. See N134.
+    const short = 600;
+    resizeWindow(toplevel.id, windowWidth, short, 15000);
+    let room = null;
+    // The window goes back whatever this check finds: left short, it would take every check after
+    // it down with it, and a cascade hides which one is the defect.
+    try {
+      await waitFor(
+        async () => ((await browser.execute(() => window.innerHeight)) === short ? 1 : null),
+        { timeout: 15000, message: `the page to be laid out ${short} CSS pixels tall` },
+      );
+      room = await browser.execute(() => {
+        const grid = document.querySelector(".shell__grid");
+        const head = document.querySelector(".cuelist__head");
+        const row = document.querySelector(".cuelist__row");
+        const panel = document.querySelector(".asrpanel");
+        const status = document.querySelector(".statusbar");
+        if (grid === null || head === null || row === null || panel === null || status === null) {
+          return null;
+        }
+        const box = (element) => Math.round(element.getBoundingClientRect().height);
+        return {
+          grid: box(grid),
+          // The floor is read off the page rather than restated: the head as it is drawn and three
+          // rows as they are drawn, which is what `MIN_GRID_HEIGHT` in App.tsx counts.
+          floor: box(head) + 3 * box(row),
+          panel: box(panel),
+          statusBottom: Math.round(status.getBoundingClientRect().bottom),
+          height: window.innerHeight,
+        };
+      });
+    } finally {
+      resizeWindow(toplevel.id, windowWidth, windowHeight, 15000);
+      await waitFor(
+        async () => ((await browser.execute(() => window.innerHeight)) === windowHeight ? 1 : null),
+        { timeout: 15000, message: "the window to come back to the height the run opened at" },
+      );
+    }
+    if (room === null) {
+      throw new Error("the grid, the panel or the status bar is missing from the DOM");
+    }
+    expect({ keeps: room.grid >= room.floor, ...room }).toEqual({ keeps: true, ...room });
+    // And the panel gave up the room rather than the window: the status bar is still on screen.
+    expect(room.statusBottom).toBeLessThanOrEqual(room.height);
   });
 
   it("edits a cue of the result, saves it, and reopens the file with the edit in it", async () => {

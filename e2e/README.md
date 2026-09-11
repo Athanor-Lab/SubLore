@@ -159,6 +159,22 @@ xvfb-run -a -s "-screen 0 1024x700x24" pnpm e2e:waveform-budget  # the waveform'
 pnpm e2e:no-display                          # no xvfb-run: this one proves what happens without a display
 ```
 
+### Seeing what the runner sees
+
+Every width in the shell is a width the machine's fonts decide, and this machine and the CI runner
+do not agree: the same row of controls is about a tenth wider under DejaVu Sans, which is what the
+runner resolves `system-ui` to. Two defects were green here and red there because of it, and both
+were found by reproducing the runner's type rather than by reading the runner's log:
+
+```sh
+FONTCONFIG_FILE=$PWD/e2e/fonts/ci-wide.conf \
+  xvfb-run -a -s "-screen 0 1920x1080x24" pnpm e2e --spec e2e/specs/asr.spec.js
+```
+
+It is not what the battery runs, and it is not a second suite: the battery runs against the machine
+it is on. Reach for it when CI fails on a spec that is green here, and for the mutation that proves
+a fix for one of those. See BACKLOG.md N132 and N134.
+
 ### Two runs at once, and the port that stops them
 
 `xvfb-run -a` picks a free display number, so two runs start happily side by side. What they collide

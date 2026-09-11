@@ -98,11 +98,15 @@ body {
   border-left: 1px solid var(--line);
 }
 
+/* The head and three rows, which is `MIN_GRID_HEIGHT` in App.tsx, written here in the same shape:
+   a fixed 28 px a row because `ROW_HEIGHT` does not scale, and a head that does. It is the floor
+   the grid's own edge already stops at, and it stops the bands below the grid at it too: with the
+   transcription panel open under wider fonts the document had been squeezed to nothing. See N134. */
 .shell__grid {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 0;
+  min-height: calc(84px + 25px * max(1, var(--interface-scale)));
   border-top: 1px solid var(--line);
 }
 
