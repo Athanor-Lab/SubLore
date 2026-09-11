@@ -251,14 +251,22 @@ const SUBTITLE_ITEMS = [
 
 /** Every button the toolbar will ever draw, drawn with nothing open (C2). */
 const TOOLBAR = [
+  { id: "file-new", disabled: false },
   { id: "file-open-subtitle", disabled: false },
-  { id: "video-open", disabled: false },
   { id: "file-save", disabled: true },
-  { id: "file-save-as", disabled: true },
-  { id: "file-discard", disabled: true },
-  { id: "edit-undo", disabled: true },
-  { id: "edit-redo", disabled: true },
+  { id: "video-jump-to", disabled: true },
+  { id: "video-jump-cue-start", disabled: true },
+  { id: "video-jump-cue-end", disabled: true },
+  { id: "time-start-to-playhead", disabled: true },
+  { id: "time-end-to-playhead", disabled: true },
+  { id: "edit-select-at-playhead", disabled: true },
+  { id: "time-shift-to-playhead", disabled: true },
+  // Shift times asks for a document only when it runs, so it is drawn awake: the spec's table says
+  // "always" for it, and the app agrees.
+  { id: "time-shift", disabled: false },
+  { id: "asr-transcribe", disabled: false },
   { id: "view-tags-cycle", disabled: false },
+  { id: "view-preferences", disabled: false },
 ];
 
 /**
@@ -460,7 +468,9 @@ function buttonsOnTheToolbar() {
         Array.from(button.classList)
           .find((name) => name !== "toolbar__button")
           ?.replace("toolbar__", "") ?? null,
-      label: button.textContent,
+      // The accessible name and not the text: the strip draws a short word and keeps the command's
+      // own label as its name, so this is where the record both routes read still shows (N120).
+      label: button.getAttribute("aria-label"),
       disabled: button.disabled,
     })),
   );
@@ -576,6 +586,30 @@ describe("the command registry", () => {
     }
   });
 
+  it("draws the whole strip inside the window, with nothing pushed off the end", async () => {
+    // A button past the right edge is a command nobody can reach, and nothing else here would say
+    // so: the registry checks above read the DOM, where a clipped button is present and looks
+    // fine. Fourteen full labels measured 1691 px against a 1024 viewport, and the short words are
+    // what buys the room; this is the check that keeps the next button from spending it (N120).
+    const strip = await browser.execute(() => {
+      const bar = document.querySelector(".toolbar");
+      const buttons = Array.from(document.querySelectorAll(".toolbar__button"));
+      const last = buttons[buttons.length - 1]?.getBoundingClientRect() ?? null;
+      return {
+        buttons: buttons.length,
+        scrollWidth: bar.scrollWidth,
+        clientWidth: bar.clientWidth,
+        lastRight: last === null ? null : Math.round(last.right),
+        viewport: window.innerWidth,
+      };
+    });
+    // The positive control: a strip this read as empty would pass every line below by reading
+    // nothing at all.
+    expect(strip.buttons).toBe(TOOLBAR.length);
+    expect(strip.scrollWidth).toBe(strip.clientWidth);
+    expect(strip.lastRight).toBeLessThanOrEqual(strip.viewport);
+  });
+
   it("draws each accelerator against one command, because only one of two can fire", async () => {
     const claimed = new Map();
     const doubled = [];
@@ -635,8 +669,9 @@ describe("the command registry", () => {
     pressKey("Escape");
     await waitForNoMenu();
 
-    // The toolbar route, over the same three greyed commands.
-    for (const id of ["edit-undo", "edit-redo", THREE_ROUTES]) {
+    // The toolbar route. Three of the strip's own greyed buttons, since it carries neither undo
+    // nor Save as any more: Save wants an unsaved edit, and the other two want a picture (N120).
+    for (const id of ["file-save", "video-jump-to", "time-start-to-playhead"]) {
       expect(await disabledOf(`.toolbar__${id}`)).toBe(true);
       await clickElement(toplevel, `.toolbar__${id}`);
     }
@@ -779,7 +814,9 @@ describe("the command registry", () => {
       { route: "menu", id: "time-start-later", disabled: false },
       { route: "menu", id: "time-end-earlier", disabled: false },
       { route: "menu", id: "time-end-later", disabled: false },
-      { route: "toolbar", id: "file-save-as", disabled: false },
+      // No toolbar entry here on purpose: opening a document with no video wakes none of the
+      // strip's buttons, because Save wants an unsaved edit and every other greyed one wants a
+      // picture (N120).
     ]);
   });
 });
