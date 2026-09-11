@@ -200,9 +200,12 @@ async function editFirstCue(toplevel, mark, settleMs, dataHome) {
     doubleClickAt(cue.x, cue.y);
     await sleep(600);
     typeText(mark);
-    // Enter commits the inline edit into the backend session. Without it only the frontend knows.
-    pressKey("Return");
-    const landed = await waitForEditedLength(dataHome, unchanged, { timeout: 4000 });
+    // Tab and not Return, and that is the whole of N131: Return in this box commits **and goes on
+    // to the next line**, which is what the reference binds it to (N113). The second edit then
+    // landed on the cue below and the file carried two changed blocks. Tab commits on the blur and
+    // leaves the cursor where it is, which is what "the first cue, twice" needs.
+    pressKey("Tab");
+    const landed = await waitForEditedLength(dataHome, unchanged, { timeout: 4000, cue: 0 });
     if (landed) {
       break;
     }
@@ -218,8 +221,8 @@ async function editFirstCue(toplevel, mark, settleMs, dataHome) {
 
 /** The length the first cue last logged, or the fixture's own before any edit landed. */
 function lastEditedLength(dataHome) {
-  const seen = [...appLog(dataHome).matchAll(/edit committed[^\n]*now (\d+) chars/g)].map((match) =>
-    Number(match[1]),
+  const seen = [...appLog(dataHome).matchAll(/edit committed[^\n]*cue 0 now (\d+) chars/g)].map(
+    (match) => Number(match[1]),
   );
   return seen.length === 0 ? UNEDITED_FIRST_CUE_CHARS : seen[seen.length - 1];
 }

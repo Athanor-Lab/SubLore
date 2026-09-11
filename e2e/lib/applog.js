@@ -90,21 +90,26 @@ export const SUBTITLE_OPENED = /subtitle: opened .* — \d+ cues/;
 export const EDIT_COMMITTED = /subtitle: edit committed, revision \d+, dirty/;
 
 /**
- * Wait until an edit has actually changed the first cue's length.
+ * Wait until an edit has actually changed a cue's length.
  *
  * "An edit was committed" is not "the text changed": an inline editor that takes Enter before the
  * keystrokes reach it commits the field unchanged, which bumps the revision and marks the session
  * dirty while leaving the document identical. That is exactly what happened on CI, and the harness
  * believed it (gate 2, run 33363671401). The length is what the app logs, and the length is enough.
+ *
+ * `options.cue` holds it to one cue, by the zero-based index the app logs. Without it any cue's
+ * length counts, which is what a caller that makes one edit and never moves the cursor needs; with
+ * it, an edit that landed on the row next door is not an edit that landed.
  */
 export async function waitForEditedLength(dataHome, unchangedLength, options = {}) {
   const timeout = options.timeout ?? 4000;
   const deadline = Date.now() + timeout;
   for (;;) {
-    const seen = [...appLog(dataHome).matchAll(/edit committed[^\n]*now (\d+) chars/g)].map((m) =>
-      Number(m[1]),
-    );
-    if (seen.some((length) => length !== unchangedLength)) {
+    const seen = [
+      ...appLog(dataHome).matchAll(/edit committed[^\n]*cue (\d+) now (\d+) chars/g),
+    ].map((m) => ({ cue: Number(m[1]), length: Number(m[2]) }));
+    const wanted = options.cue === undefined ? seen : seen.filter((one) => one.cue === options.cue);
+    if (wanted.some((one) => one.length !== unchangedLength)) {
       return true;
     }
     if (Date.now() >= deadline) {
