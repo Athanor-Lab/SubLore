@@ -610,7 +610,12 @@ impl Player {
     /// three exist so that anything the user does during a range cancels its stop instead of
     /// leaving one armed. Setting the target before playback starts is the other half of that: a
     /// frame cannot slip past a target that is not there yet.
+    /// One line per range asked for, the twin of the one `set_pause` writes. Without it the only
+    /// trace a range leaves is the line it writes when it stops, so a range that never stopped and
+    /// a range that never started read exactly the same from outside: measured on 2026-09-12,
+    /// where a CI failure could not be told apart for that reason. See BACKLOG.md N163.
     pub fn play_range(&self, from: f64, to: f64) -> Result<(), VideoError> {
+        log::info!("playback: asked mpv for the range {from:.3} to {to:.3}");
         let mpv = self.handle()?;
         let duration = self.loaded_duration()?;
         if !from.is_finite() || !to.is_finite() {
