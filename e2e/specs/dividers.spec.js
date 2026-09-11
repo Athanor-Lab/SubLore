@@ -1,4 +1,4 @@
-/* global describe, it, before, after, document, window */
+/* global describe, it, before, console, after, document, window */
 /**
  * D1: the video's right edge and the top block's bottom edge are draggable, both are remembered,
  * and both move the native video surface with them.
@@ -164,6 +164,10 @@ async function dragSash(toplevel, selector, dx, dy) {
  * back to back. See BACKLOG.md N152.
  */
 function sitsOnCeiling(block, ceiling, which) {
+  // Printed on every run, the way `editor.spec.js` prints its own numbers: the fraction is the
+  // whole question behind N152 and it is observable whether the check passes or not, so waiting for
+  // a rare failure to see it would be waiting for nothing.
+  console.log(`N152 ${which} ceiling: declared ${ceiling}, rect ${block}`);
   if (Math.round(block) !== ceiling) {
     throw new Error(
       `the ${which} block should sit on the ceiling its sash declares, ${ceiling}, and its rect ` +
@@ -465,17 +469,23 @@ describe("the shell's three edges", () => {
     const wide = await declaredCeiling();
     await walkGridEdgeDown(toplevel);
     const wideBlock = (await shellSizes()).block;
+    const wideAfter = await declaredCeiling();
 
     await dragSash(toplevel, VIDEO_SASH, -2000, 0);
     const narrow = await declaredCeiling();
     await walkGridEdgeDown(toplevel);
     const narrowBlock = (await shellSizes()).block;
+    const narrowAfter = await declaredCeiling();
 
     expect(narrow).toBeLessThan(wide);
     // And each is where the edge actually ends, not only what it says: pushed past its stop, the
-    // block sits on the ceiling it declared.
-    sitsOnCeiling(wideBlock, wide, "wide");
-    sitsOnCeiling(narrowBlock, narrow, "narrow");
+    // block sits on the ceiling it declares.
+    //
+    // Declares now, and the tense is the fix: the ceiling is worked out from rects measured inside
+    // the block, so walking the edge can move it, and reading it before the walk and the block
+    // after compares two moments. Seen once in eight batteries, 479 against 480 (N152).
+    sitsOnCeiling(wideBlock, wideAfter, "wide");
+    sitsOnCeiling(narrowBlock, narrowAfter, "narrow");
 
     await dragSash(toplevel, GRID_SASH, 0, -2000);
     await dragSash(toplevel, GRID_SASH, 0, 70);
