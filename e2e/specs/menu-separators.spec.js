@@ -106,6 +106,7 @@ describe("the rules that group a menu", () => {
       "file-new",
       "file-open-subtitle",
       "file-open-encoding",
+      "file-open-from-video",
       "file-recent",
       "file-open-source",
       "file-close-source",

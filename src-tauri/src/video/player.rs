@@ -112,6 +112,23 @@ pub struct AudioTrack {
     pub playing: bool,
 }
 
+/// One subtitle stream the open media carries inside it, as `track-list` reports it.
+///
+/// Every field mpv gives is kept and none is judged here: which codecs hold text a document can be
+/// made from is the subtitle side's question, not the player's. See N116.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleTrack {
+    /// mpv's own `sid`.
+    pub id: i64,
+    /// ffmpeg's index for the stream, which is what an extraction maps with `-map 0:n`.
+    pub ff_index: u32,
+    /// mpv's codec name, `subrip` or `ass` or a picture codec, lower case as mpv writes it.
+    pub codec: String,
+    pub lang: Option<String>,
+    pub title: Option<String>,
+}
+
 /// What mpv reports about the subtitles it is drawing, read back from mpv rather than remembered
 /// here: mpv is the authority on its own track list, as it is on which audio track plays.
 #[derive(Clone, Copy, Debug)]
@@ -708,6 +725,70 @@ impl Player {
                 playing: mpv
                     .get_property::<bool>(&format!("track-list/{index}/selected"))
                     .map_err(|error| from_mpv(error, "track-list selected"))?,
+            });
+        }
+        Ok(tracks)
+    }
+
+    /// The subtitle streams the open media carries inside it, in mpv's own order.
+    ///
+    /// External tracks are left out: they came from a file the user already has, and the command
+    /// this feeds exists to reach the ones only the container holds. Read property by property for
+    /// the reason [`Self::audio_tracks`] gives. See N116.
+    pub fn embedded_subtitle_tracks(&self) -> Result<Vec<SubtitleTrack>, VideoError> {
+        let mpv = self.handle()?;
+        // No file open is not an empty track list, the same distinction the audio list draws.
+        self.loaded_duration()?;
+
+        let count = mpv
+            .get_property::<i64>("track-list/count")
+            .map_err(|error| from_mpv(error, "track-list/count"))?;
+        let mut tracks = Vec::new();
+        for index in 0..count.max(0) {
+            let kind = mpv
+                .get_property::<String>(&format!("track-list/{index}/type"))
+                .map_err(|error| from_mpv(error, "track-list type"))?;
+            if kind != "sub" {
+                continue;
+            }
+            // A track Sublore itself added with `sub-add` is external and is skipped here.
+            if mpv
+                .get_property::<bool>(&format!("track-list/{index}/external"))
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let id = mpv
+                .get_property::<i64>(&format!("track-list/{index}/id"))
+                .map_err(|error| from_mpv(error, "track-list id"))?;
+            let ff_index = mpv
+                .get_property::<i64>(&format!("track-list/{index}/ff-index"))
+                .map_err(|error| from_mpv(error, "track-list ff-index"))?;
+            // Skipped rather than refused, which is where this parts from the audio list: that one
+            // is asked for one named track and has to say it cannot have it, and this one is asked
+            // which tracks can be opened, so a track with no stream index behind it is simply not
+            // one of them and the rest of the list still is.
+            let Ok(ff_index) = u32::try_from(ff_index) else {
+                crate::log::debug!(
+                    "video: subtitle track {id} has ff-index {ff_index}, which is no stream index"
+                );
+                continue;
+            };
+            // A container that names no codec is a track nothing can be extracted from, so it is
+            // reported with an empty name and the caller's allow list drops it.
+            let codec = mpv
+                .get_property::<String>(&format!("track-list/{index}/codec"))
+                .unwrap_or_default();
+            tracks.push(SubtitleTrack {
+                id,
+                ff_index,
+                codec,
+                lang: mpv
+                    .get_property::<String>(&format!("track-list/{index}/lang"))
+                    .ok(),
+                title: mpv
+                    .get_property::<String>(&format!("track-list/{index}/title"))
+                    .ok(),
             });
         }
         Ok(tracks)

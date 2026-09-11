@@ -41,6 +41,7 @@ const DECLARED = [
   "file-new",
   "file-open-subtitle",
   "file-open-encoding",
+  "file-open-from-video",
   "file-open-source",
   "file-close-source",
   "file-new-translation",
@@ -187,6 +188,9 @@ const FILE_ITEMS = [
   { id: "file-new", disabled: false },
   { id: "file-open-subtitle", disabled: false },
   { id: "file-open-encoding", disabled: false },
+  // Greyed with nothing open, and greyed on a video that carries no subtitle stream Sublore can
+  // read as text: the validator asks the open video, not whether one is open (N116).
+  { id: "file-open-from-video", disabled: true },
   { id: "file-open-source", disabled: false },
   { id: "file-close-source", disabled: true },
   { id: "file-new-translation", disabled: true },

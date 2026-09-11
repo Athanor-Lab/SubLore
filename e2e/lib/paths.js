@@ -64,6 +64,25 @@ export function requireVideoFixture() {
   return requireFile(videoFixture, "sh fixtures/video/make-sample.sh");
 }
 
+/** The N116 fixtures: media whose own subtitle streams are known. Generated, not committed. */
+export const twoSubsFixture = path.join(repoRoot, "fixtures", "video", "carries-two-subs.mkv");
+export const assSubFixture = path.join(repoRoot, "fixtures", "video", "carries-ass.mkv");
+export const noSubsFixture = path.join(repoRoot, "fixtures", "video", "carries-no-subs.mkv");
+
+const MAKE_SUBTITLE_TRACKS = "sh fixtures/video/make-subtitle-track-fixtures.sh";
+
+export function requireTwoSubsFixture() {
+  return requireFile(twoSubsFixture, MAKE_SUBTITLE_TRACKS);
+}
+
+export function requireAssSubFixture() {
+  return requireFile(assSubFixture, MAKE_SUBTITLE_TRACKS);
+}
+
+export function requireNoSubsFixture() {
+  return requireFile(noSubsFixture, MAKE_SUBTITLE_TRACKS);
+}
+
 /** The M2.4 fixture whose audio is known: six ten-second blocks, tone first. Generated, not committed. */
 export const waveformFixture = path.join(repoRoot, "fixtures", "video", "waveform-60s.mkv");
 

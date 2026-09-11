@@ -144,6 +144,8 @@ is ready, so the `IsViewable` check is what makes this test meaningful.
 
 ```sh
 sh fixtures/video/make-sample.sh     # the fixture is generated, never committed
+sh fixtures/video/make-picture-fixtures.sh        # media whose drawn box is known
+sh fixtures/video/make-subtitle-track-fixtures.sh # media that carry their own subtitles
 sh scripts/fetch-model.sh            # ggml-tiny.en.bin, fetched once, never committed
 pnpm e2e:build                       # tauri build --debug --no-bundle
 xvfb-run -a -s "-screen 0 1920x1080x24" pnpm e2e           # the WebDriver spec files

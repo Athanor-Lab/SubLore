@@ -4,6 +4,7 @@
 //! (CONTRIBUTING.md section 6). See BACKLOG.md M2.3.
 
 pub mod error;
+pub mod from_video;
 
 use std::fs::File;
 use std::io::Read;
@@ -27,6 +28,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::asr::AsrState;
 use crate::dialog::CloseAnswer;
+use crate::video::player::{Player, SubtitleTrack as VideoSubtitleTrack};
 use error::{SubtitleError, SubtitleErrorCode};
 
 /// Bigger than any subtitle file that exists. A user who points at a 4 GB video gets a sentence
@@ -289,6 +291,56 @@ pub async fn subtitle_open_with_encoding(
     let slot = state.slot();
     let opened = blocking(move || open_session_with_encoding(&slot, &path, &label)).await;
     // The frame follows the open exactly as it does for plain open above.
+    crate::preview::refresh(&app).await;
+    opened
+}
+
+/// The subtitle streams the open video carries that Sublore can make a document from.
+///
+/// Answers an empty list where there is no video, where the video carries none, and where the ones
+/// it carries hold pictures rather than text: all three grey the command, and none of them is a
+/// failure worth a message. See N116.
+#[tauri::command]
+pub async fn subtitle_video_tracks(
+    video: State<'_, crate::video::VideoState>,
+) -> Result<Vec<VideoSubtitleTrack>, SubtitleError> {
+    let player = video.player();
+    // A loop of mpv property reads, so it goes off the poll thread the way the audio list does.
+    blocking(move || Ok(openable_tracks(&player))).await
+}
+
+/// Make the first text subtitle stream of the open video the document on screen.
+///
+/// The first and not a chosen one: that is what the reference does, and a container with several
+/// text tracks is answered by taking the one the list puts first. Declared in
+/// docs/open-from-video-tasks.md rather than asked about.
+#[tauri::command]
+pub async fn subtitle_open_from_video(
+    app: AppHandle,
+    state: State<'_, SubtitleState>,
+    video: State<'_, crate::video::VideoState>,
+) -> Result<SubtitleOpened, SubtitleError> {
+    let player = video.player();
+    let slot = state.slot();
+    let opened = blocking(move || {
+        let path = player.loaded_path().ok_or_else(|| {
+            SubtitleError::new(SubtitleErrorCode::NoSubtitleTrack, "no video is open")
+        })?;
+        let (track, format) = openable_tracks(&player)
+            .into_iter()
+            .find_map(|track| {
+                from_video::openable_format(&track.codec).map(|format| (track, format))
+            })
+            .ok_or_else(|| {
+                SubtitleError::new(
+                    SubtitleErrorCode::NoSubtitleTrack,
+                    format!("{path} carries no subtitle stream that holds text"),
+                )
+            })?;
+        open_from_video(&slot, &path, track.ff_index, format)
+    })
+    .await;
+    // The frame follows the open, exactly as it does for the two above.
     crate::preview::refresh(&app).await;
     opened
 }
@@ -1331,6 +1383,83 @@ fn open_read(
     );
     *guard = Some(session);
     Ok(opened)
+}
+
+/// The open video's subtitle streams that hold text, in mpv's own order.
+///
+/// Every refusal reads as an empty list on purpose: no video open, a player that will not answer
+/// and a media with no subtitles are one answer to the only question the caller asks, which is
+/// whether the command may be pressed. The failures are said in the log and nowhere else.
+fn openable_tracks(player: &Player) -> Vec<VideoSubtitleTrack> {
+    match player.embedded_subtitle_tracks() {
+        Ok(tracks) => tracks
+            .into_iter()
+            .filter(|track| from_video::openable_format(&track.codec).is_some())
+            .collect(),
+        Err(error) => {
+            crate::log::debug!("subtitle: the video's subtitle tracks would not be read: {error}");
+            Vec::new()
+        }
+    }
+}
+
+/// Pull stream `ff_index` out of `media` and make it the document on screen, with no file of its
+/// own: it was read out of a video, and §3.1 keeps that video read-only, so there is nowhere it
+/// came from to save back to. Guarded by the same unsaved-work rule as an open from disk.
+fn open_from_video(
+    slot: &SessionSlot,
+    media: &str,
+    ff_index: u32,
+    format: SubtitleFormat,
+) -> Result<SubtitleOpened, SubtitleError> {
+    // Asked before the extraction so unsaved work is answered at once rather than after a wait,
+    // and asked again below because this lock is let go in between.
+    refuse_if_dirty(slot)?;
+
+    // The lock is deliberately not held across this: ffmpeg is another process, and a container
+    // that made it hang would hold the document's mutex with it and stop every other command.
+    // Extracted before anything is replaced, so a stream ffmpeg refuses leaves what is on screen
+    // exactly where it was.
+    let bytes = from_video::extract(
+        &crate::audio::ffmpeg_binary(),
+        Path::new(media),
+        ff_index,
+        format,
+    )?;
+    let document = parse(format, &bytes).map_err(SubtitleError::from_parse)?;
+    let summary = summarize(None, &document);
+    let session = EditSession::untitled(document);
+    let opened = opened_payload(&session, summary);
+
+    let mut guard = lock(slot)?;
+    // The second reading, and it is not a formality: a word typed while ffmpeg ran is unsaved work
+    // that arrived after the first one, and replacing the document would throw it away.
+    if guard.as_ref().is_some_and(EditSession::dirty) {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnsavedChanges,
+            "the open file gained edits while the stream was being read",
+        ));
+    }
+    // The third moment a document becomes the one on screen, said out loud for the reason the
+    // other two are: nothing outside the window could observe it.
+    crate::log::info!(
+        "subtitle: opened stream {ff_index} of {media} — {} cues, unsaved",
+        opened.cues.len()
+    );
+    *guard = Some(session);
+    Ok(opened)
+}
+
+/// The unsaved-work gate on its own, so a caller can ask before doing something slow and ask again
+/// under the lock that replaces the document.
+fn refuse_if_dirty(slot: &SessionSlot) -> Result<(), SubtitleError> {
+    if lock(slot)?.as_ref().is_some_and(EditSession::dirty) {
+        return Err(SubtitleError::new(
+            SubtitleErrorCode::UnsavedChanges,
+            "the open file has edits that are not on disk",
+        ));
+    }
+    Ok(())
 }
 
 /// Make the target from the source: the same cues and the same timings, with nothing written yet.

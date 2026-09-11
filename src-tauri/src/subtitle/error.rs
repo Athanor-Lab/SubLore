@@ -53,6 +53,11 @@ pub enum SubtitleErrorCode {
     NoPath,
     /// The cues asked for belong to a run that is no longer the one that finished last.
     TranscriptionGone,
+    /// The open video carries no subtitle stream a document can be made from: none at all, or only
+    /// ones that hold pictures rather than text. See N116.
+    NoSubtitleTrack,
+    /// ffmpeg would not read the subtitle stream out of the video, or wrote nothing for it.
+    ExtractionFailed,
     /// The command machinery itself failed. Never a situation the user created.
     CommandFailed,
 }

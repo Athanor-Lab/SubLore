@@ -192,6 +192,8 @@ export type SubtitleErrorCode =
   | "unsavedChanges"
   | "noPath"
   | "transcriptionGone"
+  | "noSubtitleTrack"
+  | "extractionFailed"
   | "commandFailed";
 
 /** Why a parse stopped. Sent only with `parseFailed`, always together with a line number. */

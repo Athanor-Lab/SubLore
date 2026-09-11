@@ -36,6 +36,7 @@ import { useAudioPeaks } from "./hooks/useAudioPeaks";
 import { useCueSelection } from "./hooks/useCueSelection";
 import { LayerContext, useLayerRegistry } from "./hooks/useLayers";
 import { useAudioTracks } from "./hooks/useAudioTracks";
+import { useVideoSubtitleTracks } from "./hooks/useVideoSubtitleTracks";
 import { type PanelLayout, useLayout } from "./hooks/useLayout";
 import { useWindowFloor } from "./hooks/useWindowFloor";
 import { type PasteFields, usePasteFields } from "./hooks/usePasteFields";
@@ -505,6 +506,9 @@ export default function App() {
   // Above the hooks that need it: a hook that says something has to be able to say it.
   const [notice, say] = useTimedMessage();
   const audio = useAudioTracks(state.path, state.status === "ready", say);
+  // Only the count is used, to grey the File command that opens them: which stream it takes is the
+  // backend's own choice, so nothing here has to agree with it (N116).
+  const videoSubtitleTracks = useVideoSubtitleTracks(state.path, state.status === "ready");
   // The videos opened lately: read once, drawn as the Video menu's recent list, and remembered on
   // every open however it happens, so the list is right whether a video came from the chooser, the
   // command line or the list itself. See recent.rs and interface-spec 3.5 item 3.
@@ -1831,7 +1835,7 @@ export default function App() {
   useEffect(() => {
     void setWindowTitle(windowTitle(documentPath, dirty));
   }, [documentPath, dirty]);
-  const blocked = subtitle.blockedPath !== null || subtitle.blockedNew;
+  const blocked = subtitle.blockedPath !== null || subtitle.blockedNew || subtitle.blockedFromVideo;
   // Whatever the stored layout says, and following until it says otherwise: the panel is decoration
   // on any file longer than its own window if it does not follow the line.
   const waveAutoscroll = layout?.waveAutoscroll ?? true;
@@ -1896,6 +1900,14 @@ export default function App() {
       // (interface-spec 9.8). Greyed only while a chooser is up, the same as Open.
       enabled: !choosing,
       run: () => void pick("subtitle", undefined, (path) => setEncodingPath(path)),
+    },
+    {
+      id: "file.open-from-video",
+      label: en.menu.file.openFromVideo,
+      // The reference lights it only when the open video carries subtitles, and a video with only
+      // picture tracks carries none this can open (interface-spec 3.1 row 3a).
+      enabled: videoSubtitleTracks.length > 0,
+      run: () => void subtitle.openFromVideo(),
     },
     // One row per remembered project, newest first, numbered the way the reference numbers them
     // (3.1 item 5). Data like the audio tracks; with none remembered, one greyed placeholder row.
@@ -2882,6 +2894,7 @@ export default function App() {
         "file.new",
         "file.open-subtitle",
         "file.open-encoding",
+        "file.open-from-video",
         {
           // The remembered projects, after the opens (3.1 item 5). Its rows are generated; with
           // none remembered it holds the one greyed placeholder instead of greying itself.
