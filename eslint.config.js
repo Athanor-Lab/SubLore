@@ -10,4 +10,21 @@ export default tseslint.config(
   { ignores: ["dist/", "target/", ".whisper/", ".claude/", ".omc/", "ci-logs/"] },
   js.configs.recommended,
   tseslint.configs.recommended,
+  {
+    // CONTRIBUTING §9: every word the user reads comes from `src/i18n/en.ts`. See BACKLOG.md N156.
+    files: ["src/**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXText[value=/\\S/]",
+          message: "User-facing text belongs in src/i18n/en.ts, not in the markup.",
+        },
+        {
+          selector: "JSXAttribute[name.name=/^(aria-label|title|placeholder|alt)$/] > Literal",
+          message: "A label the user reads belongs in src/i18n/en.ts, not in the attribute.",
+        },
+      ],
+    },
+  },
 );

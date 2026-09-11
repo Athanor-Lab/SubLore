@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { en } from "../i18n/en";
 import { useLayer } from "../hooks/useLayers";
 import {
   commandToken,
@@ -491,7 +492,7 @@ export default function MenuBar({ menus, commands }: MenuBarProps) {
                           <span className="menubar__label">{row.label}</span>
                         </span>
                         <span className="menubar__arrow" aria-hidden="true">
-                          ▸
+                          {en.menu.submenuArrow}
                         </span>
                       </button>
                       {position === cursor && subOpen && (
