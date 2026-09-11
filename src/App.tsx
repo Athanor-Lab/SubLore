@@ -971,6 +971,22 @@ export default function App() {
    * with `NotAllowedError` inside the app's own page, measured on 2026-09-07, so it goes through
    * the backend and GTK's own clipboard.
    */
+  /**
+   * The rows one field write lands on: the whole selection when the row being edited is part of it,
+   * and that row alone when it is not.
+   *
+   * The owner's answer 46 is that a field writes to every selected cue. The reference has no case
+   * where the current line sits outside the selection, because its cursor always belongs to one;
+   * Sublore can move the cursor alone, and writing to rows the user cannot see highlighted beside
+   * the one they are typing in would be a surprise. See docs/field-writes-selection-tasks.md.
+   */
+  function written(cue: number): number[] {
+    if (!selection.selected.has(cue)) {
+      return [cue];
+    }
+    return [...selection.selected].sort((one, two) => one - two);
+  }
+
   async function copyCues() {
     const rows = [...selection.selected].sort((one, two) => one - two);
     if (rows.length === 0) {
@@ -3411,11 +3427,11 @@ export default function App() {
                 onCommit={subtitle.setText}
                 onCommitTimes={subtitle.setTimes}
                 cues={subtitle.cues}
-                onCommitField={(cue, field, value) => subtitle.setField(cue, field, value)}
+                onCommitField={(cue, field, value) => subtitle.setField(written(cue), field, value)}
                 commands={commands}
                 styles={subtitle.summary?.styles.map((style) => style.name) ?? []}
                 canComment={subtitle.summary?.format === "ass"}
-                onCommitComment={(cue, comment) => subtitle.setComment(cue, comment)}
+                onCommitComment={(cue, comment) => subtitle.setComment(written(cue), comment)}
                 onEditStyle={() => {
                   const at = (subtitle.summary?.styles ?? []).findIndex(
                     (style) => style.name === activeCue?.style,

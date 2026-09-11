@@ -1634,7 +1634,7 @@ fn writing_a_field_into_every_clean_fixture_leaves_every_other_byte_identical() 
             let label = format!("{relative}: {field:?}");
             let value = sample_value(field);
             let request = Edit::SetField {
-                cue: target,
+                cues: vec![target],
                 field,
                 value: value.to_owned(),
             };
@@ -1723,7 +1723,7 @@ fn two_rows_that_show_the_same_blank_effect_answer_differently_to_a_write() {
     assert!(!absent_row.declared_fields.contains(&AssField::Effect));
 
     let request = |value: &str| Edit::SetField {
-        cue: 0,
+        cues: vec![0],
         field: AssField::Effect,
         value: value.to_owned(),
     };
@@ -1842,7 +1842,7 @@ fn set_field(document: &SubtitleDocument, cue: usize, field: AssField, value: &s
     edit(
         document,
         &Edit::SetField {
-            cue,
+            cues: vec![cue],
             field,
             value: value.to_owned(),
         },
@@ -1859,7 +1859,7 @@ fn refuse_field(
     edit(
         document,
         &Edit::SetField {
-            cue,
+            cues: vec![cue],
             field,
             value: value.to_owned(),
         },

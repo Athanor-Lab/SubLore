@@ -522,14 +522,16 @@ impl From<AssFieldDto> for AssField {
     }
 }
 
-/// One committed field of one cue. A field the document cannot hold is refused rather than added,
-/// and the panel draws that control greyed instead of asking. See ass-field-write-tasks.md W5.
+/// One committed field, over every cue the caller names, as one undo step. That is the owner's
+/// answer 46: a field writes to every selected cue and not only the current one. A field the
+/// document cannot hold is refused rather than added, and the panel draws that control greyed
+/// instead of asking. See ass-field-write-tasks.md W5 and field-writes-selection-tasks.md.
 #[tauri::command]
 pub async fn subtitle_set_field(
     app: AppHandle,
     state: State<'_, SubtitleState>,
     revision: u64,
-    cue: usize,
+    cues: Vec<usize>,
     field: AssFieldDto,
     value: String,
 ) -> Result<CuePatchDto, SubtitleError> {
@@ -538,7 +540,7 @@ pub async fn subtitle_set_field(
         state.slot(),
         revision,
         Edit::SetField {
-            cue,
+            cues,
             field: field.into(),
             value,
         },
@@ -962,21 +964,22 @@ pub async fn subtitle_set_override_tags(
     .await
 }
 
-/// Whether one cue is a line a player draws. Refused on a format that has no descriptor to
+/// Whether the named cues are lines a player draws, under the same rule as the fields above: every
+/// cue the caller names, one undo step. Refused on a format that has no descriptor to
 /// rewrite, and the panel draws that control greyed instead of asking. See edit-bar-tasks.md B8.
 #[tauri::command]
 pub async fn subtitle_set_comment(
     app: AppHandle,
     state: State<'_, SubtitleState>,
     revision: u64,
-    cue: usize,
+    cues: Vec<usize>,
     comment: bool,
 ) -> Result<CuePatchDto, SubtitleError> {
     edited(
         &app,
         state.slot(),
         revision,
-        Edit::SetComment { cue, comment },
+        Edit::SetComment { cues, comment },
     )
     .await
 }

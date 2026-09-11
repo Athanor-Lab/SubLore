@@ -79,8 +79,12 @@ pub enum Edit {
     },
     /// One declared field of one ASS event, written verbatim. The text field is not among the
     /// fields `AssField` can name. See docs/ass-field-write-tasks.md W3.
+    /// The owner's answer 46: a field writes to every selected cue, not only the current one, and
+    /// the whole write is one undo step. Cues are strictly ascending and each named once; one that
+    /// is not an ASS event, or whose section declares no such field, is passed over rather than
+    /// failing the rest. See docs/field-writes-selection-tasks.md.
     SetField {
-        cue: usize,
+        cues: Vec<usize>,
         field: AssField,
         value: String,
     },
@@ -98,8 +102,10 @@ pub enum Edit {
     /// Turn an ASS event into a `Comment:` or back into a `Dialogue:`. The descriptor is not one
     /// of the fields `AssField` can name, and this changes how many cues a player would draw, so it
     /// is its own edit. See edit-bar-tasks.md B8.
+    /// Under the same rule as [`Edit::SetField`]: every selected cue, one undo step, and a cue that
+    /// is not an ASS event is passed over.
     SetComment {
-        cue: usize,
+        cues: Vec<usize>,
         comment: bool,
     },
     /// `before == cues().count()` appends.
@@ -284,8 +290,8 @@ pub fn plan(document: &SubtitleDocument, edit: &Edit) -> Result<Planned, EditErr
             start_ms,
             end_ms,
         } => plan_set_times(document, *cue, *start_ms, *end_ms),
-        Edit::SetField { cue, field, value } => plan_set_field(document, *cue, *field, value),
-        Edit::SetComment { cue, comment } => plan_set_comment(document, *cue, *comment),
+        Edit::SetField { cues, field, value } => plan_set_field(document, cues, *field, value),
+        Edit::SetComment { cues, comment } => plan_set_comment(document, cues, *comment),
         Edit::ToggleStyle {
             cue,
             flag,
@@ -342,13 +348,22 @@ pub fn edit(document: &SubtitleDocument, edit: &Edit) -> Result<Edited, EditErro
     verify::verify(document, &after, &planned.expect)?;
     // `verify` reads cue counts, times and text and no other field, so a field write proves
     // itself against the re-parsed document. See docs/ass-field-write-tasks.md W6.
-    if let Edit::SetField { cue, field, value } = edit {
-        verify_field(document, &after, *cue, *field, value)?;
+    if let Edit::SetField { cues, field, value } = edit {
+        // Only the cues the plan actually wrote: one it passed over holds whatever it held, and
+        // asking this of it would fail on a line nobody touched.
+        for cue in cues
+            .iter()
+            .filter(|cue| writes_field(document, **cue, *field))
+        {
+            verify_field(document, &after, *cue, *field, value)?;
+        }
     }
     // The same reason: `verify` reads no descriptor, so the one thing this edit changes proves
     // itself against the re-parsed document.
-    if let Edit::SetComment { cue, comment } = edit {
-        verify_comment(&after, *cue, *comment)?;
+    if let Edit::SetComment { cues, comment } = edit {
+        for cue in cues.iter().filter(|cue| is_ass_event(document, **cue)) {
+            verify_comment(&after, *cue, *comment)?;
+        }
     }
 
     let cue_delta = delta(document.cues().count(), after.cues().count());
@@ -1055,36 +1070,16 @@ fn plan_set_texts(
         }
     }
 
-    let (Some(opening), Some(closing)) = (writes.first(), writes.last()) else {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            "a text edit naming no cues",
-        ));
-    };
-    let span = Span::new(opening.range.start, closing.range.end);
-
-    let body = document.source().body();
-    let mut inserted = String::new();
-    let mut cursor = span.start;
-    for write in &writes {
-        // Two writes over one range would drop bytes between them. Ascending indices make it
-        // unreachable through a cue's own text span; a format whose spans overlap would reach it.
-        let Some(between) = body.get(cursor..write.range.start) else {
-            return Err(EditError::new(
-                EditErrorKind::BadRange,
-                format!(
-                    "the write at {} does not follow the one ending at {cursor}",
-                    write.range.start
-                ),
-            ));
-        };
-        inserted.push_str(between);
-        inserted.push_str(&write.inserted);
-        cursor = write.range.end;
-    }
+    let splice = splice_over(
+        document,
+        writes
+            .iter()
+            .map(|write| (write.range, write.inserted.as_str())),
+        "a text edit naming no cues",
+    )?;
 
     Ok(Planned {
-        splice: Splice::new(span.start, document.slice(span).to_owned(), inserted),
+        splice,
         label: EditLabel {
             kind: EditKind::SetTexts,
             cue: *first,
@@ -1104,6 +1099,49 @@ fn plan_set_texts(
 struct CueWrite {
     range: Span,
     inserted: String,
+}
+
+/// One splice covering several writes: from the first write's start to the last write's end, with
+/// the bytes between them carried through untouched.
+///
+/// One splice and not several because a document is replaced whole and verified whole: two splices
+/// would each have to know what the other had already moved. `empty` is what to say when there is
+/// nothing to write, which each caller phrases for its own edit.
+fn splice_over<'a>(
+    document: &SubtitleDocument,
+    writes: impl IntoIterator<Item = (Span, &'a str)>,
+    empty: &str,
+) -> Result<Splice, EditError> {
+    let writes: Vec<(Span, &str)> = writes.into_iter().collect();
+    let (Some((opening, _)), Some((closing, _))) = (writes.first(), writes.last()) else {
+        return Err(EditError::new(EditErrorKind::NotApplicable, empty));
+    };
+    let span = Span::new(opening.start, closing.end);
+
+    let body = document.source().body();
+    let mut inserted = String::new();
+    let mut cursor = span.start;
+    for (range, written) in &writes {
+        // Two writes over one range would drop bytes between them. Ascending indices make it
+        // unreachable through a cue's own field span; a format whose spans overlap would reach it.
+        let Some(between) = body.get(cursor..range.start) else {
+            return Err(EditError::new(
+                EditErrorKind::BadRange,
+                format!(
+                    "the write at {} does not follow the one ending at {cursor}",
+                    range.start
+                ),
+            ));
+        };
+        inserted.push_str(between);
+        inserted.push_str(written);
+        cursor = range.end;
+    }
+    Ok(Splice::new(
+        span.start,
+        document.slice(span).to_owned(),
+        inserted,
+    ))
 }
 
 /// The writes one paste over makes in one cue, and what that cue must read back as.
@@ -2075,104 +2113,188 @@ fn plan_toggle_style(
     })
 }
 
-fn plan_set_comment(
-    document: &SubtitleDocument,
-    index: usize,
-    comment: bool,
-) -> Result<Planned, EditError> {
-    let located = locate(document, index)?;
-    let CueDetail::Ass(event) = &located.cue.detail else {
+/// The run of cues a multi-cue write spans, from the first named to the last, with every cue in
+/// between: the splice replaces the bytes they all sit in, so the ones that are not written still
+/// have to be named in the expectation. See docs/field-writes-selection-tasks.md.
+struct AscendingRun<'a> {
+    first: usize,
+    cues: Vec<(usize, Located<'a>)>,
+}
+
+impl AscendingRun<'_> {
+    /// What the re-parsed document must read back: the run's own cues, unchanged. A field or a
+    /// descriptor write moves neither text nor times, so every cue keeps what it had.
+    fn expectation(&self, document: &SubtitleDocument) -> Expectation {
+        let segments_from = self
+            .cues
+            .first()
+            .map_or(0, |(_, located)| located.segment_index);
+        let segments_run = self
+            .cues
+            .last()
+            .map_or(0, |(_, located)| located.segment_index)
+            .saturating_sub(segments_from)
+            .saturating_add(1);
+        Expectation {
+            from: self.first,
+            removed: self.cues.len(),
+            cues: self
+                .cues
+                .iter()
+                .map(|(_, located)| ExpectedCue {
+                    text_raw: document.slice(located.cue.text).to_owned(),
+                    start_ms: located.cue.start.millis(),
+                    end_ms: located.cue.end.millis(),
+                })
+                .collect(),
+            segments_from,
+            segments_removed: segments_run,
+            segments_inserted: segments_run,
+        }
+    }
+}
+
+/// Check the caller's list and locate the run it spans.
+///
+/// Strictly ascending and each cue named once, the same rule [`Edit::SetTexts`] holds: a repeated
+/// cue would put two writes over one range, and an unordered list would build the span out of
+/// order. Both are caller bugs, so neither is repaired here.
+fn ascending_run<'a>(
+    document: &'a SubtitleDocument,
+    cues: &[usize],
+    empty: &str,
+) -> Result<AscendingRun<'a>, EditError> {
+    let (Some(first), Some(last)) = (cues.first(), cues.last()) else {
+        return Err(EditError::new(EditErrorKind::NotApplicable, empty));
+    };
+    if cues.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(EditError::new(
             EditErrorKind::NotApplicable,
-            "the cue is not an ASS event, so it has no descriptor to rewrite",
+            "the cues must be given in file order, each one named once",
         ));
-    };
+    }
+    let run = locate_run(document, *first, *last)?;
+    if run.is_empty() {
+        return Err(EditError::new(EditErrorKind::NotApplicable, empty));
+    }
+    Ok(AscendingRun {
+        first: *first,
+        cues: run
+            .into_iter()
+            .enumerate()
+            .map(|(offset, located)| (first.saturating_add(offset), located))
+            .collect(),
+    })
+}
+
+fn plan_set_comment(
+    document: &SubtitleDocument,
+    cues: &[usize],
+    comment: bool,
+) -> Result<Planned, EditError> {
+    let run = ascending_run(document, cues, "a comment edit naming no cues")?;
     let written = if comment { "Comment" } else { "Dialogue" };
+
+    let mut writes = Vec::new();
+    for (index, located) in &run.cues {
+        if !cues.contains(index) {
+            continue;
+        }
+        // Passed over rather than refused: a selection may hold cues of a format that has no
+        // descriptor, and the rest of it is still a write the user asked for.
+        let CueDetail::Ass(event) = &located.cue.detail else {
+            continue;
+        };
+        writes.push((event.descriptor, written));
+    }
+    let splice = splice_over(
+        document,
+        writes.iter().copied(),
+        "no selected cue is an ASS event, so none has a descriptor to rewrite",
+    )?;
+
     Ok(Planned {
-        splice: Splice::new(
-            event.descriptor.start,
-            document.slice(event.descriptor).to_owned(),
-            written.to_owned(),
-        ),
+        splice,
         label: EditLabel {
             kind: EditKind::SetComment,
-            cue: index,
+            cue: run.first,
         },
-        expect: Expectation {
-            from: index,
-            removed: 1,
-            cues: vec![ExpectedCue {
-                text_raw: document.slice(located.cue.text).to_owned(),
-                start_ms: located.cue.start.millis(),
-                end_ms: located.cue.end.millis(),
-            }],
-            segments_from: located.segment_index,
-            segments_removed: 1,
-            segments_inserted: 1,
-        },
+        expect: run.expectation(document),
     })
 }
 
 fn plan_set_field(
     document: &SubtitleDocument,
-    index: usize,
+    cues: &[usize],
     field: AssField,
     value: &str,
 ) -> Result<Planned, EditError> {
-    let located = locate(document, index)?;
-    let CueDetail::Ass(event) = &located.cue.detail else {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            "the cue is not an ASS event, so it holds no declared field",
-        ));
-    };
-    // Refused, never added: declaring a field means rewriting the `Format:` line and every event
-    // under it, which touches the bytes of every cue the user did not edit (W5.1).
-    let Some(at) = event.field_index(field) else {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            format!(
-                "the section's Format line declares no {} before the text",
-                field.as_str()
-            ),
-        ));
-    };
-    let Some(span) = event.fields.get(at).copied() else {
-        return Err(EditError::new(
-            EditErrorKind::NotApplicable,
-            format!(
-                "field {at} is outside the event's {} fields",
-                event.fields.len()
-            ),
-        ));
-    };
     validate_field_value(field, value)?;
+    let run = ascending_run(document, cues, "a field edit naming no cues")?;
+    let written = written_value(value).to_owned();
 
-    let written = written_value(value);
-    let core = field_core(document, span);
+    let mut writes = Vec::new();
+    let mut any_ass = false;
+    for (index, located) in &run.cues {
+        if !cues.contains(index) {
+            continue;
+        }
+        let CueDetail::Ass(event) = &located.cue.detail else {
+            continue;
+        };
+        any_ass = true;
+        // Refused, never added: declaring a field means rewriting the `Format:` line and every
+        // event under it, which touches the bytes of every cue the user did not edit (W5.1). A cue
+        // whose section does not declare it is passed over, not written to.
+        let Some(at) = event.field_index(field) else {
+            continue;
+        };
+        let Some(span) = event.fields.get(at).copied() else {
+            continue;
+        };
+        writes.push((field_core(document, span), written.as_str()));
+    }
+
+    let splice = splice_over(
+        document,
+        writes.iter().copied(),
+        if any_ass {
+            "no selected cue's Format line declares that field before the text"
+        } else {
+            "no selected cue is an ASS event, so none holds a declared field"
+        },
+    )?;
+
     Ok(Planned {
-        splice: Splice::new(
-            core.start,
-            document.slice(core).to_owned(),
-            written.to_owned(),
-        ),
+        splice,
         label: EditLabel {
             kind: EditKind::SetField(field),
-            cue: index,
+            cue: run.first,
         },
-        expect: Expectation {
-            from: index,
-            removed: 1,
-            cues: vec![ExpectedCue {
-                text_raw: document.slice(located.cue.text).to_owned(),
-                start_ms: located.cue.start.millis(),
-                end_ms: located.cue.end.millis(),
-            }],
-            segments_from: located.segment_index,
-            segments_removed: 1,
-            segments_inserted: 1,
-        },
+        expect: run.expectation(document),
     })
+}
+
+/// Whether a field write would touch this cue: it is an ASS event and its section declares the
+/// field. The planner passes over the rest, so the verification has to skip exactly the same ones.
+fn writes_field(document: &SubtitleDocument, index: usize, field: AssField) -> bool {
+    match locate(document, index) {
+        Ok(located) => match &located.cue.detail {
+            CueDetail::Ass(event) => event
+                .field_index(field)
+                .is_some_and(|at| event.fields.get(at).is_some()),
+            _ => false,
+        },
+        Err(_) => false,
+    }
+}
+
+/// Whether this cue is an ASS event, which is what a comment write needs and nothing more.
+fn is_ass_event(document: &SubtitleDocument, index: usize) -> bool {
+    matches!(
+        locate(document, index).map(|located| matches!(located.cue.detail, CueDetail::Ass(_))),
+        Ok(true)
+    )
 }
 
 /// The three things `verify` does not look at: the edited event still carries the same number of

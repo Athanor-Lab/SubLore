@@ -15,7 +15,7 @@ use sublore_edit::history::Run;
 use sublore_edit::plan::{AssStyleField, Edit};
 use sublore_edit::session::EditSession;
 use sublore_formats::override_tags::StyleFlag;
-use sublore_formats::{AssField, SubtitleDocument, SubtitleFormat};
+use sublore_formats::{AssField, CueDetail, SubtitleDocument, SubtitleFormat};
 
 /// A typing pause, well inside `history::COALESCE_WINDOW`.
 const KEYSTROKE: Duration = Duration::from_millis(50);
@@ -1484,9 +1484,109 @@ fn a_many_cue_edit_never_merges_into_the_keystroke_before_it() {
 
 fn set_field(cue: usize, field: AssField, value: &str) -> Edit {
     Edit::SetField {
-        cue,
+        cues: vec![cue],
         field,
         value: value.to_owned(),
+    }
+}
+
+/// The style of one cue as the file spells it.
+fn style_of(session: &EditSession, cue: usize) -> String {
+    let document = session.document();
+    let found = document.cues().nth(cue).expect("the cue is there");
+    match &found.detail {
+        CueDetail::Ass(event) => {
+            let at = event
+                .field_index(AssField::Style)
+                .expect("the fixture declares Style");
+            document.slice(event.fields[at]).trim().to_owned()
+        }
+        _ => panic!("the fixture is ASS"),
+    }
+}
+
+#[test]
+fn one_field_write_reaches_every_named_cue_and_undoes_in_one_step() {
+    // N148: the owner's answer 46. Cues 0 and 2 are named and cue 1 is not, so the splice spans
+    // all three and the one in the middle has to come back byte for byte.
+    let mut session = session("ass/clean/speakers.ass");
+    let original = fixture_bytes("ass/clean/speakers.ass");
+    let untouched = style_of(&session, 1);
+
+    session
+        .apply(
+            &Edit::SetField {
+                cues: vec![0, 2],
+                field: AssField::Style,
+                value: "Sign".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect("both cues declare Style");
+
+    assert_eq!(
+        style_of(&session, 0),
+        "Sign",
+        "the first named cue is written"
+    );
+    assert_eq!(
+        style_of(&session, 2),
+        "Sign",
+        "the last named cue is written"
+    );
+    assert_eq!(
+        style_of(&session, 1),
+        untouched,
+        "the cue between them was not named and must not move"
+    );
+
+    session
+        .undo()
+        .expect("the step replays")
+        .expect("there is a step");
+    assert_eq!(
+        session.to_bytes(),
+        original,
+        "one gesture is one undo step however many cues it wrote"
+    );
+}
+
+#[test]
+fn a_field_write_naming_no_cue_is_refused() {
+    let mut session = session("ass/clean/speakers.ass");
+    let error = session
+        .apply(
+            &Edit::SetField {
+                cues: Vec::new(),
+                field: AssField::Style,
+                value: "Sign".to_owned(),
+            },
+            Run::New,
+            Instant::now(),
+        )
+        .expect_err("a write with no cue behind it has nothing to do");
+    assert_eq!(error.kind, EditErrorKind::NotApplicable);
+}
+
+#[test]
+fn a_field_write_out_of_order_is_refused_rather_than_sorted() {
+    // A caller bug, not something to repair here: an unordered list would build the span out of
+    // order and a repeated cue would put two writes over one range.
+    let mut session = session("ass/clean/speakers.ass");
+    for cues in [vec![2, 0], vec![1, 1]] {
+        let error = session
+            .apply(
+                &Edit::SetField {
+                    cues,
+                    field: AssField::Style,
+                    value: "Sign".to_owned(),
+                },
+                Run::New,
+                Instant::now(),
+            )
+            .expect_err("the cues must be ascending and each named once");
+        assert_eq!(error.kind, EditErrorKind::NotApplicable);
     }
 }
 
@@ -1963,7 +2063,10 @@ fn a_style_toggle_is_refused_outside_the_cue_and_writes_nothing() {
 }
 
 fn set_comment(cue: usize, comment: bool) -> Edit {
-    Edit::SetComment { cue, comment }
+    Edit::SetComment {
+        cues: vec![cue],
+        comment,
+    }
 }
 
 #[test]
