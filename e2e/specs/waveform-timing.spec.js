@@ -23,7 +23,7 @@ import { clickAt, dragAt, focusWindow } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
 import { repoRoot, requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { seekTo } from "../lib/transport.js";
+import { seekTo, stopFollowingTheCursor } from "../lib/transport.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -317,10 +317,13 @@ describe("dragging a cue boundary on the waveform", () => {
     });
 
     await turnAutoCommitOn(toplevel);
+    // Off before the cursor moves, so the seek below is the only thing that moves the picture: the
+    // follow is a second seek nobody asked for and on a loaded machine it lands after this one
+    // (N143). It is also what would draw the playhead over the start marker.
+    await stopFollowingTheCursor((css) => clickElement(toplevel, css));
     await cursorToSecondRow(toplevel);
-    // The cursor takes the picture to that line's start, so the playhead would be drawn over the
-    // start marker and the scan below would find the marker's colour a column or two late. Moved
-    // to the middle of the fixture, which is far from both of the second cue's boundaries.
+    // Moved to the middle of the fixture, which is far from both of the second cue's boundaries,
+    // so the playhead is not drawn over either marker while the scan below reads their colours.
     await seekTo(30);
     columns = await waitFor(
       async () => {
