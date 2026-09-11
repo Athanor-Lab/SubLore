@@ -1056,30 +1056,52 @@ impl Player {
         ))
     }
 
+    /// One line per gesture, never per frame: Play and Pause are things a translator does tens of
+    /// times in a session. Every road out of here writes it, including the two that used to return
+    /// before reaching it, so an absent line means the command never arrived and nothing else
+    /// (N108). Without it a transport that never changes cannot be told from a command that never
+    /// arrived or one mpv refused, which is what left N13 open with a timeout that named neither.
     fn set_pause(&self, paused: bool) -> Result<(), VideoError> {
+        let outcome = self.ask_pause(paused);
+        match &outcome {
+            Ok(()) => log::info!("{}", pause_line(paused, None)),
+            Err(error) => log::warn!("{}", pause_line(paused, Some(error))),
+        }
+        outcome
+    }
+
+    fn ask_pause(&self, paused: bool) -> Result<(), VideoError> {
         let mpv = self.handle()?;
         self.loaded_duration()?;
         // Recorded before the property is set, so the event thread never sees the change while the
         // flag still says the app wanted the other thing.
         self.shared.asked_paused.store(paused, Ordering::Relaxed);
-        let outcome = mpv
-            .set_property("pause", paused)
-            .map_err(|error| from_mpv(error, "pause"));
-        // One line per gesture, never per frame: Play and Pause are things a translator does tens
-        // of times in a session. Without it a transport that never changes cannot be told from a
-        // command that never arrived or one mpv refused, which is what left N13 open with a
-        // timeout that named neither (N96). The unrequested-pause line above stays as it is.
-        match &outcome {
-            Ok(()) => log::info!(
-                "playback: asked mpv to {}, and it took it",
-                if paused { "pause" } else { "play" }
-            ),
-            Err(error) => log::warn!(
-                "playback: asked mpv to {}, and it refused: {error}",
-                if paused { "pause" } else { "play" }
-            ),
+        mpv.set_property("pause", paused)
+            .map_err(|error| from_mpv(error, "pause"))
+    }
+}
+
+/// What one play or pause gesture says about itself. Pure so it can be tested: the half that cannot
+/// be reached from a gesture is which road `set_pause` took, and the half that can be checked is
+/// that each road says a different thing. See BACKLOG.md N108.
+fn pause_line(paused: bool, error: Option<&VideoError>) -> String {
+    let what = if paused { "pause" } else { "play" };
+    match error {
+        None => format!("playback: asked mpv to {what}, and it took it"),
+        // Before mpv was reached at all: no player, or no file open. mpv refused nothing here, and
+        // saying it did is what made an absent line ambiguous in the first place.
+        Some(error)
+            if matches!(
+                error.code,
+                VideoErrorCode::PlayerUnavailable | VideoErrorCode::NotLoaded
+            ) =>
+        {
+            format!(
+                "playback: asked mpv to {what}, and there was nothing to ask: {}",
+                error.detail
+            )
         }
-        outcome
+        Some(error) => format!("playback: asked mpv to {what}, and it refused: {error}"),
     }
 }
 
@@ -1567,5 +1589,74 @@ mod open_verdict_tests {
             open_verdict(read),
             OpenVerdict::Resolve(Err(error)) if error.code == VideoErrorCode::CommandFailed
         ));
+    }
+}
+
+#[cfg(test)]
+mod pause_line_tests {
+    use super::pause_line;
+    use crate::video::error::{VideoError, VideoErrorCode};
+
+    #[test]
+    fn a_gesture_that_reached_mpv_says_so() {
+        assert_eq!(
+            pause_line(false, None),
+            "playback: asked mpv to play, and it took it"
+        );
+        assert_eq!(
+            pause_line(true, None),
+            "playback: asked mpv to pause, and it took it"
+        );
+    }
+
+    #[test]
+    fn a_gesture_that_never_reached_mpv_says_that_instead_of_blaming_it() {
+        // The two roads that used to return before writing anything, which is what made an absent
+        // line mean three things (N108).
+        for code in [VideoErrorCode::PlayerUnavailable, VideoErrorCode::NotLoaded] {
+            let line = pause_line(false, Some(&VideoError::new(code, "no file is open")));
+            assert_eq!(
+                line,
+                "playback: asked mpv to play, and there was nothing to ask: no file is open"
+            );
+        }
+    }
+
+    #[test]
+    fn a_gesture_mpv_turned_down_is_the_only_one_that_says_refused() {
+        let line = pause_line(
+            true,
+            Some(&VideoError::new(VideoErrorCode::CommandFailed, "denied")),
+        );
+        assert!(
+            line.starts_with("playback: asked mpv to pause, and it refused:"),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn every_outcome_reads_differently_from_every_other() {
+        // The point of the whole change: three roads, three sentences. A reader of the log can tell
+        // which one was taken without opening the source.
+        //
+        // One detail for all three, so a difference here is a difference in the sentence rather
+        // than in what was passed in. It still cannot see two roads put on the same sentence, since
+        // `VideoError`'s own Display carries the code: measured by doing exactly that and watching
+        // this stay green while the check above went red. That check is the one that guards it.
+        const DETAIL: &str = "the same words either way";
+        let lines = [
+            pause_line(false, None),
+            pause_line(
+                false,
+                Some(&VideoError::new(VideoErrorCode::NotLoaded, DETAIL)),
+            ),
+            pause_line(
+                false,
+                Some(&VideoError::new(VideoErrorCode::CommandFailed, DETAIL)),
+            ),
+        ];
+        for (first, second) in [(0, 1), (0, 2), (1, 2)] {
+            assert_ne!(lines[first], lines[second]);
+        }
     }
 }
