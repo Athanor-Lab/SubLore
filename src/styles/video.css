@@ -27,15 +27,25 @@
 
 /* Wraps rather than clips: the panel is a third of the window wide and the transport has to fit
    inside it at 1024x700. */
+/* Two rows, stacked: the seek bar on its own and the band that reads it beneath. The panel's floor
+   is measured off this element with `max-content`, so a column makes the floor the wider of the two
+   rows rather than the sum of everything on one (N124). */
 .controls {
   display: flex;
   flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.35rem;
   padding: 0.4rem 0.5rem;
   border-top: 1px solid var(--line);
   background: var(--bg-panel);
+}
+
+.controls__seek,
+.controls__band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .controls__label {

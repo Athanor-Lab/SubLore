@@ -192,10 +192,6 @@ function present(selector) {
   return browser.execute((css) => document.querySelector(css) !== null, selector);
 }
 
-function textOf(selector) {
-  return browser.execute((css) => document.querySelector(css)?.textContent ?? null, selector);
-}
-
 /**
  * The seek bar as it is drawn, beside the width its own rule says it never goes under. The video
  * panel's floor is the transport with the bar at exactly that, so the two are equal there and the
@@ -224,21 +220,27 @@ async function seekBar() {
  * the two and both have to be read. Playback is what puts the other word up, and the video is left
  * paused, the way it was found.
  */
-async function slackInTheOtherReading(toplevel) {
-  const paused = await textOf(".controls__button");
-  const saysSomethingElse = async () => ((await textOf(".controls__button")) === paused ? null : 1);
-  await clickElement(toplevel, ".controls__button");
-  await waitFor(saysSomethingElse, {
-    timeout: 10000,
-    message: "the transport button to show its other word, which is what this reading needs",
+/**
+ * How much room is left in the row that sets the panel's floor, which is the wider of the strip's
+ * two. At the floor it is nothing: the panel is exactly as wide as that row asks for (N124).
+ */
+function slackInTheWiderRow() {
+  return browser.execute(() => {
+    const controls = document.querySelector(".controls");
+    if (controls === null) {
+      return Number.NaN;
+    }
+    const style = window.getComputedStyle(controls);
+    const inner =
+      controls.getBoundingClientRect().width -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight);
+    const widest = Array.from(controls.children).reduce(
+      (most, row) => Math.max(most, row.scrollWidth),
+      0,
+    );
+    return inner - widest;
   });
-  const bar = await seekBar();
-  await clickElement(toplevel, ".controls__button");
-  await waitFor(async () => ((await saysSomethingElse()) === null ? 1 : null), {
-    timeout: 10000,
-    message: "the transport button to go back to the word it showed before this check played it",
-  });
-  return bar.width - bar.minimum;
 }
 
 async function attachToApp() {
@@ -365,10 +367,10 @@ describe("the shell's three edges", () => {
 
   it("stops the video edge at a floor and a ceiling where both panels are still usable", async () => {
     // The ceiling first: the transport's height with room to spare is read off this run, and the
-    // floor below is asked to match it. Nothing here stands in for one row.
+    // floor below is asked to match it. Nothing here stands in for the strip's own shape.
     await dragSash(toplevel, VIDEO_SASH, 2000, 0);
     const atCeiling = await shellSizes();
-    const oneRow = (await boxOf(".controls")).height;
+    const atRest = (await boxOf(".controls")).height;
     expect(atCeiling.tools).toBeGreaterThanOrEqual(MIN_TOOLS_WIDTH - 1);
     // Still a current line, not a sliver.
     expect((await boxOf(".currentline")).height).toBeGreaterThanOrEqual(MIN_CURRENT_LINE);
@@ -376,19 +378,18 @@ describe("the shell's three edges", () => {
     await dragSash(toplevel, VIDEO_SASH, -2000, 0);
     const atFloor = await shellSizes();
     expect(atFloor.video).toBeLessThan(atCeiling.video);
-    // Still a transport, not a sliver: at the floor the row is the height it is when the panel has
-    // room, so it is on the one row and has not wrapped onto a second.
-    expect((await boxOf(".controls")).height).toBe(oneRow);
+    // Still a transport, not a sliver: at the floor the strip is the height it is when the panel
+    // has room, so it is on its two rows and has not wrapped onto a third.
+    expect((await boxOf(".controls")).height).toBe(atRest);
     // Still a seek bar, at the width its own rule holds it at, which is what the floor keeps room
     // for: a floor that had been the row without it would leave nothing to put a pointer on.
     const bar = await seekBar();
     expect(bar.width).toBeGreaterThanOrEqual(bar.minimum);
-    // And no wider than one row needs: in whichever of its two readings the transport is widest,
-    // the row at the floor is full. A floor a hand had made generous leaves the slack here. The
-    // media runs under ten minutes, so the position beside the duration reads the same width.
-    const slack = Number(
-      Math.min(bar.width - bar.minimum, await slackInTheOtherReading(toplevel)).toFixed(2),
-    );
+    // And no wider than the strip needs: the floor is the wider of the two rows, so that row is
+    // full at the floor and a floor a hand had made generous leaves the slack here. It is the band
+    // that sets it and not the seek row, which is why the bar is over its minimum rather than at
+    // it: the row that does not set the floor is the one with room to spare (N124).
+    const slack = Number((await slackInTheWiderRow()).toFixed(2));
     expect({ slack, full: slack < ROUNDING_PX }).toEqual({ slack, full: true });
 
     // Left well clear of the default, so the check that all three are remembered can see it.
