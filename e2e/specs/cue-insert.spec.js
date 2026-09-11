@@ -139,6 +139,25 @@ async function cursorTo(toplevel, position) {
   clickAt(toplevel.absX + centre.x, toplevel.absY + centre.y);
 }
 
+/** Whether the Video menu draws the follow as on, read by opening the menu and closing it again. */
+async function followsTheCursor(toplevel) {
+  await clickElement(toplevel, ".menubar__title--video");
+  await waitFor(() => present(".menubar__item--video-toggle-follow-selection"), {
+    timeout: 15000,
+    message: "the Video menu to open on the follow",
+  });
+  const checked = await browser.execute(
+    () =>
+      document.querySelector(".menubar__item--video-toggle-follow-selection")?.ariaChecked ?? null,
+  );
+  pressKey("Escape");
+  await waitFor(
+    async () => ((await present(".menubar__item--video-toggle-follow-selection")) ? null : 1),
+    { timeout: 15000, message: "the Video menu to close" },
+  );
+  return checked === "true";
+}
+
 /** Open the Subtitles menu and the list the four sit in. */
 async function openInsertList(toplevel, token) {
   await clickElement(toplevel, ".menubar__title--subtitle");
@@ -263,8 +282,21 @@ describe("the four ways of asking for a cue", () => {
       { timeout: 40000, message: "the video fixture to reach the ready state" },
     );
 
-    // The cursor lands first and the picture follows it to that line's start; only then is the
-    // picture moved. A seek sent while the follow is still on its way is the one that is lost.
+    // The follow is turned off before anything else, and that is the whole of N143: moving the
+    // cursor sends the picture to that line's start, and on the runner that follow arrived after
+    // the seek below and dragged the picture back to 2.133, row one's own start. Read off the
+    // runner's own log, where the playhead is at 6.000 twice and then at 2.133 before the insert.
+    // Waiting for the follow instead was tried and dropped: it fires here at a different moment
+    // than there, so no wait could be proved on this machine. A setting that is off cannot race.
+    await runFromMenu(
+      (css) => clickElement(toplevel, css),
+      "video",
+      "video-toggle-follow-selection",
+    );
+    // Read from the menu that carries it, and read as off: a command that ran and left the setting
+    // where it was would leave this check measuring the race it is meant to remove.
+    expect(await followsTheCursor(toplevel)).toBe(false);
+
     await cursorTo(toplevel, 1);
     await settledPlayhead();
     await seekTo(PLAYHEAD_SECONDS);
