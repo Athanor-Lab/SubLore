@@ -16,6 +16,7 @@ import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { runFromMenu } from "../lib/menu.js";
+import { stopFollowingTheCursor } from "../lib/transport.js";
 import { clickAt, focusWindow, pressKey, typeText } from "../lib/input.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
@@ -468,5 +469,48 @@ describe("stepping the picture and walking a line's edges", () => {
     expect(
       await browser.execute(() => document.querySelector(".currentline__text")?.value ?? null),
     ).toContain("Some words to move a caret through");
+  });
+
+  it("drops the part of a notch it had left when the next picture opens", async () => {
+    // The follow is off for the whole check: it would take the picture to the cursor's line as the
+    // second media opens, and this needs the playhead to be where the media starts (N143).
+    await stopFollowingTheCursor((css) => clickElement(toplevel, css));
+    const from = await playheadSettles();
+
+    // Half a notch is half a frame: nothing moves, and the half is kept for the gesture after it
+    // (N133). What is under test is what becomes of that half when the picture changes.
+    expect(await wheelOverSlider(0.5)).toBe(true);
+    expect(await playheadSettles()).toBe(from);
+
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-close");
+    await waitFor(
+      () => browser.execute(() => (document.querySelector(".stage__empty") === null ? null : 1)),
+      { timeout: 20000, message: "the picture to close" },
+    );
+    await runFromMenu((css) => clickElement(toplevel, css), "video", "video-open");
+    const again = await waitForChooser("Choose a video");
+    await answerChooser(again, requireVideoFixture(), "video");
+    focusWindow(toplevel.id);
+    await waitFor(
+      () =>
+        browser.execute(
+          () =>
+            document.querySelector(".stage__empty") === null &&
+            document.querySelector(".controls__button")?.disabled === false,
+        ),
+      { timeout: 30000, message: "the video fixture to reach the ready state a second time" },
+    );
+    const start = await playheadSettles(0);
+
+    // Half a notch and then three: with the half from the last picture dropped that is three
+    // frames, because the new half is still half. Carried over it would be four, the first half
+    // completing the old one before the three arrived.
+    expect(await wheelOverSlider(0.5)).toBe(true);
+    await wheelOverSlider(3);
+    await waitFor(async () => ((await playhead()) > start + FRAME * 2.5 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to step three frames under three notches and a half",
+    });
+    expect(await playheadSettles()).toBeLessThan(start + FRAME * 3.5);
   });
 });
