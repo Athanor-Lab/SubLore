@@ -77,17 +77,26 @@ let checksRun = 0;
  *
  * It is the rail's own heading, an `h2` nothing can focus and nothing listens to, and it is the last
  * thing before the rail's first focusable in `ProjectRail.tsx`. That is why it is this point and not
- * another: the tab counts below are one and two because the heading sits immediately above the
- * project node, so they hold by construction rather than by luck. Measured from a screenshot of this
- * check's own window at 1024x700: the heading's glyphs run y 76 to 83 and the project node's start
- * at y 99, so 80 is inside the heading with room either side. When this check reports that no
- * chooser opened, this is what to re-measure, from a screenshot of this check's own window.
+ * another: the tab counts below are one and two because the rail's own nodes are the first things
+ * inside it, so they hold by construction rather than by luck.
+ *
+ * **The point is the rail's own empty space, not its heading**, which is the whole of N135. It used
+ * to be the heading at y 80, and a heading sits as far down the window as the chrome above it is
+ * tall. The chrome's height is a machine's fonts: since N132 the toolbar wraps rather than widening
+ * the window, so on the CI runner it is a row taller than here, everything under it moved 30 px
+ * down, and a click at 80 landed above the rail and opened the wrong chooser.
+ *
+ * Read off the page rather than guessed: the rail's box runs y 69 to 405 at 1024x700 and `NAV.rail`
+ * is what answers `elementFromPoint` anywhere in it that no node covers. y 300 is inside that nav
+ * with a hundred pixels of margin either way, so a chrome a row taller still leaves it there, and
+ * clicking the nav puts the focus start where clicking the heading did: the next focusable in
+ * document order is the first node inside it.
  *
  * It used to be the transcription status line at y 134. T4 moved transcription into a panel the menu
  * opens, so that paragraph is no longer on screen and the point fell into the empty tools column,
  * which the DOM orders after the rail: every tab from there walked past the rail instead of into it.
  */
-const CHROME_TEXT = { x: 52, y: 80 };
+const CHROME_TEXT = { x: 52, y: 300 };
 
 /**
  * Tab stops from `CHROME_TEXT` into the rail, in ProjectRail.tsx's own DOM order: the project node

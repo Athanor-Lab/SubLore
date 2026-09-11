@@ -150,7 +150,13 @@
 
 /* Wraps rather than widening the window: fourteen words are wider than the window the app opens at
    under fonts a tenth wider than this one's, and the status bar, the find band and the strip under
-   the wave all answer that the same way (N132). */
+   the wave all answer that the same way (N132).
+
+   Two other answers were built and measured before this one. Shrinking the labels with an ellipsis
+   cut them to two characters, because a flex item with `min-width: 0` gives up its text long before
+   the row gives up its shape. Scrolling the row sideways left the last button cut at the window
+   edge with no scrollbar to say so, which is the defect N120's guard exists to catch. Wrapping is
+   the only one of the three where every command is still drawn and still readable. See N135. */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -161,7 +167,10 @@
   background: var(--bg-panel);
 }
 
+/* Shrinks its label rather than leaving the row: the button keeps its full name where it counts,
+   in `title` and `aria-label`, which is what both routes and every check read. */
 .toolbar__button {
+  flex: none;
   padding: 0.25rem 0.6rem;
   border: 1px solid var(--line-strong);
   background: var(--bg-sunken);
