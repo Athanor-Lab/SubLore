@@ -7,6 +7,9 @@
  * reads a source file to decide what the grid should show: every expectation below is either a fact
  * of a byte-frozen fixture or one grid compared against another.
  *
+ * One of the checks is about a cell's length rather than about a column: a line longer than the
+ * cell's limit is drawn cut with an ellipsis, and the document keeps every character of it.
+ *
  * Two of the checks are about the shell rather than about the grid. The floor one: the window's
  * smallest width is measured off `.cuelist__head` among other rows and re-measured when the
  * interface size changes, so a size picked while a document is already open is what makes the
@@ -23,7 +26,14 @@ import { browser, expect } from "@wdio/globals";
 
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clippedAtWindowEdge } from "../lib/clipping.js";
-import { askForWindowSize, clickAt, dragAt, focusWindow, waitForWindowSize } from "../lib/input.js";
+import {
+  askForWindowSize,
+  clickAt,
+  dragAt,
+  focusWindow,
+  pressKey,
+  waitForWindowSize,
+} from "../lib/input.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { intoList, runFromMenu } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
@@ -137,6 +147,22 @@ const MINIMAL_FILE = () => fixture("ass", "clean", "minimal-fields.ass");
 const NON_LATIN_FILE = () => fixture("ass", "clean", "non-latin.ass");
 const BASIC_FILE = () => fixture("ass", "clean", "basic.ass");
 const SRT_FILE = () => fixture("srt", "clean", "basic-lf.srt");
+/** Three cues of 600, 512 and 27 characters, for the cell's own length limit (N127). */
+const LONG_LINES_FILE = () => fixture("srt", "clean", "long-lines.srt");
+
+/** The longest a cell is laid out. Past it the rest of the line is an ellipsis. See T9 7.1. */
+const CELL_LIMIT = 512;
+
+/**
+ * The three texts that fixture holds, read out of the file rather than copied into this spec: a
+ * line past the limit, a line that stops exactly on it, and a short one.
+ */
+function longLines() {
+  return readFileSync(LONG_LINES_FILE(), "utf8")
+    .trim()
+    .split(/\n\n+/)
+    .map((block) => block.split("\n").slice(2).join("\n"));
+}
 
 /** Writes go to the harness temp dir, never into the repo and never beside a fixture. */
 function saveDirectory() {
@@ -609,6 +635,59 @@ describe("the grid's style and actor columns", () => {
     expect(rows.map(({ style, actor }) => ({ style, actor }))).toEqual(
       rows.map(() => ({ style: null, actor: null })),
     );
+  });
+
+  it("draws a line past the cell's limit cut at it, and holds every character of it", async () => {
+    const texts = longLines();
+    expect(texts.map((text) => text.length)).toEqual([600, CELL_LIMIT, 27]);
+
+    await openSubtitle(toplevel, LONG_LINES_FILE());
+    const rows = await waitFor(
+      async () => {
+        const drawn = await gridRows();
+        return drawn.length === texts.length ? drawn : null;
+      },
+      { timeout: 20000, message: "the three cues of the long-line fixture" },
+    );
+
+    // Both readings, because a cell that cut every line would pass the first one on its own.
+    expect(rows[0].text).toBe(`${texts[0].slice(0, CELL_LIMIT)}...`);
+    expect(rows[1].text).toBe(texts[1]);
+    expect(rows[2].text).toBe(texts[2]);
+
+    // The editor opened on the cut row carries the line whole: the cut belongs to the drawing.
+    await clickCell(toplevel, 1, ".cuelist__text");
+    const held = await waitFor(
+      () => browser.execute(() => document.querySelector(".cuelist__editor")?.value ?? null),
+      { timeout: 20000, message: "the editor to open on the row that was cut" },
+    );
+    expect(held).toBe(texts[0]);
+    pressKey("Escape");
+    await waitFor(async () => ((await present(".cuelist__editor")) === false ? true : null), {
+      timeout: 20000,
+      message: "the editor to close on Escape",
+    });
+    // Opened and closed on a line, and nothing was written: the document is the one that opened.
+    expect(await present(".statusbar__dirty")).toBe(false);
+
+    // And the stored text is untouched: saved, the file carries the line at its full length.
+    const destination = path.join(saveDir, "long-lines.srt");
+    await runFromMenu((css) => clickElement(toplevel, css), "file", "file-save-as");
+    const chooser = await waitForChooser("Save the subtitle as");
+    await answerChooser(chooser, destination, "save as");
+    focusWindow(toplevel.id);
+    await waitFor(
+      async () => (await textOf(".statusbar__message"))?.includes(destination) === true,
+      {
+        timeout: 20000,
+        message: `the status line to report the copy at ${destination}`,
+      },
+    );
+    expect(await textOf(".statusbar__error")).toBe(null);
+
+    const written = readFileSync(destination, "utf8");
+    expect(written.includes(texts[0])).toBe(true);
+    expect(written.includes("...")).toBe(false);
   });
 
   it("does not move the window's floor, at any of the three interface sizes", async () => {
