@@ -3264,6 +3264,7 @@ export default function App() {
                   paused={state.paused}
                   duration={state.duration ?? 0}
                   position={position}
+                  cue={activeCue}
                   onToggle={() => void togglePlayback()}
                   onSeek={(target) => void seek(target)}
                 />

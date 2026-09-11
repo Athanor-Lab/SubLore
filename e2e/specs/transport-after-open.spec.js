@@ -103,6 +103,17 @@ describe("the transport right after a video opens", () => {
     });
   });
 
+  it("says nothing about the distance from a line when no line is open", async () => {
+    // Blank and not a zero: a zero would read as an answer, and with no document there is no line
+    // to answer about. This is the one state where that can be seen, because a document that is
+    // open always has a row under the cursor (N123).
+    expect(
+      await browser.execute(
+        () => document.querySelector(".controls__offsets")?.textContent ?? null,
+      ),
+    ).toBe("");
+  });
+
   it("plays, and says so, when Play is pressed the moment the transport appears", async () => {
     expect(await transportLabel()).toBe("Play");
 

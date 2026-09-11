@@ -70,3 +70,17 @@
   font-variant-numeric: tabular-nums;
   font-size: 0.875rem;
 }
+
+/* How far the playhead is from the current line's two edges. A fixed width, the way the reference
+   sizes the same readout, and the first on the band to give it up: a box the layout can count on
+   rather than one that grows with the media, which would make the panel's floor a property of the
+   file it has open (N123). */
+.controls__offsets {
+  flex: 0 1 auto;
+  width: 6.875rem;
+  min-width: 0;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
