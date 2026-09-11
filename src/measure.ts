@@ -85,16 +85,28 @@ export function narrowest(box: HTMLElement, reading: RowReading = () => {}): num
 /**
  * The row's own width with everything on one line: its padding, its borders, its gaps, and each
  * child at the width that child asks for.
+ *
+ * A column asks for the widest of its children and not the sum of them, which is the same sentence
+ * read the other way round: a strip stacked into two rows is as wide as its wider row. Without this
+ * the transport's floor was the two rows added together, and the video panel could not open at the
+ * share it is meant to (N124).
  */
 function unwrappedWidth(row: HTMLElement): number {
   const style = window.getComputedStyle(row);
   const children = Array.from(row.children);
-  let total =
+  const frame =
     px(style.paddingLeft) +
     px(style.paddingRight) +
     px(style.borderLeftWidth) +
-    px(style.borderRightWidth) +
-    px(style.columnGap) * Math.max(0, children.length - 1);
+    px(style.borderRightWidth);
+  if (style.flexDirection === "column" || style.flexDirection === "column-reverse") {
+    let widest = 0;
+    for (const child of children) {
+      widest = Math.max(widest, unwrappedWidth(child as HTMLElement));
+    }
+    return frame + widest;
+  }
+  let total = frame + px(style.columnGap) * Math.max(0, children.length - 1);
   for (const child of children) {
     total += outerWidth(child);
   }

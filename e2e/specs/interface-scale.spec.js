@@ -322,7 +322,14 @@ function transportHolds(row) {
   };
 }
 
-const TRANSPORT_ON_ONE_ROW = { rows: 1, fits: true, bar: true };
+/**
+ * The strip on its own two rows and no more: the seek bar has a row to itself and the band that
+ * reads it sits beneath, which is how the reference stacks the same controls. It was one row until
+ * N124, and the count is part of the claim rather than a detail of it: a strip that had wrapped
+ * onto a third row would be a panel too narrow for what it holds, which is what the floor exists to
+ * prevent.
+ */
+const TRANSPORT_ON_ITS_ROWS = { rows: 2, fits: true, bar: true };
 
 /** Pick one of the View menu's five sizes, through the menu, the way a person reaches it. */
 async function pickSize(toplevel, percent) {
@@ -657,7 +664,7 @@ describe("the interface size", () => {
     expect(bigger.block).toBe(left.block);
   });
 
-  it("holds the video edge at its floor with the transport on one row, at 150 per cent, while the pointer is still travelling", async () => {
+  it("holds the video edge at its floor with the transport on its two rows, at 150 per cent, while the pointer is still travelling", async () => {
     await pickSize(toplevel, 150);
     // Room to travel first: at 150 the panel opens within a pixel of its own floor, so a drag from
     // there would prove the floor by not moving at all.
@@ -669,9 +676,9 @@ describe("the interface size", () => {
     const settled = await shellSizes();
     expect(settled.video).toBeLessThan(wide.video);
     // The claim the floor was measured for, counted off the controls rather than read off a height:
-    // the four sit on one band, the row asks for no more width than the panel gives it, and the seek
-    // bar is still the width its own rule holds it at. See N55.
-    expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ONE_ROW);
+    // the strip is on its two rows, neither asks for more width than the panel gives it, and the
+    // seek bar is still the width its own rule holds it at. See N55 and N124.
+    expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ITS_ROWS);
 
     // The same reading taken during the gesture. Everything above is equally true of a panel that
     // ignores the pointer and jumps once it is let go, which is the mutation that left every
@@ -703,7 +710,7 @@ describe("the interface size", () => {
       expect(held.video).toBeGreaterThanOrEqual(settled.video - SLOP_PX);
       // The reading that carries the claim, taken with the button still down. Nothing here is
       // compared against a number this run measured, so a panel with no floor cannot satisfy it.
-      expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ONE_ROW);
+      expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ITS_ROWS);
     } finally {
       // Never leave the button down: it lands on whatever the next check clicks.
       releaseButton();
@@ -808,6 +815,6 @@ describe("the interface size", () => {
     const opened = await shellSizes();
     expect(opened.video / opened.top).toBeGreaterThan(0.1 + SHARE_SLOP);
     // And raised to a width the transport is usable at, read with no pointer anywhere near it.
-    expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ONE_ROW);
+    expect(transportHolds(await transportRow())).toEqual(TRANSPORT_ON_ITS_ROWS);
   });
 });

@@ -68,31 +68,39 @@ export default function VideoControls({
     }
   }
 
+  // Two rows, the way the reference stacks the same controls: the seek bar takes a row of its own
+  // at full width, and what reads or drives it sits on the band beneath. The panel's floor is the
+  // wider of the two rows, so a control added to the band costs the panel far less width than it
+  // would on one row, which is what a fourth thing on one row had cost (N124).
   return (
     <div className="controls">
-      <button className="controls__button" type="button" disabled={!enabled} onClick={onToggle}>
-        {paused ? en.video.play : en.video.pause}
-      </button>
-      <label className="controls__label" htmlFor={sliderId}>
-        {en.video.position}
-      </label>
-      <input
-        id={sliderId}
-        className="controls__slider"
-        type="range"
-        min={0}
-        max={duration}
-        step={0.01}
-        value={Math.min(value, duration)}
-        disabled={!enabled}
-        onPointerDown={() => setDragged(position)}
-        onPointerUp={commit}
-        onPointerCancel={commit}
-        onChange={change}
-      />
-      <span className="controls__time">
-        {formatTime(value)} / {formatTime(duration)}
-      </span>
+      <div className="controls__seek">
+        <label className="controls__label" htmlFor={sliderId}>
+          {en.video.position}
+        </label>
+        <input
+          id={sliderId}
+          className="controls__slider"
+          type="range"
+          min={0}
+          max={duration}
+          step={0.01}
+          value={Math.min(value, duration)}
+          disabled={!enabled}
+          onPointerDown={() => setDragged(position)}
+          onPointerUp={commit}
+          onPointerCancel={commit}
+          onChange={change}
+        />
+      </div>
+      <div className="controls__band">
+        <button className="controls__button" type="button" disabled={!enabled} onClick={onToggle}>
+          {paused ? en.video.play : en.video.pause}
+        </button>
+        <span className="controls__time">
+          {formatTime(value)} / {formatTime(duration)}
+        </span>
+      </div>
     </div>
   );
 }
