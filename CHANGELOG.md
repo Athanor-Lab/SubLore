@@ -5,8 +5,10 @@ run on Linux, which is the platform Sublore releases on.
 
 ## Unreleased
 
-The first version has not been tagged. When it is, this section takes its number, and
-`.github/scripts/draft-release.sh` reads it for the notes on the release page.
+The first version has not been tagged. When it is, **this heading becomes the tag, spelled exactly
+as the tag is**, `## v1.0.0` and not `## 1.0.0`: `.github/scripts/draft-release.sh` matches the line
+against `## ` plus the tag it was given, and a heading that misses the `v` gives it nothing to read.
+It then refuses, after the whole matrix has already run.
 
 ### Added
 
