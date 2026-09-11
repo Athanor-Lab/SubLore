@@ -8,3 +8,6 @@ publish = false
 
 # Deliberately empty, as in sublore-formats. See BACKLOG.md M1.4.
 [dependencies]
+
+[lints]
+workspace = true

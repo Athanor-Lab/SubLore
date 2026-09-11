@@ -42,3 +42,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 sublore-module-api = { path = "../sublore-module-api" }
+
+[lints]
+workspace = true
