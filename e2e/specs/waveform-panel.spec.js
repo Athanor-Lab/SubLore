@@ -60,6 +60,9 @@ const STRIP = [
   "wave-toggle-autoscroll",
 ];
 
+/** The scale the waveform view opens at before it has measured anything, from `useWaveformView`. */
+const DEEPEST_MS_PER_PIXEL = 1;
+
 /** How many dividers the five groups above put between them. */
 const DIVIDERS = 4;
 
@@ -214,6 +217,35 @@ function currentLineTinted() {
  * many device pixels thick as the display is scaled by. Reading the rule itself would be reading a
  * line that is the full width at every zoom, which is the one row that can never change.
  */
+/** Milliseconds of media per device pixel, which the panel publishes for exactly this reason. */
+function scale() {
+  return browser.execute(() => {
+    const value = document.querySelector(".waveform")?.getAttribute("data-ms-per-px");
+    return value === null || value === undefined ? null : Number(value);
+  });
+}
+
+/**
+ * Wait until the view has stopped moving and is no longer at the scale it opens on.
+ *
+ * `useWaveformView` starts at the deepest scale, one millisecond a pixel, and settles on the
+ * whole-file fit once the media's length and the panel's width have arrived. Zooming *in* from the
+ * deepest scale does nothing, because there is nowhere deeper to go, so a check that zooms before
+ * the settle reads a ruler that did not move and calls the app wrong. Green here and red on the
+ * runner, which is where the gap is wide enough to lose. See BACKLOG.md N161.
+ */
+function settledScale() {
+  return waitFor(
+    async () => {
+      const first = await scale();
+      await browser.pause(250);
+      const second = await scale();
+      return first !== null && first === second && second > DEEPEST_MS_PER_PIXEL ? second : null;
+    },
+    { timeout: 30000, message: "the panel's scale to settle on the whole file" },
+  );
+}
+
 function rulerSignature() {
   return browser.execute(() => {
     const band = document.querySelector(".waveform__ruler");
@@ -348,6 +380,9 @@ describe("the waveform panel's ruler, strip and window", () => {
       timeout: 40000,
       message: "the waveform panel to appear",
     });
+    // Once for the whole file: three checks below zoom in, and zooming in from the scale the view
+    // opens at does nothing at all, so they would read a ruler that never moved.
+    await settledScale();
   });
 
   it("draws a ruler band over the wave, sized by its own type", async () => {
