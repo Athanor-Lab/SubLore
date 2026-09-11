@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window */
+/* global describe, it, before, document, window, WheelEvent */
 /**
  * The picture's own navigation keys: one frame either way, and the edges of the current line.
  *
@@ -118,6 +118,28 @@ async function playheadSettles(seconds) {
   throw new Error(`the playhead never settled at ${seconds ?? "anything"}; it last read ${last}`);
 }
 
+/**
+ * One wheel gesture over the seek slider, in notches, as a `WheelEvent` the way the waveform's own
+ * checks send theirs: a notch is 100 pixels of `deltaY` in pixel mode. Answers with whether the
+ * handler took the gesture, which a synthetic event does carry.
+ */
+function wheelOverSlider(notches) {
+  return browser.execute((delta) => {
+    const slider = document.querySelector(".controls__slider");
+    if (slider === null) {
+      return null;
+    }
+    const event = new WheelEvent("wheel", {
+      deltaY: delta,
+      deltaMode: 0,
+      bubbles: true,
+      cancelable: true,
+    });
+    slider.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, notches * 100);
+}
+
 /** Which row carries the cursor, by its 1-based position. */
 function activeRow() {
   return browser.execute(
@@ -204,6 +226,14 @@ describe("stepping the picture and walking a line's edges", () => {
       disabled: true,
       key: "Ctrl+Right",
     });
+
+    // And the wheel over the slider is the same command by another gesture, so with no picture it
+    // moves nothing either. The slider is greyed and its value is where an empty transport sits.
+    expect(
+      await browser.execute(() => document.querySelector(".controls__slider")?.disabled === true),
+    ).toBe(true);
+    await wheelOverSlider(3);
+    expect(await playhead()).toBe(0);
   });
 
   it("steps one frame forward and one back, on a picture that is standing still", async () => {
@@ -251,6 +281,41 @@ describe("stepping the picture and walking a line's edges", () => {
     await waitFor(async () => ((await playhead()) < from + FRAME / 2 ? 1 : null), {
       timeout: 20000,
       message: "the picture to step back again",
+    });
+  });
+
+  it("steps a frame for every notch of the wheel over the slider", async () => {
+    await clickRow(toplevel, 2);
+    const from = await playheadSettles(SECOND_START);
+
+    // Down is forward: it is the direction this window already moves under a wheel, where the
+    // waveform scrolls on and the grid walks down the file (interface-spec 6.1, N133).
+    expect(await wheelOverSlider(1)).toBe(true);
+    await waitFor(async () => ((await playhead()) > from + FRAME / 2 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to step forward one frame under the wheel",
+    });
+    expect(await playhead()).toBeLessThan(from + FRAME * 2);
+
+    await wheelOverSlider(-1);
+    await waitFor(async () => ((await playhead()) < from + FRAME / 2 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to step back again",
+    });
+    const back = await playheadSettles();
+
+    // Three notches are three frames and not one: the count is the gesture's, not a flag.
+    await wheelOverSlider(3);
+    await waitFor(async () => ((await playhead()) > back + FRAME * 2.5 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to step three frames under three notches",
+    });
+    expect(await playhead()).toBeLessThan(back + FRAME * 4);
+
+    await wheelOverSlider(-3);
+    await waitFor(async () => ((await playhead()) < back + FRAME / 2 ? 1 : null), {
+      timeout: 20000,
+      message: "the picture to come back to where it started",
     });
   });
 
