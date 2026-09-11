@@ -1,6 +1,6 @@
 /* global describe, it, before, document, window */
 import { Buffer } from "node:buffer";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -46,6 +46,37 @@ function saveDirectory() {
   rmSync(directory, { recursive: true, force: true });
   mkdirSync(directory, { recursive: true });
   return directory;
+}
+
+/**
+ * Every backup the app has kept for one file, by the name it gives them.
+ *
+ * `XDG_DATA_HOME/<identifier>/backups`, the identifier being the one in `tauri.conf.json`. Held to
+ * one file rather than counting the whole store: other checks in this file write too, and what is
+ * being read here is what the save that overwrote **this** file left behind.
+ */
+function backupsOf(file) {
+  const root = path.join(process.env.SUBLORE_E2E_DATA_HOME, "com.sublore.app", "backups");
+  if (!existsSync(root)) {
+    return [];
+  }
+  const named = new RegExp(
+    `^${path.basename(file).replace(/\./gu, "\\.")}\\.\\d{8}-\\d{6}(-\\d{1,2})?\\.bak$`,
+    "u",
+  );
+  const found = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (named.test(entry.name)) {
+        found.push(full);
+      }
+    }
+  };
+  walk(root);
+  return found;
 }
 
 /** Centre of an element in physical pixels, which is what X11 pointer coordinates are. */
@@ -264,6 +295,9 @@ describe("subtitle open and save", () => {
       timeout: 20000,
       message: `the status line to report the file written at ${to}`,
     });
+    // What the file holds before the save below overwrites it, read from the file rather than
+    // assumed to be the source's bytes: the backup has to hold these.
+    const overwritten = readFileSync(to);
 
     await clickRow(toplevel, DISCARD_POSITION);
     await waitFor(() => present(".cuelist__editor"), {
@@ -287,6 +321,14 @@ describe("subtitle open and save", () => {
     expect(readFileSync(to, "utf8")).toContain(DISCARD_TEXT);
     // And the file it came from is every byte it was, edit and all.
     expect(readFileSync(from).equals(opened)).toBe(true);
+
+    // The save above overwrote a file that was already there, which CONTRIBUTING.md section 3.3
+    // says is never done without keeping what was overwritten. Not "a backup exists": one holding
+    // the **old** bytes, because a backup of what was just written protects nothing (N74). The
+    // rule had one guard and it was the close gate's, which the battery never runs (N141).
+    const kept = backupsOf(to);
+    expect(kept.length).toBe(1);
+    expect(readFileSync(kept[0]).equals(overwritten)).toBe(true);
   });
 
   it("throws an unsaved edit away and writes nothing when the edit is discarded", async () => {
