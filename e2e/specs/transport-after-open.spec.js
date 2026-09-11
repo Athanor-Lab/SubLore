@@ -48,11 +48,32 @@ function transportLabel() {
   return browser.execute(() => document.querySelector(".controls__button")?.textContent ?? null);
 }
 
+/**
+ * When the page last called the backend to play or pause, in milliseconds on the page's own clock.
+ * `useVideoPlayer.ts` writes it the moment it asks; this and the app log's own line are the two
+ * ends N13 needs to tell "the page was slow to ask" from "the ask queued".
+ */
+function askedAt() {
+  return browser.execute(() => {
+    const value = document.documentElement.dataset.playAskedAt;
+    return value === undefined ? null : Number(value);
+  });
+}
+
+/** The page's clock at this instant, so the two readings below are on the same one. */
+function pageNow() {
+  return browser.execute(() => Date.now());
+}
+
+/** Set by the click, read by the failure: how long the page sat on the press. */
+let clickedAt = null;
+
 async function clickTransport(toplevel) {
   const button = await centreOf(".controls__button");
   if (button === null) {
     throw new Error(".controls__button is missing from the DOM, so there is nothing to press");
   }
+  clickedAt = await pageNow();
   clickAt(toplevel.absX + button.x, toplevel.absY + button.y);
 }
 
@@ -62,9 +83,16 @@ async function expectTransportToRead(wanted) {
     timeout: 5000,
     message: `the transport button to read ${JSON.stringify(wanted)}`,
   }).catch(async (error) => {
+    const asked = await askedAt();
+    // Three facts and not two. A gap of a few milliseconds says the page asked at once and the
+    // delay is past the IPC boundary; a long one says the press never reached the handler in time.
+    const gap =
+      asked === null || clickedAt === null
+        ? "never, the page did not ask"
+        : `${asked - clickedAt}ms`;
     throw new Error(
       `${error.message}\nit reads ${JSON.stringify(await transportLabel())} and the clock is at ` +
-        `${await position()}`,
+        `${await position()}, and the page asked ${gap} after the click`,
     );
   });
 }
@@ -146,5 +174,33 @@ describe("the transport right after a video opens", () => {
     );
     await browser.pause(1000);
     expect(await position()).toBe(stopped);
+  });
+
+  it("records when the page asked, on every press", async () => {
+    // The reading the two checks above use when they fail, asserted here on its own so it cannot
+    // quietly stop being written. See BACKLOG.md N13.
+    //
+    // It presses for itself rather than reading what the checks above left behind: borrowed state
+    // is how a check passes alone and fails in the battery, and this one did exactly that once.
+    await clickTransport(toplevel);
+    const first = await waitFor(
+      async () => {
+        const now = await askedAt();
+        return now !== null && now >= clickedAt ? now : null;
+      },
+      { timeout: 10000, message: "the press to record the instant the page asked" },
+    );
+
+    await clickTransport(toplevel);
+    const second = await waitFor(
+      async () => {
+        const now = await askedAt();
+        return now !== null && now > first ? now : null;
+      },
+      { timeout: 10000, message: "the next press to record its own instant" },
+    );
+    expect(second).toBeGreaterThanOrEqual(clickedAt);
+    // Put back down, since this file leaves the app to whatever runs next.
+    await expectTransportToRead("Play");
   });
 });
