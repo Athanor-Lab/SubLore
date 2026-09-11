@@ -57,6 +57,8 @@ const MIN_WAVEFORM_HEIGHT = 64;
 
 /** The size a launch with nothing stored opens at (S1). */
 const DEFAULT_PERCENT = 110;
+/** The reference's own five groups, counted off interface-spec 4.1 rather than off the strip. */
+const TOOLBAR_BUTTONS = 14;
 
 /** The three sizes S2 states its criterion at, all of them on the View menu. */
 const FLOOR_PERCENTS = [90, 110, 150];
@@ -566,6 +568,41 @@ describe("the interface size", () => {
 
       toplevel = await resizeTo(toplevel.id, narrow, windowHeight);
     }
+  });
+
+  /**
+   * The floor the shell declares has to fit inside the window the app opens, or the window opens
+   * wider than it was asked for and every reading taken at that width is a reading of another
+   * window. It is not a hypothetical: the strip's fourteen words asked for 1017 px of 1024 here,
+   * six pixels of margin, and under fonts a tenth wider the app opened 1067 px wide on CI and
+   * seven spec files went red at once. See BACKLOG.md N132.
+   */
+  it("asks for a window no wider than the one it opens, and keeps the whole strip inside it", async () => {
+    await pickSize(toplevel, DEFAULT_PERCENT);
+    const floor = await derivedFloor();
+    expect({ floor, opens: windowWidth, fits: floor <= windowWidth }).toEqual({
+      floor,
+      opens: windowWidth,
+      fits: true,
+    });
+
+    toplevel = await resizeTo(toplevel.id, windowWidth, windowHeight);
+    // How many rows the fourteen wrap onto is what the machine's fonts decide, so what is read is
+    // that they are all drawn, all inside the window, and that the page has not started scrolling.
+    const strip = await browser.execute(() => {
+      const buttons = Array.from(document.querySelectorAll(".toolbar__button"));
+      return {
+        buttons: buttons.length,
+        outside: buttons
+          .filter((button) => {
+            const box = button.getBoundingClientRect();
+            return box.right > window.innerWidth + 1 || box.left < -1;
+          })
+          .map((button) => button.className),
+        sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(strip).toEqual({ buttons: TOOLBAR_BUTTONS, outside: [], sideways: false });
   });
 
   /**

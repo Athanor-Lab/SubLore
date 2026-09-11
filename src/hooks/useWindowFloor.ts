@@ -7,17 +7,35 @@ import { widestRow } from "../measure";
  * The rows the shell cannot draw narrower than what is in them, so the window cannot be narrower
  * than the widest of them (S1).
  *
- * `.menubar` and `.toolbar` are one line of controls each, every one of them drawn whether or not
- * it can run and none of them shrinking or wrapping (CLAUDE.md, owner ruling 2026-09-03), and
+ * `.menubar` is one line of controls, every one of them drawn whether or not it can run and none
+ * of them shrinking or wrapping (CLAUDE.md, owner ruling 2026-09-03), and
  * `.cuelist__head` is the grid's column skeleton. Its timing and counter cells are `flex: 0 0`
  * widths and ask for those; Text and, on an ASS, Style and Actor take the row's slack and declare
  * no width, so `widestRow` counts them at zero and what an open document adds to this reading is
  * two column gaps. That is the mechanism behind the rule that opening a file may not resize the
  * user's window (grid-columns-tasks.md G3). The rows that are not here are the rows that wrap: the
  * status bar, the find band and the transcription panel all set `flex-wrap: wrap` and give up a
- * line rather than a pixel of width.
+ * line rather than a pixel of width. **`.toolbar` is one of them now**: its fourteen words asked
+ * for 1017 px of the 1024 the window opens at, which is six pixels of margin on this machine's
+ * fonts and none at all on a tenth wider ones, where the window opened 1067 px wide instead. It
+ * wraps, and nothing on it vanishes doing so. See BACKLOG.md N132.
  */
-const UNSHRINKABLE_ROWS = [".menubar", ".toolbar", ".cuelist__head"];
+const UNSHRINKABLE_ROWS = [".menubar", ".cuelist__head"];
+
+/**
+ * The window the shell is drawn for, and the interface size it is drawn at: `tauri.conf.json`'s
+ * window size and `layout.rs`'s `DEFAULT_INTERFACE_SCALE`, restated here because the floor is
+ * measured on this side of the boundary.
+ *
+ * It is the one number in this file that is a decision rather than a reading. CONTRIBUTING.md's S1
+ * says the whole interface works at 1024x700, so that width **is** the narrowest the window may be,
+ * and it is kept in proportion as the interface size grows: the same design, drawn larger, needs
+ * the same room in the same proportion. Before N132 this number arrived by accident, as the width
+ * of a toolbar of fourteen words, and it was six pixels under the window on this machine's fonts
+ * and 43 over it on the CI runner's.
+ */
+const DESIGN_WIDTH = 1024;
+const DESIGN_SCALE = 1.1;
 
 /** How many times a resize that left the page under the floor is answered before giving up. */
 const HOLD_ASKS = 5;
@@ -88,7 +106,8 @@ export function useWindowFloor(
   }, [scale, chrome]);
 
   // Up to the whole pixel: the readings are in fractions of one and a window size is not.
-  const width = rows === null || block === null ? null : Math.ceil(Math.max(rows, block));
+  const designed = (DESIGN_WIDTH * scale) / DESIGN_SCALE;
+  const width = rows === null || block === null ? null : Math.ceil(Math.max(rows, block, designed));
 
   useEffect(() => {
     if (width === null) {

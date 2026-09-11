@@ -148,8 +148,12 @@
   left: 100%;
 }
 
+/* Wraps rather than widening the window: fourteen words are wider than the window the app opens at
+   under fonts a tenth wider than this one's, and the status bar, the find band and the strip under
+   the wave all answer that the same way (N132). */
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.5rem;
