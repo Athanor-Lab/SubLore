@@ -591,7 +591,11 @@ export const en = {
     playToEnd: "To end",
     leadIn: "Lead in",
     leadOut: "Lead out",
+    /** Rows 16, 19 and 20 of the strip's table, which Sublore had as commands and not as buttons. */
+    commit: "Commit",
     centreOnCue: "Centre",
+    autoCommit: "Auto",
+    autoNext: "Next on commit",
     followCue: "Follow",
   },
 
