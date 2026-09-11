@@ -139,7 +139,22 @@ function whatDiffers(expected, line) {
     : off.join("; ");
 }
 
-async function waitForDrawn(expected, what, timeout = 30000) {
+/**
+ * How long the overlay is given to report itself.
+ *
+ * Thirty seconds was the number until the runner's own log was read on 2026-09-12. There the
+ * document opens, the count reads 0, nothing is said for twenty-nine seconds, and the line arrives
+ * at thirty-two: two seconds past the old limit, which is why N101 has been red on CI and green
+ * here. mpv reports intermediate counts through that window, so it is working rather than stuck,
+ * and this machine answers in about four seconds.
+ *
+ * So the old limit was not measuring the app, it was measuring the runner, and an assertion nobody
+ * asked for. Sixty is the measured worst case with room, and if the report never comes the message
+ * still names what it last saw.
+ */
+const DRAWN_TIMEOUT_MS = 60000;
+
+async function waitForDrawn(expected, what, timeout = DRAWN_TIMEOUT_MS) {
   const deadline = Date.now() + timeout;
   for (;;) {
     const line = lastDrawn();

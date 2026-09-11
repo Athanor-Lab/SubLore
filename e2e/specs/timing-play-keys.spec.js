@@ -114,6 +114,11 @@ async function cursorTo(toplevel, position) {
     timeout: 15000,
     message: `the cursor to land on row ${position}`,
   });
+  // Take the keyboard back before any press. There is no window manager under Xvfb, so when the
+  // chooser closes the focus it held is not handed anywhere, and the first key pressed afterwards
+  // can reach nothing at all: the app's log showed the E case with no `playback:` line whatever,
+  // while D and the numpad's 3 right after it worked. See BACKLOG.md N162.
+  focusWindow(toplevel.id);
 }
 
 /** Every range the app has finished playing, oldest first, as pairs of numbers. */
