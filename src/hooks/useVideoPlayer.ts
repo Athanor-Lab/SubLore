@@ -171,6 +171,11 @@ export function useVideoPlayer(covered: boolean): VideoPlayer {
   const setPaused = useCallback(async (paused: boolean) => {
     const mine = opening.current;
     setErrorCode(null);
+    // When the page asked, published where a check can read it back. The backend writes its own
+    // line when the command arrives, and between the two sit this handler, React, and the IPC; a
+    // delay in any of them reads the same from outside without this. Straight onto the element
+    // rather than through state, because a render is one of the things under suspicion. See N13.
+    document.documentElement.dataset.playAskedAt = String(Date.now());
     try {
       await invoke(paused ? "video_pause" : "video_play");
       if (mine === opening.current) {
