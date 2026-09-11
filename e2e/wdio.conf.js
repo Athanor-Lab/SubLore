@@ -35,7 +35,7 @@ import {
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 500;
+const EXPECTED_TESTS = 501;
 
 // Keeps a run out of the real data dir. Created once in the launcher; workers inherit the value.
 const inherited = process.env.SUBLORE_E2E_DATA_HOME;
