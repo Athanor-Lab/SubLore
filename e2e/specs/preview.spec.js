@@ -312,6 +312,7 @@ describe("the document on the video frame", () => {
   let longCopy = null;
   let shortCopy = null;
   let openedBytes = null;
+  let longOpenedBytes = null;
 
   before(async () => {
     requireVideoFixture();
@@ -323,6 +324,7 @@ describe("the document on the video frame", () => {
     copyFileSync(fixture("starts-at-zero.srt"), longCopy);
     copyFileSync(fixture("starts-at-zero-short.srt"), shortCopy);
     openedBytes = readFileSync(shortCopy);
+    longOpenedBytes = readFileSync(longCopy);
 
     toplevel = await waitFor(findToplevel, {
       timeout: 30000,
@@ -355,6 +357,60 @@ describe("the document on the video frame", () => {
       `the ${LONG_FIRST_CUE.length} characters of the first cue on the frame`,
     );
     expect(await textOf(".statusbar__preview-error")).toBe(null);
+
+    // And the document is where it was. The reference compares the script's declared resolution to
+    // the video's and can rewrite the resolution fields, or resample every override-tag coordinate
+    // in the whole file, and mark the document modified. Opening a video is not an edit, and this
+    // is the check that says so: nothing unsaved, the rows as they were, and the file on disk byte
+    // for byte (interface-spec 6.4, CLAUDE.md section 3, N126).
+    expect(await present(".statusbar__dirty")).toBe(false);
+    expect(await rowText(FIRST_ROW)).toBe(LONG_FIRST_CUE);
+    expect(readFileSync(longCopy).equals(longOpenedBytes)).toBe(true);
+  });
+
+  it("leaves an unsaved edit alone when a video is opened over it", async () => {
+    // The other half, and the one a silent rewrite would show up in loudest: a document with work
+    // in it. Opening the video again must not commit it, write it, or lose it.
+    await clickRow(toplevel, FIRST_ROW);
+    await waitFor(() => present(".cuelist__editor"), {
+      timeout: 15000,
+      message: "the inline editor to open",
+    });
+    pressKey("ctrl+a");
+    typeText(EDITED_FIRST_CUE);
+    pressKey("Return");
+    await waitFor(async () => (await rowText(FIRST_ROW)) === EDITED_FIRST_CUE, {
+      timeout: 20000,
+      message: `row ${FIRST_ROW} to hold the edit`,
+    });
+    expect(await present(".statusbar__dirty")).toBe(true);
+
+    await openVideo(toplevel, requireVideoFixture());
+    await waitFor(
+      () =>
+        browser.execute(
+          () =>
+            document.querySelector(".stage__empty") === null &&
+            document.querySelector(".controls__button")?.disabled === false,
+        ),
+      { timeout: 30000, message: "the video fixture to reach the ready state again" },
+    );
+
+    expect(await rowText(FIRST_ROW)).toBe(EDITED_FIRST_CUE);
+    expect(await present(".statusbar__dirty")).toBe(true);
+    expect(readFileSync(longCopy).equals(longOpenedBytes)).toBe(true);
+
+    // Put it back, so the checks after this one read the document they were written against.
+    await clickElement(toplevel, ".menubar__title--edit");
+    await waitFor(() => present(".menubar__item--edit-undo"), {
+      timeout: 15000,
+      message: "the Edit menu to open",
+    });
+    await clickElement(toplevel, ".menubar__item--edit-undo");
+    await waitFor(async () => (await rowText(FIRST_ROW)) === LONG_FIRST_CUE, {
+      timeout: 20000,
+      message: `row ${FIRST_ROW} to go back to the text it was opened with`,
+    });
   });
 
   it("puts a document opened while the video is already loaded onto the frame", async () => {
