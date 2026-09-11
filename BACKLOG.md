@@ -965,7 +965,6 @@ Two items jump the queue by owner decision. Full reasoning in `decisions.md`; th
   - Does not reproduce here: six runs of the spec on this machine, no occurrence. Same shape as N11 and N14, both of which needed contention before they would show, and both of which were then named in one run of it. That reproduction is the next step and it belongs to a night.
   - Instrumented meanwhile: mpv pausing itself now says so, with the position, in the app's own log — which CI has collected since #64. Until this, an unasked-for pause left no trace anywhere, which is why four CI runs could see it and say nothing about it.
   - AC unchanged: the cause is named before the reporting is removed. Deleting the line because the suite is green would be closing the entry by looking away.
-
   - **Recurred here on 2026-09-11, and for the first time the log answers the question this entry was opened for.** One battery of N148's five came back red on `transport-after-open.spec.js` with this entry's own signature, `timed out waiting for the transport button to read "Pause"`, and N96's work made the reading possible: the failure now names what it saw, `it reads "Play" and the clock is at 0`. The kept log is four lines of open and one line more:
     - `12:13:39 video: the picture is drawn 640 by 360`
     - `12:13:39 waveform: job 2 finished in 262 ms`
