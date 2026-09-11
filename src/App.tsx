@@ -485,6 +485,8 @@ export default function App() {
   const centreOnCue = useRef<() => void>(() => {});
   /** The waveform's own pan, filled by the panel, for the two scroll commands (A and F). */
   const scrollWave = useRef<(pixels: number) => void>(() => {});
+  /** The waveform's own zoom, filled by the panel, for the three zoom commands (N138). */
+  const zoomWave = useRef<(steps: number | "fit") => void>(() => {});
   /** The pair a hand is holding on the panel, so playing the selection plays where it is now. */
   const liveTimes = useRef<LiveTimes>(null);
   const {
@@ -2720,6 +2722,30 @@ export default function App() {
       enabled: audioPanelShown,
       run: () => scrollWave.current(WAVE_SCROLL_PX),
     },
+    // The zoom set, the wheel's own step whatever the keyboard is on. Keyboard-only like the pan
+    // pair above: the reference has no zoom command at all and its strip has no room for one, so
+    // these carry an accelerator and nothing else (N138).
+    {
+      id: "wave.zoom-in",
+      label: en.menu.view.zoomIn,
+      accelerator: en.menu.keys.waveZoomIn,
+      enabled: audioPanelShown,
+      run: () => zoomWave.current(1),
+    },
+    {
+      id: "wave.zoom-out",
+      label: en.menu.view.zoomOut,
+      accelerator: en.menu.keys.waveZoomOut,
+      enabled: audioPanelShown,
+      run: () => zoomWave.current(-1),
+    },
+    {
+      id: "wave.zoom-fit",
+      label: en.menu.view.zoomFit,
+      accelerator: en.menu.keys.waveZoomFit,
+      enabled: audioPanelShown,
+      run: () => zoomWave.current("fit"),
+    },
     {
       id: "wave.toggle-autocommit",
       label: en.menu.view.autoCommit,
@@ -3387,6 +3413,7 @@ export default function App() {
                     autoscroll={waveAutoscroll}
                     centreRef={centreOnCue}
                     scrollRef={scrollWave}
+                    zoomRef={zoomWave}
                     liveRef={liveTimes}
                     onDragTimes={(cue, startMs, endMs) => void dragTimes(cue, startMs, endMs)}
                     onSeek={(target) => void seek(target)}

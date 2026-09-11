@@ -88,6 +88,9 @@ type WaveformProps = {
   centreRef: RefObject<() => void>;
   /** Filled with the panel's own pan, in device pixels, for the two scroll commands (A and F). */
   scrollRef: RefObject<(pixels: number) => void>;
+  /** Filled with the panel's own zoom, a step count or the whole file, for the three zoom commands
+   *  (N138). Only the panel knows its own width, which is what a step is measured against. */
+  zoomRef: RefObject<(steps: number | "fit") => void>;
   /** Filled with the pair a hand is holding, so playing the selection plays where it is now. */
   liveRef: RefObject<LiveTimes>;
   /** The end of a drag: the pair the cue takes. Not called for a drag that is refused (M2.5 G4). */
@@ -165,6 +168,7 @@ export default function Waveform({
   autoscroll,
   centreRef,
   scrollRef,
+  zoomRef,
   liveRef,
   onDragTimes,
   onSeek,
@@ -204,10 +208,8 @@ export default function Waveform({
   // The whole media's length, not what has arrived: peaks filling in must not rescale what is
   // already drawn under the playhead.
   const spanMs = Math.max(1, durationMs > 0 ? durationMs : peaks.filled);
-  const { view, zoomBy, scrollBy, showRange, followTo, startFollowing } = useWaveformView(
-    spanMs,
-    widthPx,
-  );
+  const { view, zoomBy, zoomToFit, scrollBy, showRange, followTo, startFollowing } =
+    useWaveformView(spanMs, widthPx);
   const headMs = useSmoothPosition(positionMs, paused, durationMs);
 
   const pixelOf = useCallback((ms: number) => (ms - view.fromMs) / view.msPerPixel, [view]);
@@ -291,6 +293,13 @@ export default function Waveform({
     // The two scroll commands pan by device pixels whatever the zoom, which is scrollBy's unit.
     scrollRef.current = (pixels: number) => {
       scrollBy(pixels);
+    };
+    zoomRef.current = (steps: number | "fit") => {
+      if (steps === "fit") {
+        zoomToFit();
+      } else {
+        zoomBy(steps);
+      }
     };
   });
 
@@ -711,8 +720,9 @@ export default function Waveform({
       liveRef.current = null;
       centreRef.current = () => {};
       scrollRef.current = () => {};
+      zoomRef.current = () => {};
     };
-  }, [liveRef, centreRef, scrollRef]);
+  }, [liveRef, centreRef, scrollRef, zoomRef]);
 
   // Dragging the ruler pans the window one for one with the hand (`src/audio_display.cpp:380-400`).
   useEffect(() => {
@@ -841,12 +851,8 @@ export default function Waveform({
         }}
         onPointerLeave={() => setHoverPx(null)}
         onKeyDown={(event) => {
-          const zoom = event.key === "+" || event.key === "=" ? 1 : event.key === "-" ? -1 : 0;
-          if (zoom !== 0) {
-            event.preventDefault();
-            zoomBy(zoom);
-            return;
-          }
+          // Zoom is not here: it is `wave.zoom-in`, `wave.zoom-out` and `wave.zoom-fit` in the
+          // registry, so one press is one zoom wherever the keyboard is (N138).
           const along = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
           if (along !== 0) {
             event.preventDefault();
