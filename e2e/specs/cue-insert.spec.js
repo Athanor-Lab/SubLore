@@ -19,7 +19,7 @@ import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { intoList, runFromMenu } from "../lib/menu.js";
 import { repoRoot, requireVideoFixture, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
-import { seekTo, settledPlayhead } from "../lib/transport.js";
+import { seekTo, settledPlayhead, stopFollowingTheCursor } from "../lib/transport.js";
 import { findToplevel } from "../lib/x11.js";
 
 /** Three cues with a small gap after the first and a wide one after the second. */
@@ -137,25 +137,6 @@ async function cursorTo(toplevel, position) {
     throw new Error(`row ${position} is not rendered`);
   }
   clickAt(toplevel.absX + centre.x, toplevel.absY + centre.y);
-}
-
-/** Whether the Video menu draws the follow as on, read by opening the menu and closing it again. */
-async function followsTheCursor(toplevel) {
-  await clickElement(toplevel, ".menubar__title--video");
-  await waitFor(() => present(".menubar__item--video-toggle-follow-selection"), {
-    timeout: 15000,
-    message: "the Video menu to open on the follow",
-  });
-  const checked = await browser.execute(
-    () =>
-      document.querySelector(".menubar__item--video-toggle-follow-selection")?.ariaChecked ?? null,
-  );
-  pressKey("Escape");
-  await waitFor(
-    async () => ((await present(".menubar__item--video-toggle-follow-selection")) ? null : 1),
-    { timeout: 15000, message: "the Video menu to close" },
-  );
-  return checked === "true";
 }
 
 /** Open the Subtitles menu and the list the four sit in. */
@@ -288,14 +269,7 @@ describe("the four ways of asking for a cue", () => {
     // runner's own log, where the playhead is at 6.000 twice and then at 2.133 before the insert.
     // Waiting for the follow instead was tried and dropped: it fires here at a different moment
     // than there, so no wait could be proved on this machine. A setting that is off cannot race.
-    await runFromMenu(
-      (css) => clickElement(toplevel, css),
-      "video",
-      "video-toggle-follow-selection",
-    );
-    // Read from the menu that carries it, and read as off: a command that ran and left the setting
-    // where it was would leave this check measuring the race it is meant to remove.
-    expect(await followsTheCursor(toplevel)).toBe(false);
+    await stopFollowingTheCursor((css) => clickElement(toplevel, css));
 
     await cursorTo(toplevel, 1);
     await settledPlayhead();

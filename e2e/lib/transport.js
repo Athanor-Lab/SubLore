@@ -1,6 +1,10 @@
 /* global document, window, Event */
 import { browser } from "@wdio/globals";
 
+import { pressKey } from "./input.js";
+import { runFromMenu } from "./menu.js";
+import { waitFor } from "./proc.js";
+
 /**
  * The transport's slider: the only seek a spec can make without a hand on a mouse.
  *
@@ -97,4 +101,56 @@ export async function playheadAt(seconds, what = `the playhead to reach ${second
       );
     }
   }
+}
+
+/** The Video menu's own item for the follow, which is where both routes to it are read. */
+const FOLLOW_ITEM = ".menubar__item--video-toggle-follow-selection";
+
+/**
+ * Turn off the follow that takes the picture to the cursor's line, through the menu a person uses,
+ * and answer once the menu says it is off.
+ *
+ * For a check that seeks after moving the cursor. The follow is a second seek nobody asked for, and
+ * on a loaded machine it arrives **after** the one the check sent and takes the picture back to the
+ * line's own start: measured on the runner, where the log reads 6.000 s twice and then 2.133 s,
+ * which is row one's start. Waiting for it was tried first and could not be proved, because it
+ * fires at a different moment on the machine this suite is written on. A setting that is off cannot
+ * arrive late. See BACKLOG.md N143.
+ *
+ * @param {(css: string) => Promise<void>} click the caller's own clicker, as `runFromMenu` takes
+ */
+export async function stopFollowingTheCursor(click) {
+  if (!(await followsTheCursor(click))) {
+    return;
+  }
+  await runFromMenu(click, "video", "video-toggle-follow-selection");
+  const stillFollows = await followsTheCursor(click);
+  if (stillFollows) {
+    throw new Error(
+      "the follow is still on after the menu item ran, so the picture can still be taken to the " +
+        "cursor's line while this check is seeking somewhere else",
+    );
+  }
+}
+
+/** Whether the Video menu draws the follow as on, by opening the menu and closing it again. */
+export async function followsTheCursor(click) {
+  await click(".menubar__title--video");
+  await waitFor(() => browser.execute((css) => document.querySelector(css) !== null, FOLLOW_ITEM), {
+    timeout: 15000,
+    message: "the Video menu to open on the follow",
+  });
+  const checked = await browser.execute(
+    (css) => document.querySelector(css)?.ariaChecked ?? null,
+    FOLLOW_ITEM,
+  );
+  pressKey("Escape");
+  await waitFor(
+    async () =>
+      (await browser.execute((css) => document.querySelector(css) !== null, FOLLOW_ITEM))
+        ? null
+        : 1,
+    { timeout: 15000, message: "the Video menu to close" },
+  );
+  return checked === "true";
 }
