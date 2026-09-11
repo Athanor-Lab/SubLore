@@ -740,7 +740,16 @@ export default function App() {
   const minWaveformHeight = MIN_WAVEFORM_HEIGHT * scale;
   // The grid's three rows are a fixed 28px at every size, so only its header is scaled, and never
   // downwards: a floor short of a whole row clips it.
-  const minGridHeight = MIN_GRID_HEIGHT + MIN_GRID_HEAD * Math.max(0, scale - 1);
+  // Whole pixels, and one number: the CSS floor under the grid reads this same value through a
+  // custom property, so the edge's ceiling and the box's floor cannot disagree by a fraction of a
+  // pixel. They did, and the sash's declared ceiling and the block's measured height then rounded
+  // apart once in four battery runs. See BACKLOG.md N139.
+  const minGridHeight = Math.ceil(MIN_GRID_HEIGHT + MIN_GRID_HEAD * Math.max(0, scale - 1));
+  // Published for the one rule in shell.css that draws that floor, so the box and the edge read
+  // one number. Before the paint, like the interface size above it.
+  useLayoutEffect(() => {
+    document.documentElement.style.setProperty("--min-grid-height", `${minGridHeight}px`);
+  }, [minGridHeight]);
 
   // The video panel is stored as a share of the row, so it keeps its proportion when the window
   // changes width; the sash works in pixels, which is what the row measures. Never under the floor:
