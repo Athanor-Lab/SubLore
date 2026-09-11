@@ -23,10 +23,10 @@ import { findToplevel } from "../lib/x11.js";
 /** Three cues whose starts are far enough apart for a clock counting whole seconds to tell them. */
 const FIXTURE = ["srt", "clean", "basic-lf.srt"];
 /** Where the first two cues begin, as the clock spells them. */
-const FIRST_START = "0:02";
-const SECOND_START = "0:05";
+const FIRST_START = "00:00:02";
+const SECOND_START = "00:00:05";
 /** Where the second cue ends, which is where playing it must leave the picture. */
-const SECOND_END = "0:08";
+const SECOND_END = "00:00:08";
 
 function dataHome() {
   const home = process.env.SUBLORE_E2E_DATA_HOME;
@@ -82,10 +82,10 @@ function textOf(selector) {
   return browser.execute((css) => document.querySelector(css)?.textContent ?? null, selector);
 }
 
-/** What the clock under the picture reads, without the duration after it. */
+/** What the clock under the picture reads: a timecode, to the millisecond (N125). */
 async function clock() {
   const text = await textOf(".controls__time");
-  return text === null ? null : (text.split("/")[0]?.trim() ?? null);
+  return text === null ? null : text.trim();
 }
 
 /** Wait until the clock reads a given second, whatever it was before. */
@@ -236,15 +236,15 @@ describe("the video transport", () => {
         ),
       { timeout: 30000, message: "the video fixture to reach the ready state" },
     );
-    expect(await clock()).toBe("0:00");
+    expect(await clock()).toBe("00:00:00.000");
 
     await fromVideoMenu(toplevel, "video-play");
-    await clockReaches("0:01");
+    await clockReaches("00:00:01");
     await fromVideoMenu(toplevel, "video-stop");
     // Stopped is not rewound: the reference's Stop leaves the playhead where the picture had got
     // to, so once it has settled it stays there.
     const stopped = await clockSettles();
-    expect(stopped).not.toBe("0:00");
+    expect(stopped).not.toBe("00:00:00.000");
     await sleep(1500);
     expect(await clock()).toBe(stopped);
   });
@@ -258,9 +258,11 @@ describe("the video transport", () => {
     await clockReaches(SECOND_END);
     // It stopped there rather than running on into the next line's own seconds.
     const ended = await clockSettles();
-    expect(ended).toBe(SECOND_END);
+    // To the second, and not to the millisecond: the second is the fact this check is about, and
+    // the digits after it belong to the frame the picture stopped on (N125).
+    expect({ reads: ended.slice(0, SECOND_END.length) }).toEqual({ reads: SECOND_END });
     await sleep(1500);
-    expect(await clock()).toBe(SECOND_END);
+    expect({ reads: (await clock()).slice(0, SECOND_END.length) }).toEqual({ reads: SECOND_END });
   });
 
   it("takes the picture to the line the cursor reaches, until the follow is turned off", async () => {
@@ -286,7 +288,9 @@ describe("the video transport", () => {
       { timeout: 15000, message: "the cursor to reach the third row" },
     );
     await sleep(1000);
-    expect(await clock()).toBe(FIRST_START);
+    expect({ reads: (await clock()).slice(0, FIRST_START.length) }).toEqual({
+      reads: FIRST_START,
+    });
 
     // Back on, and the next move follows again: the setting is a setting, not a one-shot.
     await fromVideoMenu(toplevel, "video-toggle-follow-selection");

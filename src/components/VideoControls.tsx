@@ -1,14 +1,19 @@
 import { useId, useState, type ChangeEvent } from "react";
 
+import { timecode } from "./cueView";
 import { en } from "../i18n/en";
 import { type RowReading } from "../measure";
 
-/** m:ss. The separator is punctuation, not translatable copy. */
+/**
+ * The playhead as a timecode, in the shape the grid and the line's own fields use.
+ *
+ * Whole seconds were not enough for a tool that times subtitles: a clock reading 0:03 is anywhere
+ * in a second, and the row beside it says 00:00:09.100. The reference shows the timecode here too,
+ * with one hour digit rather than two; this keeps Sublore's own shape, because inside the product
+ * agreeing with the grid matters more than the digit count. See BACKLOG.md N125.
+ */
 function formatTime(seconds: number): string {
-  const safe = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
-  const minutes = Math.floor(safe / 60);
-  const rest = safe % 60;
-  return `${minutes}:${rest.toString().padStart(2, "0")}`;
+  return timecode(Math.round((Number.isFinite(seconds) ? seconds : 0) * 1000));
 }
 
 /**
@@ -17,7 +22,10 @@ function formatTime(seconds: number): string {
  * the time is at its widest with the duration on both sides, its digits being tabular.
  */
 export function transportReadings(duration: number): RowReading[] {
-  const time = `${formatTime(duration)} / ${formatTime(duration)}`;
+  // A timecode is a fixed twelve characters up to a hundred hours, so this no longer grows with the
+  // media: the panel's floor is a property of the interface and not of the file it has open (N125).
+  void duration;
+  const time = timecode(99 * 3_600_000 + 59 * 60_000 + 59_000 + 999);
   return [en.video.play, en.video.pause].map((label) => (row: HTMLElement) => {
     const button = row.querySelector(".controls__button");
     const span = row.querySelector(".controls__time");
@@ -115,9 +123,7 @@ export default function VideoControls({
         <button className="controls__button" type="button" disabled={!enabled} onClick={onToggle}>
           {paused ? en.video.play : en.video.pause}
         </button>
-        <span className="controls__time">
-          {formatTime(value)} / {formatTime(duration)}
-        </span>
+        <span className="controls__time">{formatTime(value)}</span>
         <span className="controls__offsets" aria-label={en.video.offsets}>
           {offsetsFrom(value, cue)}
         </span>

@@ -452,13 +452,13 @@ describe("the document on the video frame", () => {
     // jumps land on two readings a clock can tell apart.
     await clickRow(toplevel, FIRST_ROW);
     await fromVideoMenu("video-jump-cue-end");
-    await waitFor(async () => ((await clock())?.startsWith("0:09") === true ? 1 : null), {
+    await waitFor(async () => ((await clock())?.startsWith("00:00:09") === true ? 1 : null), {
       timeout: 15000,
       message: "the picture to jump to the line's end",
     });
 
     await fromVideoMenu("video-jump-cue-start");
-    await waitFor(async () => ((await clock())?.startsWith("0:00") === true ? 1 : null), {
+    await waitFor(async () => ((await clock())?.startsWith("00:00:00") === true ? 1 : null), {
       timeout: 15000,
       message: "the picture to jump back to the line's start",
     });
