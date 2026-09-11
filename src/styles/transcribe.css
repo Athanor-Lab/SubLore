@@ -5,10 +5,13 @@
 
 /* Below the grid and above the status bar: the grid is the region that gives up the space, so
    opening the panel leaves the video surface where it was. */
+/* Shrinkable, and it scrolls inside itself when it is: the grid keeps its floor and this gives up
+   the room, rather than the document disappearing behind a band (N134). */
 .asrpanel {
   display: flex;
   max-height: 45vh;
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0;
   flex-direction: column;
   border-top: 1px solid var(--line);
   background: var(--bg-panel);
