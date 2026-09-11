@@ -17,6 +17,7 @@ use sublore_edit::diff::{CuePatch, CueView};
 use sublore_edit::history::Run;
 use sublore_edit::plan::{self, AssStyleField, Edit, PastedFields};
 use sublore_edit::session::EditSession;
+use sublore_edit::splice::{EditKind, EditLabel};
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{
     parse, AssEventKind, AssField, CueDetail, Newline, ScriptInfo, Segment, SegmentKind,
@@ -179,6 +180,10 @@ pub struct SubtitleOpened {
     pub cues: Vec<CueRowDto>,
     pub can_undo: bool,
     pub can_redo: bool,
+    /// What the two commands would act on, so they can name the edit (N150). `None` at either end
+    /// of the stack, where the command is greyed and reads its bare verb.
+    pub undo_name: Option<EditNameDto>,
+    pub redo_name: Option<EditNameDto>,
     pub dirty: bool,
     pub truncated: bool,
 }
@@ -196,6 +201,9 @@ pub struct CuePatchDto {
     pub cue_count: usize,
     pub can_undo: bool,
     pub can_redo: bool,
+    /// The same pair as [`SubtitleOpened`]: a patch moves the stack, so it moves the labels.
+    pub undo_name: Option<EditNameDto>,
+    pub redo_name: Option<EditNameDto>,
     pub dirty: bool,
     pub truncated: bool,
     /// The styles as they stand. On every patch because a style write changes no cue, so nothing
@@ -477,6 +485,62 @@ pub async fn subtitle_set_texts(
     edited(&app, state.slot(), revision, Edit::SetTexts { edits }).await
 }
 
+/// What an undo or a redo would act on, so the two commands can name the edit instead of reading
+/// "Undo" and nothing (owner answer 15, N150).
+///
+/// No English crosses here, which is the rule `error.rs` states: this carries the kind and, for the
+/// two that a translator tells apart by it, the parameter's own name. `en.ts` turns the pair into
+/// words and reuses the field and flag labels the current line already draws.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct EditNameDto {
+    pub kind: &'static str,
+    /// `None` for every kind but the two that carry one. `SetStyleField` deliberately has none: a
+    /// reader undoing a style edit wants the edit named, not which of its twenty-two fields moved.
+    pub detail: Option<&'static str>,
+}
+
+impl EditNameDto {
+    /// Total on purpose: a new [`EditKind`] must break this build rather than fall into a wildcard
+    /// and reach the menu as a word nobody chose.
+    fn of(label: EditLabel) -> Self {
+        let (kind, detail) = match label.kind {
+            EditKind::SetText => ("setText", None),
+            EditKind::SetTexts => ("setTexts", None),
+            EditKind::SetTimes => ("setTimes", None),
+            EditKind::SetManyTimes => ("setManyTimes", None),
+            EditKind::SetField(field) => ("setField", Some(AssFieldDto::from(field).as_str())),
+            EditKind::PasteOverCues => ("pasteOverCues", None),
+            EditKind::SetComment => ("setComment", None),
+            EditKind::ToggleStyle(flag) => ("toggleStyle", Some(style_flag_name(flag))),
+            EditKind::SetOverrideTag => ("setOverrideTag", None),
+            EditKind::SetStyleField(_) => ("setStyleField", None),
+            EditKind::ClearText => ("clearText", None),
+            EditKind::Insert => ("insert", None),
+            EditKind::Paste => ("paste", None),
+            EditKind::Delete => ("delete", None),
+            EditKind::DeleteMany => ("deleteMany", None),
+            EditKind::Duplicate => ("duplicate", None),
+            EditKind::Join => ("join", None),
+            EditKind::Split => ("split", None),
+            EditKind::SplitInTwo => ("splitInTwo", None),
+            EditKind::Merge => ("merge", None),
+            EditKind::Reorder => ("reorder", None),
+        };
+        Self { kind, detail }
+    }
+}
+
+/// The four inline flags, spelled the way `StyleFlagDto` spells them on the way in.
+fn style_flag_name(flag: StyleFlag) -> &'static str {
+    match flag {
+        StyleFlag::Bold => "bold",
+        StyleFlag::Italic => "italic",
+        StyleFlag::Underline => "underline",
+        StyleFlag::Strikeout => "strikeout",
+    }
+}
+
 /// Which ASS event field a write names. A closed list on the wire too: the text field is not on
 /// it, and no payload can spell it. See docs/ass-field-write-tasks.md W2.
 ///
@@ -492,6 +556,22 @@ pub enum AssFieldDto {
     MarginL,
     MarginR,
     MarginV,
+}
+
+impl AssFieldDto {
+    /// The name this field goes by on the interface, which is the one `en.ts` files its label
+    /// under. Written out rather than derived from the serde rename, so the two cannot drift.
+    fn as_str(self) -> &'static str {
+        match self {
+            AssFieldDto::Style => "style",
+            AssFieldDto::Actor => "actor",
+            AssFieldDto::Effect => "effect",
+            AssFieldDto::Layer => "layer",
+            AssFieldDto::MarginL => "marginL",
+            AssFieldDto::MarginR => "marginR",
+            AssFieldDto::MarginV => "marginV",
+        }
+    }
 }
 
 impl From<AssField> for AssFieldDto {
@@ -2140,6 +2220,8 @@ fn opened_payload(session: &EditSession, summary: SubtitleSummary) -> SubtitleOp
         cues: rows(session.views()),
         can_undo: session.can_undo(),
         can_redo: session.can_redo(),
+        undo_name: session.undo_label().map(EditNameDto::of),
+        redo_name: session.redo_label().map(EditNameDto::of),
         dirty: session.dirty(),
         truncated: session.truncated(),
     }
@@ -2212,6 +2294,8 @@ pub(crate) fn describe(session: &EditSession, patch: CuePatch) -> CuePatchDto {
         cue_count: session.document().displayed_cue_count(),
         can_undo: session.can_undo(),
         can_redo: session.can_redo(),
+        undo_name: session.undo_label().map(EditNameDto::of),
+        redo_name: session.redo_label().map(EditNameDto::of),
         dirty: session.dirty(),
         truncated: session.truncated(),
         styles: ass_styles(session.document()),
@@ -2371,9 +2455,63 @@ fn newline_str(newline: Newline) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        decode_with_label, encode_for_export, new_document, rows, AssField, AssFieldDto,
-        SessionSlot, SubtitleErrorCode,
+        decode_with_label, encode_for_export, new_document, rows, AssField, AssFieldDto, EditKind,
+        EditLabel, EditNameDto, SessionSlot, SubtitleErrorCode,
     };
+
+    /// N150: the two kinds a translator tells apart by their parameter carry it on the wire, and
+    /// the rest carry their kind alone. The match itself is total by construction: it has no
+    /// wildcard, so a new `EditKind` breaks this build rather than reaching the menu unnamed.
+    #[test]
+    fn an_edit_name_carries_the_parameter_where_the_parameter_is_the_point() {
+        let named = |kind| EditNameDto::of(EditLabel { kind, cue: 0 });
+        assert_eq!(
+            named(EditKind::SetField(AssField::Style)),
+            EditNameDto {
+                kind: "setField",
+                detail: Some("style"),
+            }
+        );
+        assert_eq!(
+            named(EditKind::SetField(AssField::MarginV)),
+            EditNameDto {
+                kind: "setField",
+                detail: Some("marginV"),
+            }
+        );
+        assert_eq!(
+            named(EditKind::ToggleStyle(
+                sublore_formats::override_tags::StyleFlag::Italic
+            )),
+            EditNameDto {
+                kind: "toggleStyle",
+                detail: Some("italic"),
+            }
+        );
+    }
+
+    /// The style editor's twenty-two fields are deliberately not on the label: a reader undoing one
+    /// wants the edit named, not which column moved. See undo-names-the-edit-tasks.md.
+    #[test]
+    fn an_edit_name_leaves_out_the_detail_nobody_reads() {
+        let named = |kind| EditNameDto::of(EditLabel { kind, cue: 0 });
+        assert_eq!(
+            named(EditKind::SetStyleField(
+                crate::subtitle::AssStyleField::Fontsize
+            )),
+            EditNameDto {
+                kind: "setStyleField",
+                detail: None,
+            }
+        );
+        assert_eq!(
+            named(EditKind::SetText),
+            EditNameDto {
+                kind: "setText",
+                detail: None,
+            }
+        );
+    }
     use sublore_edit::diff::CueView;
 
     /// Pure ASCII is the same bytes in UTF-8 and in any single-byte code page, so an export that

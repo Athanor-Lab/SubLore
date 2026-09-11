@@ -36,6 +36,12 @@ export const en = {
       title: "Edit",
       undo: "Undo",
       redo: "Redo",
+      /**
+       * The two labels once there is something on the stack: they name the edit they would reverse
+       * (owner answer 15, N150). The bare verbs above are what a greyed command reads.
+       */
+      undoNamed: "Undo {edit}",
+      redoNamed: "Redo {edit}",
       /** The four inline style flags, written into the line's own text as override tags. */
       bold: "Bold",
       italic: "Italic",
@@ -650,6 +656,48 @@ export const en = {
     windowTitleDirty: "* ",
     /** The window name for a document that has never had a file: a transcription, or no file yet. */
     windowTitleUntitled: "Untitled",
+    /**
+     * What each kind of edit is called where Undo and Redo name it (N150). Its own block rather
+     * than a reach into another screen's labels: a dialog rewording its own copy must not silently
+     * reword the Edit menu. Keyed by the name the backend sends, which is total over `EditKind`.
+     */
+    edits: {
+      setText: "typing",
+      setTexts: "replace",
+      setTimes: "timing",
+      setManyTimes: "shift",
+      setField: "{field}",
+      pasteOverCues: "paste over",
+      setComment: "comment",
+      toggleStyle: "{flag}",
+      setOverrideTag: "tag",
+      setStyleField: "style change",
+      clearText: "clear",
+      insert: "insert line",
+      paste: "paste",
+      delete: "delete line",
+      deleteMany: "delete lines",
+      duplicate: "duplicate line",
+      join: "join lines",
+      split: "split line",
+      splitInTwo: "split at frame",
+      merge: "merge lines",
+      reorder: "reorder",
+    },
+    /** The parameter the two carrying kinds add, under the same rule as the block above. */
+    editDetails: {
+      style: "style",
+      actor: "actor",
+      effect: "effect",
+      layer: "layer",
+      marginL: "left margin",
+      marginR: "right margin",
+      marginV: "vertical margin",
+      bold: "bold",
+      italic: "italic",
+      underline: "underline",
+      strikeout: "strikeout",
+    },
     /** Shown once the undo bound has dropped its oldest entries. */
     truncated: "Undo history is full, so the oldest edits can no longer be undone.",
     noFile: "No subtitle file open.",

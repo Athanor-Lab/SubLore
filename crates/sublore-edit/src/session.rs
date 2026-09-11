@@ -13,6 +13,7 @@ use crate::diff::{self, CuePatch, CueView};
 use crate::error::EditError;
 use crate::history::{History, Run};
 use crate::plan::{self, Edit};
+use crate::splice::EditLabel;
 
 pub struct EditSession {
     /// Where a save writes, or none for a document that has never had a file: a transcription is
@@ -93,6 +94,16 @@ impl EditSession {
 
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
+    }
+
+    /// What the next undo would reverse, and what the next redo would replay, so the two commands
+    /// can name the edit rather than say "Undo" and nothing (owner answer 15, N150).
+    pub fn undo_label(&self) -> Option<EditLabel> {
+        self.history.undo_label()
+    }
+
+    pub fn redo_label(&self) -> Option<EditLabel> {
+        self.history.redo_label()
     }
 
     /// True once the undo bound dropped an entry: the file as opened is no longer reachable.

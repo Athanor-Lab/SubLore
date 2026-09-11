@@ -164,6 +164,19 @@ impl History {
         self.cursor < self.entries.len()
     }
 
+    /// What the next undo would reverse, or `None` at the bottom of the stack. The entry below the
+    /// cursor, which is the one [`Self::undo`] takes. See N150.
+    pub fn undo_label(&self) -> Option<EditLabel> {
+        self.entries
+            .get(self.cursor.checked_sub(1)?)
+            .map(|entry| entry.label)
+    }
+
+    /// What the next redo would replay, or `None` at the top. Mirrors [`Self::undo_label`].
+    pub fn redo_label(&self) -> Option<EditLabel> {
+        self.entries.get(self.cursor).map(|entry| entry.label)
+    }
+
     /// The current position is now on disk.
     pub fn mark_saved(&mut self) {
         self.saved = Some(self.cursor);

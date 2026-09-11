@@ -13,6 +13,7 @@ import {
   type StyleFlagName,
   type CuePatch,
   type CueRow,
+  type EditName,
   type SubtitleError,
   type SubtitleErrorCode,
   type SubtitleNewline,
@@ -43,6 +44,31 @@ export function subtitleErrorDetail(error: SubtitleError): string | null {
     line: error.line,
     reason: reasonMessages[error.reason],
   });
+}
+
+/** Typed so that an edit kind or a detail without a phrase is a compile error. */
+const editPhrases: Record<string, string> = en.subtitle.edits;
+const editDetails: Record<string, string> = en.subtitle.editDetails;
+
+/**
+ * What Undo or Redo reads, given what it would act on: the verb alone at the end of the stack, the
+ * verb and the edit's own name otherwise (owner answer 15, N150).
+ *
+ * A kind or a detail the backend sends and this does not know falls back to the bare verb rather
+ * than to a placeholder: a menu item that reads "Undo {edit}" is worse than one that reads "Undo".
+ */
+export function undoLabel(bare: string, template: string, name: EditName | null): string {
+  if (name === null) {
+    return bare;
+  }
+  const phrase = editPhrases[name.kind];
+  if (phrase === undefined) {
+    return bare;
+  }
+  const detail = name.detail === null ? undefined : editDetails[name.detail];
+  const edit = detail === undefined ? phrase : fill(phrase, { field: detail, flag: detail });
+  // A phrase that is nothing but its own placeholder had no detail to fill it with.
+  return edit.includes("{") ? bare : fill(template, { edit });
 }
 
 /** What the file is, in the order a translator reads it: format, size, shape. */
@@ -79,6 +105,9 @@ export type SubtitleFile = {
   summary: SubtitleSummary | null;
   cues: CueRow[];
   canUndo: boolean;
+  /** What Undo and Redo would act on, for the labels that name the edit (N150). */
+  undoName: EditName | null;
+  redoName: EditName | null;
   canRedo: boolean;
   dirty: boolean;
   truncated: boolean;
@@ -207,6 +236,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   const [summary, setSummary] = useState<SubtitleSummary | null>(null);
   const [cues, setCues] = useState<CueRow[]>([]);
   const [canUndo, setCanUndo] = useState(false);
+  const [undoName, setUndoName] = useState<EditName | null>(null);
+  const [redoName, setRedoName] = useState<EditName | null>(null);
   const [canRedo, setCanRedo] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [truncated, setTruncated] = useState(false);
@@ -252,6 +283,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
         current === null ? null : { ...current, cueCount: patch.cueCount, styles: patch.styles },
       );
       setCanUndo(patch.canUndo);
+      setUndoName(patch.undoName);
+      setRedoName(patch.redoName);
       setCanRedo(patch.canRedo);
       setDirty(patch.dirty);
       setTruncated(patch.truncated);
@@ -265,6 +298,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setSummary(opened.summary);
     setCues(opened.cues);
     setCanUndo(opened.canUndo);
+    setUndoName(opened.undoName);
+    setRedoName(opened.redoName);
     setCanRedo(opened.canRedo);
     setDirty(opened.dirty);
     setTruncated(opened.truncated);
@@ -735,6 +770,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     cues,
     openWithEncoding,
     canUndo,
+    undoName,
+    redoName,
     canRedo,
     dirty,
     truncated,

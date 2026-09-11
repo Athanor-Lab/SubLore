@@ -136,6 +136,17 @@ export type StyleFlagName = "bold" | "italic" | "underline" | "strikeout";
 export type AssFieldName =
   "style" | "actor" | "effect" | "layer" | "marginL" | "marginR" | "marginV";
 
+/**
+ * What an undo or a redo would act on, so the two commands can name the edit (N150).
+ *
+ * No English crosses the boundary: `kind` is the edit's own name and `detail` the parameter the two
+ * kinds that carry one add. `src/i18n/en.ts` turns the pair into words.
+ */
+export type EditName = {
+  kind: string;
+  detail: string | null;
+};
+
 export type SubtitleOpened = {
   summary: SubtitleSummary;
   revision: number;
@@ -143,6 +154,9 @@ export type SubtitleOpened = {
   cues: CueRow[];
   canUndo: boolean;
   canRedo: boolean;
+  /** Null at the end of the stack, where the command is greyed and reads its bare verb. */
+  undoName: EditName | null;
+  redoName: EditName | null;
   dirty: boolean;
   truncated: boolean;
 };
@@ -157,6 +171,9 @@ export type CuePatch = {
   cueCount: number;
   canUndo: boolean;
   canRedo: boolean;
+  /** Null at the end of the stack, where the command is greyed and reads its bare verb. */
+  undoName: EditName | null;
+  redoName: EditName | null;
   dirty: boolean;
   truncated: boolean;
   /** The styles as they stand: a style write changes no cue, so nothing else here would say it. */
