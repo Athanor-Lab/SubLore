@@ -14,7 +14,10 @@ Three separate things can be open at once, and none of them needs the others.
   encoding opens the same picker and then asks which character set the file is in, instead of
   guessing.
 - **A video**, with `Ctrl+Shift+O` or File > Open video. The sound comes from the same file, and the
-  waveform is drawn from it.
+  waveform is drawn from it. If the video carries its own subtitles as text, File > Open subtitles
+  from video takes them out of it with no file to find; the entry is greyed on a video that carries
+  none, and on one whose subtitles are pictures rather than text. What you get has no file of its
+  own yet, so the window says `* Untitled` until you save it.
 - **A source subtitle**, with File > Open source subtitle: the document you translate from. It is
   read and never written to. File > New translation from source starts a document with the same
   lines and none of the words yet.
@@ -32,7 +35,11 @@ audio files are only ever read.
   on. Click a row to move the cursor, and `Ctrl`-click or `Shift`-click to select more.
 - **The line box** under the grid holds the text of the line the cursor is on, with the styling
   controls and the margins around it. What you type reaches the document when you commit it or when
-  you move to another line. The colour button opens a picker with a square, a slider for the hue, a
+  you move to another line. Everything around the text writes to **every line you have selected**,
+  not only the one you are in: pick a style with forty lines selected and all forty take it, in one
+  step that `Ctrl+Z` takes back whole. The text itself and the two times stay on the line you are
+  in. A double-click in the text takes the format's own word, so clicking inside a `{...}` block
+  selects the whole block and not the few letters under the pointer. The colour button opens a picker with a square, a slider for the hue, a
   preview and the same colour written four ways, so you can pick it by eye or type it in whichever
   notation you have. The five spectrum modes decide which axis is which, and the one you used last
   is remembered. The dropper takes a colour from any pixel on the screen, and says so plainly if
@@ -69,7 +76,9 @@ These keys run outside a text field, where a bare letter is a command rather tha
 | `Ctrl+I`                  | Shifts times, over the selection or over the whole file                 |
 | `Alt+Up`, `Alt+Down`      | Moves the selected lines up or down                                     |
 
-Every one of these is a single undo step, and `Ctrl+Z` takes back the last one whatever it was.
+Every one of these is a single undo step, and `Ctrl+Z` takes back the last one whatever it was. The
+Edit menu names it before you press: it reads "Undo typing" or "Undo style" rather than just "Undo",
+so you can see what the next one takes back.
 
 ## Finding and replacing
 
