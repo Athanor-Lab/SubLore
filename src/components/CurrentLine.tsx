@@ -1169,7 +1169,7 @@ export default function CurrentLine({
           runCommand(commands, id);
         }}
       >
-        <span aria-hidden="true">A</span>
+        <span aria-hidden="true">{en.subtitle.currentLine.colourGlyph}</span>
       </button>
     );
   }
@@ -1344,7 +1344,7 @@ export default function CurrentLine({
               setFontAt({ left: box.left, top: box.bottom });
             }}
           >
-            <span aria-hidden="true">F</span>
+            <span aria-hidden="true">{en.subtitle.currentLine.fontGlyph}</span>
           </button>
         </span>
         <span className="currentline__group">

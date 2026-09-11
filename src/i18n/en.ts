@@ -7,6 +7,8 @@ export const en = {
    * they arrive with the milestone that writes them (decision 24 A4).
    */
   menu: {
+    /** The mark a row with a submenu carries at its right edge. Decoration, spoken by nothing. */
+    submenuArrow: "\u25b8",
     file: {
       title: "File",
       new: "New",
@@ -866,6 +868,12 @@ export const en = {
       marginL: "L",
       marginR: "R",
       marginV: "V",
+      /**
+       * The letter a colour button and the font button draw. The reference draws a glyph and no
+       * word, and the spoken name is the `aria-label` beside it. See BACKLOG.md N156.
+       */
+      colourGlyph: "A",
+      fontGlyph: "F",
       marginLName: "Left margin",
       marginRName: "Right margin",
       marginVName: "Vertical margin",
