@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { en } from "../i18n/en";
 import { fill } from "../i18n/format";
@@ -145,6 +145,22 @@ export default function FindBar({
       onReplace();
     }
   }
+
+  // The list is drawn at coordinates taken when it opened, so anything that moves the field under
+  // it closes it rather than leaving it floating where the field used to be. The line's own combos
+  // answer the same two events.
+  useEffect(() => {
+    if (listAt === null) {
+      return;
+    }
+    const close = () => setListAt(null);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [listAt]);
 
   // Opened on purpose, so it takes the keyboard: a band the user has to click into first would be
   // slower than the menu it replaces. Refocused on a mode change, which is the same intent again.
