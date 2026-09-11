@@ -71,6 +71,24 @@ function rowCount() {
   return browser.execute(() => document.querySelectorAll(".cuelist__row").length);
 }
 
+/** The text of the cue at a 1-based list position. */
+function rowText(position) {
+  return browser.execute((wanted) => {
+    const row = Array.from(document.querySelectorAll(".cuelist__row")).find(
+      (candidate) => candidate.querySelector(".cuelist__pos")?.textContent === wanted,
+    );
+    return row?.querySelector(".cuelist__text")?.textContent ?? null;
+  }, String(position));
+}
+
+/** Open a subtitle through the toolbar, answering the chooser with `file`. */
+async function openSubtitle(toplevel, file) {
+  await clickElement(toplevel, ".toolbar__file-open-subtitle");
+  const chooser = await waitForChooser("Choose a subtitle");
+  await answerChooser(chooser, file, "subtitle");
+  focusWindow(toplevel.id);
+}
+
 /** Open one of the bar's menus and choose an item by command token. */
 async function fromMenu(toplevel, title, token) {
   await clickElement(toplevel, `.menubar__title--${title}`);
@@ -198,5 +216,44 @@ describe("a document with nothing in it", () => {
     expect(await textOf(".statusbar__document")).toContain("0 cues");
     // And the file on disk still holds what was saved into it, edit and all not written.
     expect(readFileSync(written, "utf8")).toContain(`,,${FIRST_LINE}`);
+  });
+
+  it("discards for the open that was refused last, not for the New refused before it", async () => {
+    // Two refusals in a row, and Discard acts on one of them. The one it owes an answer to is the
+    // last thing the user asked for, which here is the open. See BACKLOG.md N147.
+    await openSubtitle(toplevel, written);
+    await waitFor(async () => ((await rowCount()) === 1 ? 1 : null), {
+      timeout: 20000,
+      message: "the saved file to open with its one line",
+    });
+
+    await clickElement(toplevel, ".currentline__text");
+    typeText(" and an edit that stands in the way");
+    pressKey("Tab");
+    await waitFor(() => present(".statusbar__dirty"), {
+      timeout: 15000,
+      message: "the document to be marked unsaved",
+    });
+
+    // New first, refused.
+    pressKey("ctrl+n");
+    await waitFor(
+      async () => ((await textOf(".statusbar__error"))?.includes("not saved") === true ? 1 : null),
+      { timeout: 20000, message: "New to be refused over the unsaved edit" },
+    );
+    // Then the open, refused too, and it is the one Discard owes an answer to.
+    await openSubtitle(toplevel, written);
+    await waitFor(
+      async () => ((await textOf(".statusbar__error"))?.includes("not saved") === true ? 1 : null),
+      { timeout: 20000, message: "the open to be refused over the same edit" },
+    );
+
+    await fromMenu(toplevel, "file", "file-discard");
+    // The file's own line, not the empty document New would have made.
+    await waitFor(async () => ((await rowText(1))?.includes(FIRST_LINE) === true ? 1 : null), {
+      timeout: 20000,
+      message: "the file the user asked for to open once the edit was discarded",
+    });
+    expect(await rowCount()).toBe(1);
   });
 });

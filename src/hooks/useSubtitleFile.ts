@@ -265,7 +265,11 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     setCanRedo(opened.canRedo);
     setDirty(opened.dirty);
     setTruncated(opened.truncated);
+    // A document arrived, so there is nothing standing refused any more: all three go, not the
+    // path alone. One left behind keeps Discard alive over a document it would then blank (N147).
     setBlockedPath(null);
+    setBlockedNew(false);
+    setBlockedFromVideo(false);
     setOpenId((current) => current + 1);
   }, []);
 
@@ -276,12 +280,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
       try {
         applyOpened(await request());
         setAdoptedRunId(null);
-        setBlockedFromVideo(false);
       } catch (failure) {
         const rejected = toSubtitleError(failure);
         // Whichever open was refused last is the one Discard acts on, so the others are cleared
-        // here: two flags left standing would send Discard down the wrong branch (N116).
+        // here: two flags left standing send Discard down the wrong branch (N147).
         setBlockedFromVideo(false);
+        setBlockedNew(false);
         // Unsaved work is the one refusal that leaves the current file open: keep it on screen and
         // let the user choose. Anything else means the file on screen did not open.
         if (rejected.code === "unsavedChanges") {
@@ -335,9 +339,6 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     try {
       applyOpened(await invoke<SubtitleOpened>("subtitle_open_from_video"));
       setAdoptedRunId(null);
-      setBlockedFromVideo(false);
-      setBlockedNew(false);
-      setBlockedPath(null);
     } catch (failure) {
       const rejected = toSubtitleError(failure);
       // Unsaved work leaves what is on screen alone and waits, the shape every other open takes.
@@ -361,12 +362,10 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
       try {
         applyOpened(await invoke<SubtitleOpened>("subtitle_new", { discard }));
         setAdoptedRunId(null);
-        setBlockedNew(false);
-        setBlockedPath(null);
-        setBlockedFromVideo(false);
       } catch (failure) {
         const rejected = toSubtitleError(failure);
         setBlockedFromVideo(false);
+        setBlockedPath(null);
         // The same shape an open takes: unsaved work leaves what is on screen alone and waits for
         // the user to say it may go.
         setBlockedNew(rejected.code === "unsavedChanges");
