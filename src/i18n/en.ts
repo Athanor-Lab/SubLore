@@ -141,6 +141,10 @@ export const en = {
       /** The keyboard-only pan pair, named for the accelerator table even with no menu row. */
       scrollLeft: "Scroll the waveform left",
       scrollRight: "Scroll the waveform right",
+      /** The keyboard-only zoom set, the same way (N138). */
+      zoomIn: "Zoom the waveform in",
+      zoomOut: "Zoom the waveform out",
+      zoomFit: "Fit the whole file in the waveform",
       followCue: "Follow the current line",
       /** The two toggles that decide what a commit does, beside their sibling above (5). */
       autoCommit: "Commit as the markers move",
@@ -207,6 +211,13 @@ export const en = {
     },
     /** Drawn beside a menu item. Each key is handled by whichever component owns that command. */
     keys: {
+      /**
+       * The waveform's zoom, two forms each: a US keyboard needs Shift for `+` and a German one
+       * does not, so the command declares both and answers to whichever the layout sends (N138).
+       */
+      waveZoomIn: ["Plus", "Shift+Plus", "Equals"],
+      waveZoomOut: ["Minus", "Shift+Minus"],
+      waveZoomFit: "0",
       new: "Ctrl+N",
       cut: "Ctrl+X",
       copy: "Ctrl+C",

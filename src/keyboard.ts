@@ -127,6 +127,18 @@ const NAMED_KEYS: Record<string, string> = {
   delete: "Delete",
 };
 
+/**
+ * The punctuation an accelerator spells by name, and the `key` each one arrives as. `key` and not
+ * `code` for the reason a letter uses `key`: the glyph is what the command means, and the layout
+ * decides which physical key carries it. A US keyboard needs Shift for `+` and a German one does
+ * not, so a command on these declares both forms. See BACKLOG.md N138.
+ */
+const GLYPH_KEYS: Record<string, string> = {
+  plus: "+",
+  minus: "-",
+  equals: "=",
+};
+
 /** The arrow tokens an accelerator spells, and the `code` each one arrives as, for the same reason
  *  as the named keys above: with NumLock off the numpad's 4 reports a `key` of `ArrowLeft`. */
 const ARROWS: Record<string, string> = {
@@ -177,6 +189,10 @@ function parseAccelerator(text: string | undefined): Chord | null {
   const named = NAMED_KEYS[token.toLowerCase()];
   if (named !== undefined) {
     return { ctrl, shift, alt, on: "code", value: named };
+  }
+  const glyph = GLYPH_KEYS[token.toLowerCase()];
+  if (glyph !== undefined) {
+    return { ctrl, shift, alt, on: "key", value: glyph };
   }
   if (/^[0-9]$/.test(token)) {
     return { ctrl, shift, alt, on: "code", value: `Digit${token}` };

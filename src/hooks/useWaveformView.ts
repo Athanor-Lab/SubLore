@@ -47,6 +47,7 @@ export function useWaveformView(
 ): {
   view: WaveformView;
   zoomBy: (steps: number, atMs?: number) => void;
+  zoomToFit: () => void;
   scrollBy: (pixels: number) => void;
   showRange: (fromRangeMs: number, toRangeMs: number) => void;
   followTo: (atMs: number) => void;
@@ -57,6 +58,12 @@ export function useWaveformView(
   const following = useRef(true);
 
   useEffect(() => {
+    setView({ fromMs: 0, msPerPixel: fitting(spanMs, widthPx) });
+  }, [spanMs, widthPx]);
+
+  // The shallowest zoom there is, which is where the view opens: `wave.zoom-fit` (N138).
+  const zoomToFit = useCallback(() => {
+    following.current = false;
     setView({ fromMs: 0, msPerPixel: fitting(spanMs, widthPx) });
   }, [spanMs, widthPx]);
 
@@ -175,5 +182,5 @@ export function useWaveformView(
     following.current = true;
   }, []);
 
-  return { view, zoomBy, scrollBy, showRange, followTo, startFollowing };
+  return { view, zoomBy, zoomToFit, scrollBy, showRange, followTo, startFollowing };
 }
