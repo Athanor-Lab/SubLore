@@ -187,6 +187,29 @@ export function clickAt(x, y) {
 }
 
 /**
+ * A click with a modifier held down, which is how a grid builds a selection: ctrl toggles a row,
+ * shift takes the run up to it (interface-spec 7.3).
+ *
+ * The key is pressed and released around the click rather than passed to `xdotool click
+ * --modifiers`, which has no such flag: the modifier has to be down when the button goes down, and
+ * `keydown`/`keyup` is the only way to say that. The release is in a `finally` because a modifier
+ * left down lands on every gesture after it, in a run nobody is watching.
+ */
+export function clickWith(modifier, x, y) {
+  const target = { x: Math.round(x), y: Math.round(y) };
+  const now = pointerLocation();
+  if (now.x !== target.x || now.y !== target.y) {
+    xdotool(["mousemove", "--sync", String(target.x), String(target.y)]);
+  }
+  xdotool(["keydown", modifier]);
+  try {
+    xdotool(["click", "1"]);
+  } finally {
+    xdotool(["keyup", modifier]);
+  }
+}
+
+/**
  * Put the pointer somewhere without pressing anything, which is the gesture a menu answers by
  * opening the list under the row it lands on.
  */
