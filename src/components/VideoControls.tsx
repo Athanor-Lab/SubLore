@@ -81,6 +81,15 @@ export default function VideoControls({
   const sliderRef = useRef<HTMLInputElement>(null);
   /** The part of a frame a wheel gesture has not spent yet. Nothing renders from it, so it is a ref. */
   const wheelRest = useRef(0);
+  /**
+   * Read by the wheel listener, which is registered once per media and outlives every render:
+   * `onStep` is written at the call site and is a new function every time the playhead moves,
+   * which is several times a second while a picture plays.
+   */
+  const step = useRef(onStep);
+  useEffect(() => {
+    step.current = onStep;
+  });
   // While the user drags, the slider shows the dragged value instead of the event stream.
   const [dragged, setDragged] = useState<number | null>(null);
   const value = dragged ?? position;
@@ -92,6 +101,9 @@ export default function VideoControls({
     if (slider === null) {
       return;
     }
+    // The listener is rebuilt when a media opens or closes, and the part of a frame the last one
+    // had left does not follow the next one in.
+    wheelRest.current = 0;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       if (!enabled) {
@@ -104,12 +116,12 @@ export default function VideoControls({
       const whole = Math.trunc(frames);
       wheelRest.current = frames - whole;
       if (whole !== 0) {
-        onStep(whole);
+        step.current(whole);
       }
     };
     slider.addEventListener("wheel", onWheel, { passive: false });
     return () => slider.removeEventListener("wheel", onWheel);
-  }, [enabled, onStep]);
+  }, [enabled]);
 
   function change(event: ChangeEvent<HTMLInputElement>) {
     const next = Number(event.target.value);

@@ -218,13 +218,13 @@ const MIN_TOP_HEIGHT = 92;
  * and 120. A scaled 109 would give 98 and 164, and 98 clips the third row, so the header alone is
  * scaled and it is not scaled downwards: at 90 the bound stays 109, two pixels over what fits.
  */
-/** How many searched terms the band offers back, most recent first (interface-spec 9.2). */
-const RECENT_TERMS = 16;
-
 const MIN_GRID_HEIGHT = 109;
 
 /** The part of the bound above that moves with the interface size. */
 const MIN_GRID_HEAD = 25;
+
+/** How many searched terms the band offers back, most recent first (interface-spec 9.2). */
+const RECENT_TERMS = 16;
 
 /**
  * The four inline style flags, in the order row three of the panel draws them. Each writes its own
