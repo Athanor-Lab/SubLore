@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { en } from "../i18n/en";
 import { fill } from "../i18n/format";
@@ -6,6 +6,12 @@ import { type Query } from "../search";
 
 /** Find hides the replacement field and its two buttons; the two modes are one band (spec 9.2). */
 export type FindMode = "find" | "replace";
+
+/** The two fields that remember what has been searched with them (spec 9.2). */
+type Remembering = "needle" | "replacement";
+
+const LIST_ID = "findbar-recent-list";
+const OPTION_ID = "findbar-recent-value-";
 
 type FindBarProps = {
   mode: FindMode;
@@ -19,6 +25,8 @@ type FindBarProps = {
   replaced: number | null;
   /** Whether the band stays inside the grid's selection rather than searching the whole file. */
   inSelection: boolean;
+  /** What has been searched for and written with, most recent first (spec 9.2). */
+  recent: Readonly<Record<Remembering, readonly string[]>>;
   onQueryChange: (query: Query) => void;
   onInSelectionChange: (inSelection: boolean) => void;
   onReplacementChange: (replacement: string) => void;
@@ -43,6 +51,7 @@ export default function FindBar({
   refusal,
   replaced,
   inSelection,
+  recent,
   onQueryChange,
   onInSelectionChange,
   onReplacementChange,
@@ -55,6 +64,87 @@ export default function FindBar({
   const fieldId = useId();
   const replacementId = useId();
   const fieldRef = useRef<HTMLInputElement>(null);
+  /** The boxes the two lists hang under, read when one opens rather than held as state. */
+  const boxes = useRef<Record<Remembering, HTMLElement | null>>({
+    needle: null,
+    replacement: null,
+  });
+  const [listAt, setListAt] = useState<{
+    field: Remembering;
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
+  const [highlight, setHighlight] = useState(0);
+
+  const held = (field: Remembering) => (field === "needle" ? query.needle : replacement);
+  const put = (field: Remembering, value: string) => {
+    if (field === "needle") {
+      onQueryChange({ ...query, needle: value });
+      return;
+    }
+    onReplacementChange(value);
+  };
+
+  /** Under the field, in the viewport's own coordinates, the way the line's own combos open. */
+  function openList(field: Remembering) {
+    const box = boxes.current[field]?.getBoundingClientRect();
+    if (box === undefined || recent[field].length === 0) {
+      return;
+    }
+    setListAt({ field, left: box.left, top: box.bottom, width: box.width });
+    setHighlight(Math.max(0, recent[field].indexOf(held(field))));
+  }
+
+  function pick(field: Remembering, value: string) {
+    setListAt(null);
+    put(field, value);
+    fieldRef.current?.focus();
+  }
+
+  /**
+   * The keys a remembering field answers, in the order the line's combos answer them: Escape closes
+   * an open list before it closes anything else, the arrows open and walk it, and Enter picks from
+   * it or does what the field's own Enter does.
+   */
+  function onFieldKeyDown(field: Remembering, event: KeyboardEvent<HTMLInputElement>) {
+    const list = recent[field];
+    const open = listAt !== null && listAt.field === field;
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      // Stopped here, or the band's own Escape would close the band behind the list.
+      event.stopPropagation();
+      setListAt(null);
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) {
+        openList(field);
+        return;
+      }
+      if (list.length === 0) {
+        return;
+      }
+      const step = event.key === "ArrowDown" ? 1 : list.length - 1;
+      setHighlight((at) => (at + step) % list.length);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const picked = open ? list[highlight] : undefined;
+      if (picked !== undefined) {
+        pick(field, picked);
+        return;
+      }
+      // Enter in the field is find next, and in the replacement it is replace next, per 9.2.
+      if (field === "needle") {
+        onFindNext();
+        return;
+      }
+      onReplace();
+    }
+  }
 
   // Opened on purpose, so it takes the keyboard: a band the user has to click into first would be
   // slower than the menu it replaces. Refocused on a mode change, which is the same intent again.
@@ -69,10 +159,18 @@ export default function FindBar({
       className="findbar"
       aria-labelledby={titleId}
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
+        if (event.key !== "Escape") {
+          return;
         }
+        event.preventDefault();
+        // An open list is what Escape closes first, wherever the keyboard is inside the band: it
+        // is opened by its own button too, and a gesture that shut the whole band instead would
+        // cost the search. The line's own combos answer Escape the same way.
+        if (listAt !== null) {
+          setListAt(null);
+          return;
+        }
+        onClose();
       }}
     >
       <h2 className="findbar__title" id={titleId}>
@@ -81,40 +179,81 @@ export default function FindBar({
       <label className="bar__label" htmlFor={fieldId}>
         {en.find.needleLabel}
       </label>
-      <input
-        id={fieldId}
-        ref={fieldRef}
-        className="findbar__needle"
-        type="text"
-        value={query.needle}
-        onChange={(event) => onQueryChange({ ...query, needle: event.target.value })}
-        onKeyDown={(event) => {
-          // Enter in the field is find next, per interface-spec 9.2.
-          if (event.key === "Enter") {
-            event.preventDefault();
-            onFindNext();
-          }
+      <span
+        className="findbar__combo"
+        ref={(node) => {
+          boxes.current.needle = node;
         }}
-      />
+      >
+        <input
+          id={fieldId}
+          ref={fieldRef}
+          className="findbar__needle"
+          type="text"
+          role="combobox"
+          aria-expanded={listAt !== null && listAt.field === "needle"}
+          aria-controls={LIST_ID}
+          aria-activedescendant={
+            listAt !== null && listAt.field === "needle" ? `${OPTION_ID}${highlight}` : undefined
+          }
+          value={query.needle}
+          onChange={(event) => onQueryChange({ ...query, needle: event.target.value })}
+          onKeyDown={(event) => onFieldKeyDown("needle", event)}
+        />
+        <button
+          className="findbar__needle-open"
+          type="button"
+          aria-label={en.find.recentNeedles}
+          aria-expanded={listAt !== null && listAt.field === "needle"}
+          // Nothing remembered is nothing to open, so the opener greys while the field stays usable.
+          disabled={recent.needle.length === 0}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() =>
+            listAt !== null && listAt.field === "needle" ? setListAt(null) : openList("needle")
+          }
+        />
+      </span>
       {mode === "replace" && (
         <>
           <label className="bar__label" htmlFor={replacementId}>
             {en.find.replaceLabel}
           </label>
-          <input
-            id={replacementId}
-            className="findbar__replacement"
-            type="text"
-            value={replacement}
-            onChange={(event) => onReplacementChange(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter in the replacement field is replace next, per interface-spec 9.2.
-              if (event.key === "Enter") {
-                event.preventDefault();
-                onReplace();
-              }
+          <span
+            className="findbar__combo"
+            ref={(node) => {
+              boxes.current.replacement = node;
             }}
-          />
+          >
+            <input
+              id={replacementId}
+              className="findbar__replacement"
+              type="text"
+              role="combobox"
+              aria-expanded={listAt !== null && listAt.field === "replacement"}
+              aria-controls={LIST_ID}
+              aria-activedescendant={
+                listAt !== null && listAt.field === "replacement"
+                  ? `${OPTION_ID}${highlight}`
+                  : undefined
+              }
+              value={replacement}
+              onChange={(event) => onReplacementChange(event.target.value)}
+              onKeyDown={(event) => onFieldKeyDown("replacement", event)}
+            />
+            <button
+              className="findbar__replacement-open"
+              type="button"
+              aria-label={en.find.recentReplacements}
+              aria-expanded={listAt !== null && listAt.field === "replacement"}
+              disabled={recent.replacement.length === 0}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() =>
+                listAt !== null && listAt.field === "replacement"
+                  ? setListAt(null)
+                  : openList("replacement")
+              }
+            />
+          </span>
         </>
       )}
       {/* The order is the reference's own, down its §9.2 table: case, expression, the two skips,
@@ -197,6 +336,32 @@ export default function FindBar({
             count: replaced,
           })}
         </span>
+      )}
+      {listAt !== null && (
+        <div
+          className="findbar__recent"
+          id={LIST_ID}
+          role="listbox"
+          aria-label={
+            listAt.field === "needle" ? en.find.recentNeedles : en.find.recentReplacements
+          }
+          style={{ left: listAt.left, top: listAt.top, minWidth: listAt.width }}
+        >
+          {recent[listAt.field].map((value, at) => (
+            <button
+              key={value}
+              id={`${OPTION_ID}${at}`}
+              type="button"
+              role="option"
+              aria-selected={at === highlight}
+              className={at === highlight ? "findbar__term findbar__term--on" : "findbar__term"}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => pick(listAt.field, value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
       )}
       <button className="findbar__close" type="button" onClick={onClose}>
         {en.find.close}

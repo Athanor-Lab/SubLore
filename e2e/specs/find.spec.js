@@ -340,6 +340,31 @@ async function openSkips(toplevel, file) {
   }
 }
 
+/** The terms the open list offers, top first, or null when no list is open. */
+function offeredTerms() {
+  return browser.execute(() => {
+    const list = document.querySelector(".findbar__recent");
+    return list === null
+      ? null
+      : {
+          label: list.getAttribute("aria-label"),
+          terms: Array.from(list.querySelectorAll(".findbar__term")).map((one) => one.textContent),
+          on: Array.from(list.querySelectorAll(".findbar__term")).findIndex((one) =>
+            one.classList.contains("findbar__term--on"),
+          ),
+        };
+  });
+}
+
+/** Open a field's own list of remembered terms with its opener, and wait for it. */
+async function openRecent(toplevel, which) {
+  await clickElement(toplevel, `.findbar__${which}-open`);
+  return waitFor(async () => (await offeredTerms()) ?? null, {
+    timeout: 15000,
+    message: `the ${which} field's remembered terms to open`,
+  });
+}
+
 /** Put a fresh pattern in the field, so no check inherits the one before it. */
 function search(toplevel, needle) {
   return typeInto(toplevel, ".findbar__needle", needle);
@@ -807,7 +832,9 @@ describe("the find band", () => {
     );
     expect(drawn).toEqual([
       "findbar__needle",
+      "findbar__needle-open",
       "findbar__replacement",
+      "findbar__replacement-open",
       "findbar__case",
       "findbar__regex",
       "findbar__skip-comments",
@@ -865,6 +892,124 @@ describe("the find band", () => {
     await waitForCursor(SPLIT_BY_A_TAG);
     pressKey("Return");
     await waitForCursor(TAG_OUTSIDE_IT);
+  });
+
+  it("remembers what it searched with, most recent first and each term once", async () => {
+    await openSkips(toplevel, skipsCopy);
+    // Three searches, the first one twice: a term searched again rises rather than appearing twice.
+    for (const term of ["alpha", "beta", "alpha"]) {
+      await search(toplevel, term);
+      pressKey("Return");
+      await browser.pause(200);
+    }
+
+    // The top of the list, not the whole of it: the band remembers across the checks in this file
+    // and the ones before this have searched for things of their own.
+    const offered = await openRecent(toplevel, "needle");
+    expect(offered.terms.slice(0, 2)).toEqual(["alpha", "beta"]);
+    expect(offered.terms.filter((term) => term === "alpha").length).toBe(1);
+
+    // The list closes on Escape and the band stays open, which is the gesture Escape has here.
+    pressKey("Escape");
+    await waitFor(async () => ((await offeredTerms()) === null ? true : null), {
+      timeout: 15000,
+      message: "the list to close on Escape",
+    });
+    expect(await present(".findbar")).toBe(true);
+  });
+
+  it("offers no more than sixteen, and drops the oldest to stay there", async () => {
+    await openSkips(toplevel, skipsCopy);
+    // Seventeen, so the seventeenth is what pushes the first one out. The words are nonsense on
+    // purpose: what is read is the list, not what any of them found.
+    const terms = Array.from({ length: 17 }, (_, at) => `term${at}`);
+    for (const term of terms) {
+      await search(toplevel, term);
+      pressKey("Return");
+      await browser.pause(120);
+    }
+
+    const offered = await openRecent(toplevel, "needle");
+    expect(offered.terms.length).toBe(16);
+    expect(offered.terms[0]).toBe("term16");
+    expect(offered.terms).not.toContain("term0");
+    pressKey("Escape");
+    await waitFor(async () => ((await offeredTerms()) === null ? true : null), {
+      timeout: 15000,
+      message: "the list to close again",
+    });
+  });
+
+  it("walks the list with the arrows and puts the one it lands on in the field", async () => {
+    await openSkips(toplevel, skipsCopy);
+    for (const term of ["first", "second", "third"]) {
+      await search(toplevel, term);
+      pressKey("Return");
+      await browser.pause(200);
+    }
+
+    // The arrow opens it from the field, so the hand never leaves the keyboard.
+    await clickElement(toplevel, ".findbar__needle");
+    pressKey("Down");
+    const opened = await waitFor(async () => (await offeredTerms()) ?? null, {
+      timeout: 15000,
+      message: "the down arrow to open the remembered terms",
+    });
+    expect(opened.terms.slice(0, 3)).toEqual(["third", "second", "first"]);
+
+    pressKey("Down");
+    await waitFor(async () => ((await offeredTerms())?.on === 1 ? true : null), {
+      timeout: 15000,
+      message: "the arrow to walk onto the second term",
+    });
+    pressKey("Return");
+    await waitFor(
+      () => browser.execute(() => document.querySelector(".findbar__needle")?.value === "second"),
+      { timeout: 15000, message: "the picked term to land in the field" },
+    );
+    expect(await offeredTerms()).toBe(null);
+  });
+
+  it("keeps the replacement field's own list apart from the search field's", async () => {
+    await openSkips(toplevel, skipsCopy);
+    pressKey("ctrl+h");
+    await waitFor(
+      () => browser.execute(() => document.querySelector(".findbar__replacement") !== null),
+      { timeout: 15000, message: "the band to open in its replacing mode" },
+    );
+    await search(toplevel, SKIPPED_WORD);
+    await typeInto(toplevel, ".findbar__replacement", SKIPS_REPLACEMENT);
+    await clickElement(toplevel, ".findbar__replace-all");
+    await waitFor(async () => ((await textOf(".findbar__replaced")) !== null ? true : null), {
+      timeout: 15000,
+      message: "the replace all to report what it did",
+    });
+
+    const written = await openRecent(toplevel, "replacement");
+    expect(written.terms[0]).toBe(SKIPS_REPLACEMENT);
+    pressKey("Escape");
+    await waitFor(async () => ((await offeredTerms()) === null ? true : null), {
+      timeout: 15000,
+      message: "the replacement's list to close",
+    });
+
+    // The search field's own list has the word that was searched for and not the one written.
+    const searched = await openRecent(toplevel, "needle");
+    expect(searched.terms[0]).toBe(SKIPPED_WORD);
+    expect(searched.terms).not.toContain(SKIPS_REPLACEMENT);
+    pressKey("Escape");
+    await waitFor(async () => ((await offeredTerms()) === null ? true : null), {
+      timeout: 15000,
+      message: "the search field's list to close",
+    });
+
+    // The document goes back to what it was: this check rewrote it, and the next one opens the
+    // same file, which a document with unsaved work in it refuses.
+    pressKey("ctrl+z");
+    await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
+      timeout: 20000,
+      message: "the replace all to be undone",
+    });
   });
 
   it("rewrites the real text under a skipped tag, and leaves a tag outside the match alone", async () => {

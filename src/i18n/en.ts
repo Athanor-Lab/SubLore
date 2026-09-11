@@ -290,6 +290,9 @@ export const en = {
     skipTags: "Skip override tags",
     /** The selection, whatever its size: one selected cue restricts too (F4b). */
     inSelection: "Selected cues only",
+    /** The two lists of what has been searched with, named for the screen reader and the opener. */
+    recentNeedles: "Recent searches",
+    recentReplacements: "Recent replacements",
     findNext: "Find next",
     replace: "Replace",
     replaceAll: "Replace all",
