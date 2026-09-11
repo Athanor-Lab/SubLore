@@ -27,6 +27,8 @@ const OPEN_STATUS = "SRT · 3 cues · LF";
 
 /** One press or one notch, from `ZOOM_FACTOR` in src/hooks/useWaveformView.ts. */
 const ZOOM_FACTOR = 2;
+/** The scale the view opens at before it has measured anything, from the same file. */
+const DEEPEST_MS_PER_PIXEL = 1;
 
 function dataHome() {
   const home = process.env.SUBLORE_E2E_DATA_HOME;
@@ -146,12 +148,24 @@ describe("the waveform's zoom is in the registry", () => {
       timeout: 40000,
       message: "the waveform panel to appear",
     });
-    // The view opens on the whole file, which is the scale `wave.zoom-fit` must come back to.
-    await waitFor(async () => (await scale()) !== null, {
-      timeout: 10000,
-      message: "the panel to publish its scale",
-    });
-    fitted = await scale();
+    // The view opens on the whole file, which is the scale `wave.zoom-fit` must come back to. It
+    // does not open there: `useWaveformView` starts at the deepest scale, one millisecond a pixel,
+    // and settles on the fit once the media's length and the panel's width have both arrived.
+    // Reading as soon as a number is published gives the 1, and then every assertion below is
+    // measured against the wrong number. Found on CI, where that gap is wide enough to lose: green
+    // here, red there, `Expected: 1, Received: 107.33`.
+    //
+    // Two equal readings across a real interval is the settle, and the fit of a sixty-second file
+    // in a panel this wide cannot be the floor, so the floor is refused outright as well.
+    fitted = await waitFor(
+      async () => {
+        const first = await scale();
+        await browser.pause(250);
+        const second = await scale();
+        return first !== null && first === second && second > DEEPEST_MS_PER_PIXEL ? second : null;
+      },
+      { timeout: 30000, message: "the panel's scale to settle on the whole file" },
+    );
   });
 
   it("zooms in from the grid, one press one halving", async () => {
