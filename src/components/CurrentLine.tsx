@@ -11,6 +11,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 
 import { en } from "../i18n/en";
+import { tokenAt } from "../tokens";
 import { commandToken, runCommand, type CommandId, type CommandRegistry } from "../types/chrome";
 import { type AssFieldName, type CueRow } from "../types/subtitle";
 import {
@@ -1362,6 +1363,14 @@ export default function CurrentLine({
           reportCaret(event.target);
         }}
         onSelect={(event) => reportCaret(event.currentTarget)}
+        /* A double-click takes the format's word and not the browser's, so a braced run goes whole
+           rather than giving up the one word inside it the browser recognised (8.5, N151). */
+        onDoubleClick={(event) => {
+          const box = event.currentTarget;
+          const token = tokenAt(box.value, box.selectionStart);
+          box.setSelectionRange(token.from, token.to);
+          reportCaret(box);
+        }}
         onKeyDown={onEditorKeyDown}
         onBlur={() => void commit()}
       />
