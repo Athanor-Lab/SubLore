@@ -470,4 +470,46 @@ describe("dragging a cue boundary on the waveform", () => {
     expect(after.end).toBe(columns.end);
     expect(readFileSync(copy).equals(openedBytes)).toBe(true);
   });
+
+  /**
+   * M2.5's own acceptance sentence, end to end: "drag a cue boundary, the model times change
+   * accordingly and save round-trips". The two halves were covered apart, the drag here and the
+   * round trip in `cue-structure.spec.js` over times an insert produced. This is the chain.
+   *
+   * Last in the file on purpose: every check above asserts the file on disk is still the bytes it
+   * was opened with, and this is the one that writes it.
+   */
+  it("saves a dragged boundary and reads it back from the file", async () => {
+    await dragColumns(toplevel, columns.start, travel);
+    const dragged = await waitFor(
+      async () => {
+        const now = await gridRows();
+        return now[1]?.start !== SECOND_START ? now : null;
+      },
+      { timeout: 20000, message: "the second row's start to follow the drag" },
+    );
+    const started = dragged[1].start;
+    // A time a hand put there, not a round number: this is the case the round trip has to carry.
+    expect(started).not.toBe(SECOND_START);
+
+    await clickElement(toplevel, ".toolbar__file-save");
+    await waitFor(async () => ((await present(".statusbar__dirty")) === false ? true : null), {
+      timeout: 20000,
+      message: "the unsaved marker to clear once the document is written",
+    });
+    expect(readFileSync(copy).toString("utf8")).toContain(started.replace(".", ","));
+
+    await clickElement(toplevel, ".toolbar__file-open-subtitle");
+    await answerChooser(await waitForChooser("Choose a subtitle"), copy, "subtitle");
+    focusWindow(toplevel.id);
+    const reopened = await waitFor(
+      async () => {
+        const now = await gridRows();
+        return now.length === 3 && now[0]?.cursor === true ? now : null;
+      },
+      { timeout: 20000, message: "the saved file to be read back from disk" },
+    );
+    expect(reopened[1].start).toBe(started);
+    expect(reopened[1].end).toBe(SECOND_END);
+  });
 });
