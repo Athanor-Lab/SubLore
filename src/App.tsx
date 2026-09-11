@@ -3174,8 +3174,15 @@ export default function App() {
       { id: "time.lead-in", short: en.wavebar.leadIn },
       { id: "time.lead-out", short: en.wavebar.leadOut },
     ],
-    [{ id: "wave.center-on-cue", short: en.wavebar.centreOnCue }],
-    [{ id: "wave.toggle-autoscroll", short: en.wavebar.followCue }],
+    [
+      { id: "time.commit", short: en.wavebar.commit },
+      { id: "wave.center-on-cue", short: en.wavebar.centreOnCue },
+    ],
+    [
+      { id: "wave.toggle-autocommit", short: en.wavebar.autoCommit },
+      { id: "wave.toggle-autonext", short: en.wavebar.autoNext },
+      { id: "wave.toggle-autoscroll", short: en.wavebar.followCue },
+    ],
   ];
 
   // How narrow the window may be made, measured off the shell and carried to the window (S1). The

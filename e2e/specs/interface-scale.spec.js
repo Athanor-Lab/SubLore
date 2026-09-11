@@ -391,7 +391,7 @@ async function derivedFloor() {
 /**
  * What the strip does not show at once at the narrowest window there is, per interface size.
  *
- * A ceiling and not an identity: how many rows fourteen words wrap onto is what the machine's own
+ * A ceiling and not an identity: how many rows seventeen words wrap onto is what the machine's own
  * fonts decide, and this repository's runner and the CI runner do not agree to the pixel. What
  * holds everywhere is that every button is drawn and every one is reachable through the strip's
  * own scroll, which is asserted below whatever the fonts do. The entry is the last button of the
@@ -591,7 +591,7 @@ describe("the interface size", () => {
           at,
           buttons: swept.buttons,
           beyond: swept.outOfReach.filter((name) => !ceiling.includes(name)),
-        }).toEqual({ at, buttons: 14, beyond: [] });
+        }).toEqual({ at, buttons: 17, beyond: [] });
         expect({ at, unreached: await stripReachedByScrolling(swept.outOfReach) }).toEqual({
           at,
           unreached: [],

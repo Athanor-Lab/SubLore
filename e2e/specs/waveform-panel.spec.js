@@ -34,7 +34,12 @@ const CUES = [
   { start: "00:00:09.100", end: "00:00:11.760" },
 ];
 
-/** The strip, left to right, as `docs/audio-panel-tasks.md` A10 writes it down. */
+/**
+ * The strip, left to right, as the interface spec's §4.2 table writes it: seventeen buttons in five
+ * groups. Commit, auto-commit and auto-advance were commands here and not buttons, which is what
+ * N122 closed; the table's row 4 names `wave.play-cue` and the registry's own id for the same
+ * command is `time.play-line`.
+ */
 const STRIP = [
   "time-prev-cue",
   "time-next-cue",
@@ -48,7 +53,10 @@ const STRIP = [
   "time-play-to-end",
   "time-lead-in",
   "time-lead-out",
+  "time-commit",
   "wave-center-on-cue",
+  "wave-toggle-autocommit",
+  "wave-toggle-autonext",
   "wave-toggle-autoscroll",
 ];
 
