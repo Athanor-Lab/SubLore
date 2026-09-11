@@ -1,6 +1,6 @@
 # Sublore
 
-> **Pre-alpha, under construction, not usable yet.** The repository is public so the work can be read, not because there is something to run. There are no releases and no builds to download, and the parts that exist are being reshaped as the editor's layout is rewritten.
+> **Pre-alpha, under construction, not usable yet.** The repository is public so the work can be read, not because there is something to run. There are no releases and no builds to download.
 
 **Translation memory for subtitles.** A local-first desktop app for translating subtitles across a whole series: your terminology, enforced everywhere it appears, instead of remembered episode by episode.
 
