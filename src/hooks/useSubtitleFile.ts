@@ -109,12 +109,15 @@ export type SubtitleFile = {
   setTimes: (cue: number, startMs: number, endMs: number) => Promise<void>;
   /** Many cues retimed in one call, and so one undo step: a shift, or times made continuous. */
   setManyTimes: (edits: { cue: number; startMs: number; endMs: number }[]) => Promise<void>;
-  /** One ASS event field of one cue. A field the row does not declare is refused, so its control
-   * greys itself off `declaredFields` rather than asking. See edit-bar-first-tasks.md E2. */
-  setField: (cue: number, field: AssFieldName, value: string) => Promise<void>;
-  /** Whether one cue is a line a player draws. Refused on a format with no descriptor, so its
-   * control greys itself off the format rather than asking. See edit-bar-tasks.md B8. */
-  setComment: (cue: number, comment: boolean) => Promise<void>;
+  /** One ASS event field, over every cue named, as one undo step: the owner's answer 46 is that a
+   * field writes to the whole selection. Cues ascending, each named once. A row that does not
+   * declare the field is passed over, and if none does the write is refused, so the control greys
+   * itself off `declaredFields` rather than asking. See edit-bar-first-tasks.md E2 and N148. */
+  setField: (cues: number[], field: AssFieldName, value: string) => Promise<void>;
+  /** Whether the named cues are lines a player draws, under the same rule as the fields above.
+   * Refused on a format with no descriptor, so its control greys itself off the format rather than
+   * asking. See edit-bar-tasks.md B8. */
+  setComment: (cues: number[], comment: boolean) => Promise<void>;
   /** One inline style flag over a stretch of a cue's text, in the bytes of the text as the file
    * spells it. Equal offsets are a caret rather than a selection. See edit-bar-tasks.md B11. */
   toggleStyle: (cue: number, flag: StyleFlagName, from: number, to: number) => Promise<void>;
@@ -539,13 +542,13 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   );
 
   const setField = useCallback(
-    (cue: number, field: AssFieldName, value: string) =>
-      command("subtitle_set_field", { cue, field, value }),
+    (cues: number[], field: AssFieldName, value: string) =>
+      command("subtitle_set_field", { cues, field, value }),
     [command],
   );
 
   const setComment = useCallback(
-    (cue: number, comment: boolean) => command("subtitle_set_comment", { cue, comment }),
+    (cues: number[], comment: boolean) => command("subtitle_set_comment", { cues, comment }),
     [command],
   );
 
