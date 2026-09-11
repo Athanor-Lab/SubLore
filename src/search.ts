@@ -125,9 +125,26 @@ function scopeOf(cues: readonly CueRow[], only: readonly number[] | null, query:
   });
 }
 
-/** An offset in a scoped cue's searched text, in the cue's own coordinates. */
-function outward(scoped: Scoped, offset: number): number {
+/** Where a match starts, in the cue's own coordinates. */
+function outwardStart(scoped: Scoped, offset: number): number {
   return scoped.at === null ? offset : (scoped.at[offset] ?? offset);
+}
+
+/**
+ * Where a match ends, in the cue's own coordinates: one past its **last matched character** and not
+ * the start of the next kept one.
+ *
+ * The difference is a block sitting immediately after the match. `ab{\i1}cd` keeps `abcd`, and a
+ * match on `ab` that ended where `c` begins would take the block with it and a replacement would
+ * delete formatting nobody touched. A block **inside** the match still goes, which is the
+ * reference's own behaviour and what the check on the split line reads.
+ */
+function outwardEnd(scoped: Scoped, offset: number): number {
+  if (scoped.at === null) {
+    return offset;
+  }
+  const last = scoped.at[offset - 1];
+  return last === undefined ? (scoped.at[offset] ?? offset) : last + 1;
 }
 
 /** The other direction: an offset in the cue's own text, in the searched text's coordinates. */
@@ -174,8 +191,8 @@ export function nextMatch(
       }
       return {
         cue: here.cue,
-        start: outward(here, found.index),
-        end: outward(here, found.index + found[0].length),
+        start: outwardStart(here, found.index),
+        end: outwardEnd(here, found.index + found[0].length),
         found: captured(found),
       };
     }
@@ -215,8 +232,8 @@ export function replaceEverywhere(
     let rewritten = "";
     let cursor = 0;
     for (const hit of hits) {
-      const start = outward(scoped, hit.index);
-      const end = outward(scoped, hit.index + hit[0].length);
+      const start = outwardStart(scoped, hit.index);
+      const end = outwardEnd(scoped, hit.index + hit[0].length);
       rewritten += whole.slice(cursor, start) + written(query, replacement, captured(hit));
       cursor = end;
     }

@@ -85,15 +85,17 @@ const EIGHTH_STRIDE = 8;
  * and a line whose block sits outside it.
  */
 /**
- * Three and not four: the status line counts the cues a player would draw, and an ASS comment is
+ * Four and not five: the status line counts the cues a player would draw, and an ASS comment is
  * not one of them (`summary.cue_count` is the document's `displayed_cue_count`). The grid draws all
- * four, which is why the rows below are numbered as they are.
+ * five, which is why the rows below are numbered as they are.
  */
-const SKIPS_STATUS = "ASS · 3 cues · LF";
+const SKIPS_STATUS = "ASS · 4 cues · LF";
 const SKIPPED_WORD = "lantern";
 const IN_THE_COMMENT = 2;
 const SPLIT_BY_A_TAG = 3;
 const TAG_OUTSIDE_IT = 4;
+/** The word with a block immediately after it, which a replacement must leave where it is (N145). */
+const TAG_AFTER_IT = 5;
 const SKIPS_REPLACEMENT = "beacon";
 
 function dataHome() {
@@ -855,22 +857,25 @@ describe("the find band", () => {
     // below starts at the top of the file, and the caret ends up where Return means find next.
     await search(toplevel, SKIPPED_WORD);
 
-    // Two of the four cues carry the word where a plain search can see it, and the split one is
-    // not among them: the walk is the comment, then the line whose tag sits outside the word.
+    // Three of the five cues carry the word where a plain search can see it, and the split one is
+    // not among them: the comment, then the two whose blocks sit outside the word.
     pressKey("Return");
     await waitForCursor(IN_THE_COMMENT);
     pressKey("Return");
     await waitForCursor(TAG_OUTSIDE_IT);
+    pressKey("Return");
+    await waitForCursor(TAG_AFTER_IT);
 
-    // Asked to skip them, the same walk has one cue in it and wraps onto itself.
+    // Asked to skip them, the same walk starts past the comment and never lands on it again.
     await setBox(toplevel, ".findbar__skip-comments", true);
     await search(toplevel, SKIPPED_WORD);
     pressKey("Return");
     await waitForCursor(TAG_OUTSIDE_IT);
     pressKey("Return");
+    await waitForCursor(TAG_AFTER_IT);
+    pressKey("Return");
+    // Wrapped, and onto the first line of the walk rather than onto the comment above it.
     await waitForCursor(TAG_OUTSIDE_IT);
-    // The row the first walk reached first is the one this walk never reaches at all.
-    expect(await cursorRow()).toBe(TAG_OUTSIDE_IT);
   });
 
   it("finds a word a tag splits only when it is asked to skip the tags", async () => {
@@ -879,13 +884,13 @@ describe("the find band", () => {
     await setBox(toplevel, ".findbar__skip-tags", false);
     await search(toplevel, SKIPPED_WORD);
 
-    // With the tags in the way the split line is not a match at all: the walk has one cue in it.
+    // With the tags in the way the split line is not a match at all: the walk is the other two.
     pressKey("Return");
     await waitForCursor(TAG_OUTSIDE_IT);
     pressKey("Return");
-    await waitForCursor(TAG_OUTSIDE_IT);
+    await waitForCursor(TAG_AFTER_IT);
 
-    // With them skipped the split line is the first match there is, and it comes before the other.
+    // With them skipped the split line is the first match there is, and it comes before the others.
     await setBox(toplevel, ".findbar__skip-tags", true);
     await search(toplevel, SKIPPED_WORD);
     pressKey("Return");
@@ -1055,17 +1060,21 @@ describe("the find band", () => {
 
     await clickElement(toplevel, ".findbar__replace-all");
     await waitFor(
-      async () => ((await textOf(".findbar__replaced")) === "2 replaced" ? true : null),
+      async () => ((await textOf(".findbar__replaced")) === "3 replaced" ? true : null),
       {
         timeout: 15000,
-        message: "the band to report the two it rewrote",
+        message: "the band to report the three it rewrote",
       },
     );
 
     // The block that stood inside the match went with the match, which is what mapping the offsets
-    // back into the real text means. The one outside it is untouched.
+    // back into the real text means. The one before it is untouched.
     expect(await rowText(SPLIT_BY_A_TAG)).toBe(`The ${SKIPS_REPLACEMENT} was empty.`);
     expect(await rowText(TAG_OUTSIDE_IT)).toBe(`{\\b1}The ${SKIPS_REPLACEMENT} was loud.`);
+    // And so is the one that sits immediately **after** the match, which is the difference between
+    // mapping a match's end to its own last character and mapping it to the next kept one: the
+    // second would have swallowed this block and deleted formatting nobody touched (N145).
+    expect(await rowText(TAG_AFTER_IT)).toBe(`The ${SKIPS_REPLACEMENT}{\\i0} went out.`);
     // And the comment is the line it was: a skipped cue is skipped by the replace too.
     expect(await rowText(IN_THE_COMMENT)).toBe(inComment);
   });
