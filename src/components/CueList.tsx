@@ -14,6 +14,7 @@ import { en } from "../i18n/en";
 import { type CommandId, type CommandRegistry, type Separator } from "../types/chrome";
 import { type CueRow } from "../types/subtitle";
 import { drawnText, readingRate, timecode, type TagMode } from "./cueView";
+import { notchesOf } from "../wheel";
 import RailMenu from "./RailMenu";
 
 /**
@@ -23,9 +24,8 @@ import RailMenu from "./RailMenu";
 const ROW_HEIGHT = 28;
 /** Rows kept rendered above and below the viewport, so a fast scroll does not show gaps. */
 const OVERSCAN = 8;
-/** Rows one wheel notch moves the grid, and what a browser reports for a notch in pixel mode. */
+/** Rows one wheel notch moves the grid. */
 const WHEEL_ROWS = 3;
-const WHEEL_NOTCH_PX = 100;
 
 /**
  * A page keeps two rows of context: the visible rows less two, never fewer than one. The key and
@@ -154,20 +154,10 @@ export default function CueList({
     }
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      // Shift turns a notch into a page. Some browsers move a shifted wheel onto the other axis,
-      // so the delta is read off whichever one carries it.
-      const along = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+      // Shift turns a notch into a page.
       const step = event.shiftKey ? pageRows(viewport) : WHEEL_ROWS;
-      // Notches rather than pixels: a line delta is a third of one and a page delta a whole one,
-      // which is how all three modes a browser can report reach the same step.
-      const notches =
-        event.deltaMode === 1
-          ? along / WHEEL_ROWS
-          : event.deltaMode === 2
-            ? along
-            : along / WHEEL_NOTCH_PX;
       // The fraction is kept rather than dropped, so two half notches move what one whole one does.
-      const rows = notches * step + wheelRest.current;
+      const rows = notchesOf(event) * step + wheelRest.current;
       const whole = Math.trunc(rows);
       wheelRest.current = rows - whole;
       if (whole !== 0) {

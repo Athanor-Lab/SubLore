@@ -1,8 +1,9 @@
-import { useId, useState, type ChangeEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 
 import { timecode } from "./cueView";
 import { en } from "../i18n/en";
 import { type RowReading } from "../measure";
+import { notchesOf } from "../wheel";
 
 /**
  * The playhead as a timecode, in the shape the grid and the line's own fields use.
@@ -62,6 +63,8 @@ type VideoControlsProps = {
   cue: { startMs: number; endMs: number } | null;
   onToggle: () => void;
   onSeek: (position: number) => void;
+  /** One frame either way, which is what the wheel over the slider asks for (interface-spec 6.1). */
+  onStep: (frames: number) => void;
 };
 
 export default function VideoControls({
@@ -72,11 +75,41 @@ export default function VideoControls({
   cue,
   onToggle,
   onSeek,
+  onStep,
 }: VideoControlsProps) {
   const sliderId = useId();
+  const sliderRef = useRef<HTMLInputElement>(null);
+  /** The part of a frame a wheel gesture has not spent yet. Nothing renders from it, so it is a ref. */
+  const wheelRest = useRef(0);
   // While the user drags, the slider shows the dragged value instead of the event stream.
   const [dragged, setDragged] = useState<number | null>(null);
   const value = dragged ?? position;
+
+  // A native listener, not React's `onWheel`, which is attached passively at the root and cannot
+  // take the gesture from the page. The waveform and the grid read their own the same way.
+  useEffect(() => {
+    const slider = sliderRef.current;
+    if (slider === null) {
+      return;
+    }
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (!enabled) {
+        return;
+      }
+      // Down is forward, which is the direction this window already moves under a wheel: the
+      // waveform scrolls on and the grid goes down the file. The fraction is kept, so two half
+      // notches step the frame one whole notch would. See interface-spec 6.1 and N133.
+      const frames = notchesOf(event) + wheelRest.current;
+      const whole = Math.trunc(frames);
+      wheelRest.current = frames - whole;
+      if (whole !== 0) {
+        onStep(whole);
+      }
+    };
+    slider.addEventListener("wheel", onWheel, { passive: false });
+    return () => slider.removeEventListener("wheel", onWheel);
+  }, [enabled, onStep]);
 
   function change(event: ChangeEvent<HTMLInputElement>) {
     const next = Number(event.target.value);
@@ -106,6 +139,7 @@ export default function VideoControls({
         </label>
         <input
           id={sliderId}
+          ref={sliderRef}
           className="controls__slider"
           type="range"
           min={0}

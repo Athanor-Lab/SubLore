@@ -3273,6 +3273,7 @@ export default function App() {
                   cue={activeCue}
                   onToggle={() => void togglePlayback()}
                   onSeek={(target) => void seek(target)}
+                  onStep={(frames) => void stepVideo(frames)}
                 />
               </section>
             )}
