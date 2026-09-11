@@ -12,3 +12,4 @@ Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Nothing here but the sea.
 Comment: 0,0:00:03.00,0:00:05.00,Default,,0,0,0,,The lantern, in a note to myself.
 Dialogue: 0,0:00:05.00,0:00:07.00,Default,,0,0,0,,The lan{\i1}tern was empty.
 Dialogue: 0,0:00:07.00,0:00:09.00,Default,,0,0,0,,{\b1}The lantern was loud.
+Dialogue: 0,0:00:09.00,0:00:11.00,Default,,0,0,0,,The lantern{\i0} went out.
