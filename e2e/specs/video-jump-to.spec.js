@@ -17,7 +17,7 @@ import { findToplevel } from "../lib/x11.js";
 
 /** Well inside the sixty second fixture, and not a second the picture would drift onto by itself. */
 const TYPED = "00:00:30.000";
-const READS = "0:30";
+const READS = "00:00:30";
 
 function centreOf(selector) {
   return browser.execute((css) => {
@@ -48,10 +48,10 @@ function textOf(selector) {
   return browser.execute((css) => document.querySelector(css)?.textContent ?? null, selector);
 }
 
-/** What the clock under the picture reads, without the duration after it. */
+/** What the clock under the picture reads: a timecode, to the millisecond (N125). */
 async function clock() {
   const text = await textOf(".controls__time");
-  return text === null ? null : (text.split("/")[0]?.trim() ?? null);
+  return text === null ? null : text.trim();
 }
 
 /** Whether an item of the Video menu is drawn and greyed, without choosing it. */

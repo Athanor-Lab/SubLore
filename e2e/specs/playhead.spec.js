@@ -209,6 +209,11 @@ const FIXTURE_FPS = Number(
 );
 
 /** Put the cursor on a row by clicking its number cell, which never opens an editor. */
+/** What the clock under the picture reads, to the millisecond (N125). */
+function clockReading() {
+  return browser.execute(() => document.querySelector(".controls__time")?.textContent ?? null);
+}
+
 /** What the strip says about the playhead's distance from the cursor's line (N123). */
 function offsets() {
   return browser.execute(() => document.querySelector(".controls__offsets")?.textContent ?? null);
@@ -514,6 +519,9 @@ describe("the times follow the playhead", () => {
     await cursorTo(toplevel, 3);
     await seekTo(9.1);
     expect(await offsets()).toBe("+0ms; -2660ms");
+    // And the clock beside them, to the millisecond: the offsets say the playhead is exactly on the
+    // line's start, so the clock has to read that start and not the second it falls in (N125).
+    expect(await clockReading()).toBe(THIRD_START);
 
     await seekTo(10.1);
     expect(await offsets()).toBe("+1000ms; -1660ms");
