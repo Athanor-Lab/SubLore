@@ -556,6 +556,28 @@ export const en = {
    * be dragged narrow; each button carries the command's full label as its title and its accessible
    * name, so nothing here is the only place a control is named.
    */
+  /**
+   * The main toolbar's short words. The reference draws icons there; Sublore draws text, and the
+   * fourteen full labels measure 1691 px, which fits no window the app opens in. The strip under
+   * the wave already answered this the same way, and the command's own label stays as the button's
+   * spoken and hovered name (N120).
+   */
+  toolbar: {
+    new: "New",
+    open: "Open",
+    save: "Save",
+    jumpTo: "Jump",
+    jumpCueStart: "Cue in",
+    jumpCueEnd: "Cue out",
+    startToPlayhead: "Set in",
+    endToPlayhead: "Set out",
+    selectAtPlayhead: "Select",
+    shiftToPlayhead: "Move",
+    shift: "Shift",
+    transcribe: "Transcribe",
+    tagsCycle: "Tags",
+    preferences: "Options",
+  },
   wavebar: {
     prevCue: "Prev",
     nextCue: "Next",

@@ -53,7 +53,12 @@ const GREYED_IN_FILE = [
   "file-export",
 ];
 
-/** Every command the bars T3 removed used to offer. Each has to reach both routes. */
+/**
+ * Every command the bars T3 removed used to offer. Each has to reach a route, and the route is the
+ * menu: the toolbar carries what the reference's carries, which is not these (interface-spec 4.1,
+ * N120). Saying "both routes" was written when the strip was Sublore's own, and the interface
+ * ruling of 2026-09-05 made it the reference's, so the older rule is the one that gives way.
+ */
 const FROM_THE_BARS = [
   "file-open-subtitle",
   "video-open",
@@ -261,12 +266,15 @@ describe("the menu bar and the toolbar", () => {
       [],
     );
     for (const id of FROM_THE_BARS) {
-      expect({ id, menu: inMenus.includes(id), toolbar: inToolbar.includes(id) }).toEqual({
-        id,
-        menu: true,
-        toolbar: true,
-      });
+      expect({ id, menu: inMenus.includes(id) }).toEqual({ id, menu: true });
     }
+    // And the strip is the reference's: of these six it holds Open and Save, which are rows 2 and 3
+    // of its own table, and none of the other four. What it does hold is checked by name in
+    // command-registry.spec.js (interface-spec 4.1, N120).
+    expect(inToolbar.filter((id) => FROM_THE_BARS.includes(id))).toEqual([
+      "file-open-subtitle",
+      "file-save",
+    ]);
   });
 
   it("opens the first dropdown on Alt, with the cursor on its first enabled item", async () => {

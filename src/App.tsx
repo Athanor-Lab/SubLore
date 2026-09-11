@@ -17,7 +17,7 @@ import ModuleWorkBand from "./components/ModuleWorkBand";
 import ProjectRail from "./components/ProjectRail";
 import Sash from "./components/Sash";
 import StatusBar from "./components/StatusBar";
-import Toolbar from "./components/Toolbar";
+import Toolbar, { type ToolbarButton } from "./components/Toolbar";
 import WaveBar, { type WaveBarButton } from "./components/WaveBar";
 import Waveform, { type LiveTimes } from "./components/Waveform";
 import TranscribePanel from "./components/TranscribePanel";
@@ -3118,11 +3118,36 @@ export default function App() {
           .map(moduleCommandId),
       })),
   ];
-  const toolbar: CommandId[][] = [
-    ["file.open-subtitle", "video.open", "file.save", "file.save-as", "file.discard"],
-    ["edit.undo", "edit.redo"],
-    // The tag-cycle button, which the reference keeps on the toolbar and nowhere else (4.1).
-    ["view.tags-cycle"],
+  /*
+   * The strip the reference draws above the grid, in its five groups (interface-spec 4.1). Its own
+   * buttons are icons; these are the short words the strip under the wave already uses, because
+   * fourteen full labels measure 1691 px and no window the app opens in is that wide. The command's
+   * label stays the button's spoken and hovered name, so both routes still read one record (N120).
+   */
+  const toolbar: ToolbarButton[][] = [
+    [
+      { id: "file.new", short: en.toolbar.new },
+      { id: "file.open-subtitle", short: en.toolbar.open },
+      { id: "file.save", short: en.toolbar.save },
+    ],
+    [
+      { id: "video.jump-to", short: en.toolbar.jumpTo },
+      { id: "video.jump-cue-start", short: en.toolbar.jumpCueStart },
+      { id: "video.jump-cue-end", short: en.toolbar.jumpCueEnd },
+    ],
+    [
+      { id: "time.start-to-playhead", short: en.toolbar.startToPlayhead },
+      { id: "time.end-to-playhead", short: en.toolbar.endToPlayhead },
+      { id: "edit.select-at-playhead", short: en.toolbar.selectAtPlayhead },
+      { id: "time.shift-to-playhead", short: en.toolbar.shiftToPlayhead },
+    ],
+    [
+      { id: "time.shift", short: en.toolbar.shift },
+      { id: "asr.transcribe", short: en.toolbar.transcribe },
+      // The tag-cycle button, which the reference keeps on the toolbar and nowhere else (4.1).
+      { id: "view.tags-cycle", short: en.toolbar.tagsCycle },
+    ],
+    [{ id: "view.preferences", short: en.toolbar.preferences }],
   ];
 
   /*
