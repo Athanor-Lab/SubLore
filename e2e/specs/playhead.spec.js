@@ -209,6 +209,11 @@ const FIXTURE_FPS = Number(
 );
 
 /** Put the cursor on a row by clicking its number cell, which never opens an editor. */
+/** What the strip says about the playhead's distance from the cursor's line (N123). */
+function offsets() {
+  return browser.execute(() => document.querySelector(".controls__offsets")?.textContent ?? null);
+}
+
 async function cursorTo(toplevel, position) {
   const centre = await browser.execute((wanted) => {
     const row = Array.from(document.querySelectorAll(".cuelist__row")).find(
@@ -500,5 +505,17 @@ describe("the times follow the playhead", () => {
     );
     // Forwards, not backwards: the cue that ended is not the one a translator is about to time.
     expect(rows.map((row) => row.cursor)).toEqual([false, true, false]);
+  });
+
+  it("says how far the playhead is from the cursor's line, from both of its edges", async () => {
+    // The third cue runs 9.100 to 11.760, so the two numbers are fixed facts of the fixture and not
+    // read back off the app: at 9.100 the drift is nothing and the whole length; a second later it
+    // is a second and a second less (N123).
+    await cursorTo(toplevel, 3);
+    await seekTo(9.1);
+    expect(await offsets()).toBe("+0ms; -2660ms");
+
+    await seekTo(10.1);
+    expect(await offsets()).toBe("+1000ms; -1660ms");
   });
 });

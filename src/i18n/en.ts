@@ -458,6 +458,8 @@ export const en = {
     play: "Play",
     pause: "Pause",
     position: "Position",
+    /** The strip's offset readout: how far the playhead is from the current line's two edges. */
+    offsets: "Offsets from the current line",
     noFile: "No video open.",
     errors: {
       playerUnavailable: "The video player is not running. Restart Sublore.",

@@ -30,11 +30,28 @@ export function transportReadings(duration: number): RowReading[] {
   });
 }
 
+/**
+ * How far the playhead is from the current line's two edges, in milliseconds and always signed.
+ *
+ * Blank with no line, which is what the reference does there: a zero or a dash would read as an
+ * answer, and there is no line to answer about. See BACKLOG.md N123.
+ */
+function offsetsFrom(positionSeconds: number, cue: { startMs: number; endMs: number } | null) {
+  if (cue === null) {
+    return "";
+  }
+  const at = Math.round(positionSeconds * 1000);
+  const signed = (ms: number) => `${ms >= 0 ? "+" : ""}${ms}ms`;
+  return `${signed(at - cue.startMs)}; ${signed(at - cue.endMs)}`;
+}
+
 type VideoControlsProps = {
   enabled: boolean;
   paused: boolean;
   duration: number;
   position: number;
+  /** The line the cursor is on, or null: the offsets are measured from its two edges. */
+  cue: { startMs: number; endMs: number } | null;
   onToggle: () => void;
   onSeek: (position: number) => void;
 };
@@ -44,6 +61,7 @@ export default function VideoControls({
   paused,
   duration,
   position,
+  cue,
   onToggle,
   onSeek,
 }: VideoControlsProps) {
@@ -99,6 +117,9 @@ export default function VideoControls({
         </button>
         <span className="controls__time">
           {formatTime(value)} / {formatTime(duration)}
+        </span>
+        <span className="controls__offsets" aria-label={en.video.offsets}>
+          {offsetsFrom(value, cue)}
         </span>
       </div>
     </div>
