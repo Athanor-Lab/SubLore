@@ -271,7 +271,10 @@ export default function CueList({
     const last = count - 1;
     const page = pageRows(viewport);
     let next = active;
-    switch (event.key) {
+    // `code` and not `key`: with NumLock off the numpad's 8 arrives with a `key` of "ArrowUp", and
+    // that key already belongs to `time.prev-cue` in the registry, so reading `key` here moved the
+    // cursor twice for one press. See BACKLOG.md N158.
+    switch (event.code) {
       case "ArrowDown":
         next = Math.min(last, active + 1);
         break;
