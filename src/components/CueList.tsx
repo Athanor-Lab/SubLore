@@ -23,6 +23,17 @@ import RailMenu from "./RailMenu";
 const ROW_HEIGHT = 28;
 /** Rows kept rendered above and below the viewport, so a fast scroll does not show gaps. */
 const OVERSCAN = 8;
+/** Rows one wheel notch moves the grid, and what a browser reports for a notch in pixel mode. */
+const WHEEL_ROWS = 3;
+const WHEEL_NOTCH_PX = 100;
+
+/**
+ * A page keeps two rows of context: the visible rows less two, never fewer than one. The key and
+ * the wheel both step by this, which is what makes Shift+wheel a page (interface-spec 7.3).
+ */
+function pageRows(viewport: number): number {
+  return Math.max(1, Math.floor(viewport / ROW_HEIGHT) - 2);
+}
 /** The cursor is named by `aria-activedescendant`, which needs an id on the row it points at. */
 function rowId(index: number): string {
   return `cuelist-row-${index}`;
@@ -87,6 +98,8 @@ export default function CueList({
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   /** Cleared the moment an edit ends, so a blur that arrives after Escape cannot commit it. */
   const editingRef = useRef<number | null>(null);
+  /** The part of a row a wheel gesture has not spent yet. Nothing renders from it, so it is a ref. */
+  const wheelRest = useRef(0);
 
   const count = cues.length;
   const { active, selected, move, toggle, selectAll, collapse } = selection;
@@ -131,6 +144,39 @@ export default function CueList({
       list.scrollTop = (index - visible + 3) * ROW_HEIGHT;
     }
   }, []);
+
+  // A native listener, not React's `onWheel`, which is attached passively at the root and cannot
+  // stop the page from taking the gesture. `Waveform.tsx` reads its own wheel the same way.
+  useEffect(() => {
+    const list = listRef.current;
+    if (list === null) {
+      return;
+    }
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      // Shift turns a notch into a page. Some browsers move a shifted wheel onto the other axis,
+      // so the delta is read off whichever one carries it.
+      const along = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+      const step = event.shiftKey ? pageRows(viewport) : WHEEL_ROWS;
+      // Notches rather than pixels: a line delta is a third of one and a page delta a whole one,
+      // which is how all three modes a browser can report reach the same step.
+      const notches =
+        event.deltaMode === 1
+          ? along / WHEEL_ROWS
+          : event.deltaMode === 2
+            ? along
+            : along / WHEEL_NOTCH_PX;
+      // The fraction is kept rather than dropped, so two half notches move what one whole one does.
+      const rows = notches * step + wheelRest.current;
+      const whole = Math.trunc(rows);
+      wheelRest.current = rows - whole;
+      if (whole !== 0) {
+        list.scrollTop = Math.max(0, list.scrollTop + whole * ROW_HEIGHT);
+      }
+    };
+    list.addEventListener("wheel", onWheel, { passive: false });
+    return () => list.removeEventListener("wheel", onWheel);
+  }, [viewport]);
 
   const beginEdit = useCallback(
     (index: number) => {
@@ -233,9 +279,7 @@ export default function CueList({
       return;
     }
     const last = count - 1;
-    // A page keeps two rows of context: it moves the visible-row count less two, the way the
-    // reference pages the grid (interface-spec 7.3), never fewer than one row.
-    const page = Math.max(1, Math.floor(viewport / ROW_HEIGHT) - 2);
+    const page = pageRows(viewport);
     let next = active;
     switch (event.key) {
       case "ArrowDown":
