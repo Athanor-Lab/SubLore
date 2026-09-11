@@ -218,6 +218,9 @@ const MIN_TOP_HEIGHT = 92;
  * and 120. A scaled 109 would give 98 and 164, and 98 clips the third row, so the header alone is
  * scaled and it is not scaled downwards: at 90 the bound stays 109, two pixels over what fits.
  */
+/** How many searched terms the band offers back, most recent first (interface-spec 9.2). */
+const RECENT_TERMS = 16;
+
 const MIN_GRID_HEIGHT = 109;
 
 /** The part of the bound above that moves with the interface size. */
@@ -879,6 +882,26 @@ export default function App() {
   // The find band, and what it is looking for. The query outlives a close so reopening the band
   // offers the last search back, which is the cheap half of the reference's remembered list (F2).
   const [findMode, setFindMode] = useState<FindMode | null>(null);
+  /**
+   * What the band has searched with, most recent first and each once, capped at sixteen
+   * (interface-spec 9.2). Held for the session and never written to disk: a search term is a
+   * fragment of the user's own writing, which is the rule the edit log follows when it counts a
+   * line's characters rather than naming them. See BACKLOG.md N137.
+   */
+  const [recentTerms, setRecentTerms] = useState<{
+    needle: readonly string[];
+    replacement: readonly string[];
+  }>({ needle: [], replacement: [] });
+  const remember = useCallback((field: "needle" | "replacement", value: string) => {
+    if (value === "") {
+      return;
+    }
+    setRecentTerms((held) => ({
+      ...held,
+      [field]: [value, ...held[field].filter((one) => one !== value)].slice(0, RECENT_TERMS),
+    }));
+  }, []);
+
   const [query, setQuery] = useState<Query>({
     needle: "",
     matchCase: false,
@@ -1389,6 +1412,9 @@ export default function App() {
   }
 
   async function findFrom(at: Match | null): Promise<void> {
+    // Remembered when it is searched with and not while it is typed: it is the search that says
+    // the term counted. Every route into the engine comes through here or through replace all.
+    remember("needle", query.needle);
     report(await search.find(subtitle.cues, scope(), query, at));
   }
 
@@ -1410,6 +1436,7 @@ export default function App() {
       return;
     }
     const text = replaceOne(cue.text, at, query, replacement);
+    remember("replacement", replacement);
     await subtitle.setTexts([{ cue: at.cue, text }]);
     // Resume past what was just written, so a replacement containing the pattern is not re-found.
     // The length is the written one, which with regex on is not the replacement's own.
@@ -1419,6 +1446,8 @@ export default function App() {
 
   /** Every match in the document, in one edit and so in one undo step. See F1. */
   async function replaceAll() {
+    remember("needle", query.needle);
+    remember("replacement", replacement);
     const outcome = await search.replaceAll(subtitle.cues, scope(), query, replacement);
     if (outcome.kind !== "replaced") {
       report(outcome);
@@ -3431,6 +3460,7 @@ export default function App() {
             refusal={refusal}
             replaced={replaced}
             inSelection={inSelection}
+            recent={recentTerms}
             onInSelectionChange={(next) => {
               setInSelection(next);
               // The scope changed, so the match in hand is no longer where a search resumes from.

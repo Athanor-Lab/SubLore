@@ -26,17 +26,79 @@
   white-space: nowrap;
 }
 
-.findbar__needle {
-  min-width: 14rem;
+/* The field and its opener are one control, the way the line's own combos are (spec 9.2). */
+.findbar__combo {
+  display: flex;
+  min-width: 0;
   flex: 1 1 14rem;
+}
+
+.findbar__needle {
+  min-width: 10rem;
+  flex: 1 1 auto;
   padding: 0.3rem 0.4rem;
   font: inherit;
   font-size: 0.875rem;
 }
 
+/* The opener carries an arrow rather than a word, so the band keeps its width in every language. */
+.findbar__needle-open,
+.findbar__replacement-open {
+  flex: none;
+  width: 1.6em;
+  border: 1px solid var(--line);
+  border-left: none;
+  background: var(--bg-sunken);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}
+
+.findbar__needle-open:disabled,
+.findbar__replacement-open:disabled {
+  color: var(--ink-faint);
+  background: var(--bg-panel);
+}
+
+.findbar__needle-open::after,
+.findbar__replacement-open::after {
+  content: "\25be";
+}
+
+/* Outside the band's flow, at coordinates taken from the field when it opened, so a band that
+   wraps to a second row cannot clip it. */
+.findbar__recent {
+  position: fixed;
+  z-index: 30;
+  max-height: 12rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-panel);
+  scrollbar-width: thin;
+}
+
+.findbar__term {
+  display: block;
+  width: 100%;
+  padding: 0.15rem 0.5rem;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.findbar__term--on {
+  background: var(--accent-bg);
+}
+
 .findbar__replacement {
-  min-width: 10rem;
-  flex: 1 1 10rem;
+  min-width: 7rem;
+  flex: 1 1 auto;
   padding: 0.3rem 0.4rem;
   font: inherit;
   font-size: 0.875rem;
