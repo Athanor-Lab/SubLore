@@ -879,7 +879,13 @@ export default function App() {
   // The find band, and what it is looking for. The query outlives a close so reopening the band
   // offers the last search back, which is the cheap half of the reference's remembered list (F2).
   const [findMode, setFindMode] = useState<FindMode | null>(null);
-  const [query, setQuery] = useState<Query>({ needle: "", matchCase: false, regex: false });
+  const [query, setQuery] = useState<Query>({
+    needle: "",
+    matchCase: false,
+    regex: false,
+    skipComments: false,
+    skipTags: false,
+  });
   const [replacement, setReplacement] = useState("");
   const [found, setFound] = useState<Match | null>(null);
   const [searched, setSearched] = useState(false);

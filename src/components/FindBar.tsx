@@ -117,6 +117,17 @@ export default function FindBar({
           />
         </>
       )}
+      {/* The order is the reference's own, down its §9.2 table: case, expression, the two skips,
+        then the scope. */}
+      <label className="findbar__case-label">
+        <input
+          className="findbar__case"
+          type="checkbox"
+          checked={query.matchCase}
+          onChange={(event) => onQueryChange({ ...query, matchCase: event.target.checked })}
+        />
+        {en.find.matchCase}
+      </label>
       <label className="findbar__regex-label">
         <input
           className="findbar__regex"
@@ -126,6 +137,24 @@ export default function FindBar({
         />
         {en.find.regex}
       </label>
+      <label className="findbar__skip-comments-label">
+        <input
+          className="findbar__skip-comments"
+          type="checkbox"
+          checked={query.skipComments}
+          onChange={(event) => onQueryChange({ ...query, skipComments: event.target.checked })}
+        />
+        {en.find.skipComments}
+      </label>
+      <label className="findbar__skip-tags-label">
+        <input
+          className="findbar__skip-tags"
+          type="checkbox"
+          checked={query.skipTags}
+          onChange={(event) => onQueryChange({ ...query, skipTags: event.target.checked })}
+        />
+        {en.find.skipTags}
+      </label>
       <label className="findbar__scope-label">
         <input
           className="findbar__scope"
@@ -134,15 +163,6 @@ export default function FindBar({
           onChange={(event) => onInSelectionChange(event.target.checked)}
         />
         {en.find.inSelection}
-      </label>
-      <label className="findbar__case-label">
-        <input
-          className="findbar__case"
-          type="checkbox"
-          checked={query.matchCase}
-          onChange={(event) => onQueryChange({ ...query, matchCase: event.target.checked })}
-        />
-        {en.find.matchCase}
       </label>
       <button className="findbar__next" type="button" disabled={empty} onClick={onFindNext}>
         {en.find.findNext}

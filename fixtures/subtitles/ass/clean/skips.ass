@@ -1,0 +1,14 @@
+[Script Info]
+Title: Night shift
+ScriptType: v4.00+
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,54,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,60,60,40,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Nothing here but the sea.
+Comment: 0,0:00:03.00,0:00:05.00,Default,,0,0,0,,The lantern, in a note to myself.
+Dialogue: 0,0:00:05.00,0:00:07.00,Default,,0,0,0,,The lan{\i1}tern was empty.
+Dialogue: 0,0:00:07.00,0:00:09.00,Default,,0,0,0,,{\b1}The lantern was loud.
