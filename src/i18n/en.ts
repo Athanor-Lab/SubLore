@@ -13,6 +13,8 @@ export const en = {
       openSubtitle: "Open subtitle…",
       /** Opens the same picker, then a dialog naming the file's charset instead of guessing it. */
       openEncoding: "Open with encoding…",
+      /** The subtitles the open video carries inside it, with no picker at all (N116). */
+      openFromVideo: "Open subtitles from video",
       recent: "Recent projects",
       /** The one greyed row the recent list holds while nothing has been remembered yet. */
       recentEmpty: "Empty",
@@ -695,6 +697,8 @@ export const en = {
       noPath: "This document has never been saved, so Sublore does not know where to write it.",
       transcriptionGone:
         "Those cues are gone: another transcription has started since. Run it again.",
+      noSubtitleTrack: "This video carries no subtitles Sublore can open as text.",
+      extractionFailed: "Sublore could not read the subtitles out of this video.",
       commandFailed: "Sublore could not finish that action. Restart Sublore if it happens again.",
     },
     /**

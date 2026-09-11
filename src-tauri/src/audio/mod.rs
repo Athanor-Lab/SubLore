@@ -332,8 +332,9 @@ fn ffmpeg_from(value: Option<&std::ffi::OsStr>) -> PathBuf {
 
 /// The override `sublore-asr` already reads, so a machine that points transcription at a
 /// particular ffmpeg points the waveform at the same one. One variable rather than a second one.
-/// W2 moves discovery into `sublore-io`; this reads the name it will.
-fn ffmpeg_binary() -> PathBuf {
+/// W2 moves discovery into `sublore-io`; this reads the name it will. Reached by the subtitle side
+/// too, which pulls a subtitle stream out of the same media with the same program (N116).
+pub(crate) fn ffmpeg_binary() -> PathBuf {
     ffmpeg_from(std::env::var_os(sublore_asr::tools::FFMPEG_BIN_ENV).as_deref())
 }
 

@@ -89,6 +89,8 @@ export type SubtitleFile = {
   blockedPath: string | null;
   /** Whether a New was refused for the same reason an open is: unsaved work in its way. */
   blockedNew: boolean;
+  /** An open from the video's own subtitles that unsaved work is standing in the way of (N116). */
+  blockedFromVideo: boolean;
   /** A document with nothing in it. Refused, and remembered, while unsaved work is in the way. */
   newDocument: () => Promise<void>;
   /** Counts successful opens. The list is keyed on it, so a new file starts at the top. */
@@ -97,6 +99,8 @@ export type SubtitleFile = {
   adoptedRunId: number | null;
   open: (path: string) => Promise<void>;
   openWithEncoding: (path: string, label: string) => Promise<void>;
+  /** The subtitles the open video carries inside it, as the document on screen (N116). */
+  openFromVideo: () => Promise<void>;
   discardAndOpen: () => Promise<void>;
   adoptTranscription: (runId: number) => Promise<void>;
   setText: (cue: number, text: string) => Promise<void>;
@@ -208,6 +212,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   const [error, setError] = useState<SubtitleError | null>(null);
   const [blockedPath, setBlockedPath] = useState<string | null>(null);
   const [blockedNew, setBlockedNew] = useState(false);
+  const [blockedFromVideo, setBlockedFromVideo] = useState(false);
   const [openId, setOpenId] = useState(0);
   const [adoptedRunId, setAdoptedRunId] = useState<number | null>(null);
 
@@ -271,8 +276,12 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
       try {
         applyOpened(await request());
         setAdoptedRunId(null);
+        setBlockedFromVideo(false);
       } catch (failure) {
         const rejected = toSubtitleError(failure);
+        // Whichever open was refused last is the one Discard acts on, so the others are cleared
+        // here: two flags left standing would send Discard down the wrong branch (N116).
+        setBlockedFromVideo(false);
         // Unsaved work is the one refusal that leaves the current file open: keep it on screen and
         // let the user choose. Anything else means the file on screen did not open.
         if (rejected.code === "unsavedChanges") {
@@ -316,6 +325,34 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     [openFileWithEncoding, serialize],
   );
 
+  /**
+   * The subtitles the open video carries, as the document on screen. No path is sent: which stream
+   * it takes is the backend's, which is the side that holds the track list. See N116.
+   */
+  const openVideoSubtitles = useCallback(async () => {
+    setError(null);
+    setSaved(null);
+    try {
+      applyOpened(await invoke<SubtitleOpened>("subtitle_open_from_video"));
+      setAdoptedRunId(null);
+      setBlockedFromVideo(false);
+      setBlockedNew(false);
+      setBlockedPath(null);
+    } catch (failure) {
+      const rejected = toSubtitleError(failure);
+      // Unsaved work leaves what is on screen alone and waits, the shape every other open takes.
+      setBlockedFromVideo(rejected.code === "unsavedChanges");
+      setBlockedNew(false);
+      setBlockedPath(null);
+      setError(rejected);
+    }
+  }, [applyOpened]);
+
+  const openFromVideo = useCallback(
+    () => serialize(() => openVideoSubtitles()),
+    [openVideoSubtitles, serialize],
+  );
+
   /** The empty document, with `discard` saying whether the work in its way may go. */
   const makeNew = useCallback(
     async (discard: boolean) => {
@@ -326,8 +363,10 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
         setAdoptedRunId(null);
         setBlockedNew(false);
         setBlockedPath(null);
+        setBlockedFromVideo(false);
       } catch (failure) {
         const rejected = toSubtitleError(failure);
+        setBlockedFromVideo(false);
         // The same shape an open takes: unsaved work leaves what is on screen alone and waits for
         // the user to say it may go.
         setBlockedNew(rejected.code === "unsavedChanges");
@@ -342,9 +381,22 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
   const discardAndOpen = useCallback(
     () =>
       serialize(async () => {
-        // Whichever was refused: a New makes the empty document, an open opens the file it named.
+        // Whichever was refused: a New makes the empty document, an open opens the file it named,
+        // and an open from the video reads the video's own stream again (N116).
         if (blockedNew) {
           await makeNew(true);
+          return;
+        }
+        if (blockedFromVideo) {
+          setError(null);
+          try {
+            await invoke<void>("subtitle_close", { discard: true });
+            setBlockedFromVideo(false);
+          } catch (failure) {
+            setError(toSubtitleError(failure));
+            return;
+          }
+          await openVideoSubtitles();
           return;
         }
         if (blockedPath === null) {
@@ -360,7 +412,7 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
         }
         await openFile(blockedPath);
       }),
-    [blockedNew, blockedPath, makeNew, openFile, serialize],
+    [blockedFromVideo, blockedNew, blockedPath, makeNew, openFile, openVideoSubtitles, serialize],
   );
 
   /**
@@ -689,6 +741,8 @@ export function useSubtitleFile(onRowsMoved: RowsMoved, onPanels: PanelSink): Su
     error,
     blockedPath,
     blockedNew,
+    blockedFromVideo,
+    openFromVideo,
     newDocument,
     openId,
     adoptedRunId,
