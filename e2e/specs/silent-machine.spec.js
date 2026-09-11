@@ -1,4 +1,4 @@
-/* global describe, it, before, document, window */
+/* global describe, it, before, console, document, window */
 /**
  * N13: a machine with no audio device still plays the video.
  *
@@ -104,6 +104,20 @@ describe("a machine with no audio device", () => {
 
   it("keeps playing past the second where the audio device would have ended it", async () => {
     const play = await centreOf(".controls__button");
+    // What is actually under the point about to be clicked, read at the moment of the click rather
+    // than assumed from the measurement before it. A layout still settling moves the button between
+    // the two, and a click that lands elsewhere produces no command at all, which is exactly the
+    // silence N108 has been reading in this spec's log. Printed either way, so a green run says the
+    // aim was right and a red one says where it went. See BACKLOG.md N108.
+    const under = await browser.execute(
+      (x, y) => {
+        const found = document.elementFromPoint(x, y);
+        return found === null ? null : `${found.tagName}.${found.className}`;
+      },
+      play.x / (await browser.execute(() => window.devicePixelRatio)),
+      play.y / (await browser.execute(() => window.devicePixelRatio)),
+    );
+    console.log(`N108 the point the Play click is aimed at holds: ${under}`);
     clickAt(toplevel.absX + play.x, toplevel.absY + play.y);
 
     // Past three seconds and still counting. Without the fallback mpv ends the file around one, and
