@@ -14,6 +14,7 @@ use sublore_edit::error::EditErrorKind;
 use sublore_edit::history::Run;
 use sublore_edit::plan::{AssStyleField, Edit};
 use sublore_edit::session::EditSession;
+use sublore_edit::splice::EditKind;
 use sublore_formats::override_tags::StyleFlag;
 use sublore_formats::{AssField, CueDetail, SubtitleDocument, SubtitleFormat};
 
@@ -1503,6 +1504,59 @@ fn style_of(session: &EditSession, cue: usize) -> String {
         }
         _ => panic!("the fixture is ASS"),
     }
+}
+
+#[test]
+fn the_undo_label_is_the_top_of_the_stack_and_follows_a_merge() {
+    // N150: the label the Edit menu reads is the entry the next undo would take, so it moves with
+    // the stack and a run that coalesced leaves one label behind it, not two.
+    let mut session = session("ass/clean/basic.ass");
+    let now = Instant::now();
+    assert!(session.undo_label().is_none(), "an untouched file has none");
+
+    session
+        .apply(&set_field(0, AssField::Actor, "Ingrid"), Run::New, now)
+        .expect("the Name field is declared");
+    assert_eq!(
+        session.undo_label().map(|label| label.kind),
+        Some(EditKind::SetField(AssField::Actor))
+    );
+
+    // Typing after it is its own step, so the label becomes the text's.
+    session
+        .apply(&set_text(0, "Rewritten."), Run::New, now + KEYSTROKE)
+        .expect("the text is editable");
+    assert_eq!(
+        session.undo_label().map(|label| label.kind),
+        Some(EditKind::SetText)
+    );
+
+    // One more keystroke inside the window merges into it: one entry, so still one label.
+    session
+        .apply(
+            &set_text(0, "Rewritten again."),
+            Run::Continues,
+            now + KEYSTROKE + KEYSTROKE,
+        )
+        .expect("the text is editable");
+    assert_eq!(
+        session.undo_label().map(|label| label.kind),
+        Some(EditKind::SetText)
+    );
+
+    // Undone, the field write is what the next undo would take, and the text is what redo replays.
+    session
+        .undo()
+        .expect("the step replays")
+        .expect("there is a step");
+    assert_eq!(
+        session.undo_label().map(|label| label.kind),
+        Some(EditKind::SetField(AssField::Actor))
+    );
+    assert_eq!(
+        session.redo_label().map(|label| label.kind),
+        Some(EditKind::SetText)
+    );
 }
 
 #[test]

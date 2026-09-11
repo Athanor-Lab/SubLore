@@ -51,7 +51,7 @@ import { useFonts } from "./hooks/useFonts";
 import { useSourceFile } from "./hooks/useSourceFile";
 import { fileName, useProject } from "./hooks/useProject";
 import { useStartupFiles } from "./hooks/useStartupFiles";
-import { useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
+import { undoLabel, useSubtitleFile, type RowsMoved } from "./hooks/useSubtitleFile";
 import { useTimedMessage } from "./hooks/useTimedMessage";
 import { useTranscription } from "./hooks/useTranscription";
 import { useVideoPlayer } from "./hooks/useVideoPlayer";
@@ -2028,14 +2028,16 @@ export default function App() {
     },
     {
       id: "edit.undo",
-      label: en.menu.edit.undo,
+      // It names the edit it would reverse, which is what the reference does and what the owner
+      // asked for in answer 15 (N150). Bare while the stack is empty and the command is greyed.
+      label: undoLabel(en.menu.edit.undo, en.menu.edit.undoNamed, subtitle.undoName),
       accelerator: en.menu.keys.undo,
       enabled: subtitle.canUndo,
       run: () => void undoDocument(),
     },
     {
       id: "edit.redo",
-      label: en.menu.edit.redo,
+      label: undoLabel(en.menu.edit.redo, en.menu.edit.redoNamed, subtitle.redoName),
       accelerator: en.menu.keys.redo,
       enabled: subtitle.canRedo,
       run: () => void redoDocument(),
