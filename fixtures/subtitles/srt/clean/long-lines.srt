@@ -1,0 +1,11 @@
+1
+00:00:01,000 --> 00:00:05,000
+The harbour was empty when we got there, and the fog had eaten the boats one by one. The harbour was empty when we got there, and the fog had eaten the boats one by one. The harbour was empty when we got there, and the fog had eaten the boats one by one. The harbour was empty when we got there, and the fog had eaten the boats one by one. The harbour was empty when we got there, and the fog had eaten the boats one by one. The harbour was empty when we got there, and the fog had eaten the boats one by one. The harbour was empty when we got there, and the fog had eaten the boats one by one. The h
+
+2
+00:00:05,000 --> 00:00:09,000
+A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the limit. A line that stops exactly on the
+
+3
+00:00:09,000 --> 00:00:11,000
+Short enough to draw whole.
