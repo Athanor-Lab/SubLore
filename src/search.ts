@@ -22,6 +22,10 @@ export type Query = {
   matchCase: boolean;
   /** Off: the needle is taken literally. On: it is the user's own expression, hazards and all. */
   regex: boolean;
+  /** On: comment cues are not looked in at all, by find and by replace all alike (spec 9.2). */
+  skipComments: boolean;
+  /** On: the search runs on the text with its override blocks taken out (spec 9.2). */
+  skipTags: boolean;
 };
 
 /** The fourteen characters a regular expression reads as syntax, so a typed one is taken literally. */
@@ -46,8 +50,55 @@ function pattern(query: Query): RegExp | null {
   return new RegExp(source, query.matchCase ? "gu" : "giu");
 }
 
-/** One cue the search may look in: its text, and where it sits in the document. */
-type Scoped = { cue: number; text: string };
+/**
+ * One cue the search may look in: where it sits in the document, the text the expression runs on,
+ * and how to get from an offset in that text back into the cue's own.
+ *
+ * `at` maps an offset in `text` to one in the cue's text and `back` maps one the other way. With
+ * the tags left in both are the identity, and the two arrays are not built at all.
+ */
+type Scoped = {
+  cue: number;
+  text: string;
+  at: readonly number[] | null;
+  back: readonly number[] | null;
+};
+
+/**
+ * The cue's text with its override blocks taken out, and the map back into the text it came from.
+ *
+ * `at[i]` is where the i-th kept character sits in the original, with one more entry at the end so
+ * that a match ending on the last character has somewhere to point. `back[i]` is the other
+ * direction, for resuming a search from an offset the caller is holding in original coordinates.
+ *
+ * A brace with no closing one takes the rest of the line with it, which is the rule `drawnText`
+ * already draws a cell by: the two readings of one document cannot disagree about what a block is.
+ */
+function withoutTags(text: string): { text: string; at: number[]; back: number[] } {
+  let kept = "";
+  const at: number[] = [];
+  const back: number[] = [];
+  let inside = false;
+  for (let index = 0; index < text.length; index += 1) {
+    back.push(kept.length);
+    const here = text[index];
+    if (inside) {
+      if (here === "}") {
+        inside = false;
+      }
+      continue;
+    }
+    if (here === "{") {
+      inside = true;
+      continue;
+    }
+    at.push(index);
+    kept += here;
+  }
+  at.push(text.length);
+  back.push(kept.length);
+  return { text: kept, at, back };
+}
 
 /**
  * The cues a search may look in, in file order and each one once.
@@ -56,12 +107,32 @@ type Scoped = { cue: number; text: string };
  * The indices it returns are the document's own, never positions in this list: a match carries the
  * cue it is in, and the cursor and the edit both read that number.
  */
-function scopeOf(cues: readonly CueRow[], only: readonly number[] | null): Scoped[] {
-  if (only === null) {
-    return cues.map((cue, index) => ({ cue: index, text: cue.text }));
-  }
-  const wanted = new Set(only);
-  return cues.flatMap((cue, index) => (wanted.has(index) ? [{ cue: index, text: cue.text }] : []));
+function scopeOf(cues: readonly CueRow[], only: readonly number[] | null, query: Query): Scoped[] {
+  const none: Scoped[] = [];
+  const wanted = only === null ? null : new Set(only);
+  return cues.flatMap((cue, index): Scoped[] => {
+    if (wanted !== null && !wanted.has(index)) {
+      return none;
+    }
+    if (query.skipComments && cue.comment) {
+      return none;
+    }
+    if (!query.skipTags) {
+      return [{ cue: index, text: cue.text, at: null, back: null }];
+    }
+    const visible = withoutTags(cue.text);
+    return [{ cue: index, text: visible.text, at: visible.at, back: visible.back }];
+  });
+}
+
+/** An offset in a scoped cue's searched text, in the cue's own coordinates. */
+function outward(scoped: Scoped, offset: number): number {
+  return scoped.at === null ? offset : (scoped.at[offset] ?? offset);
+}
+
+/** The other direction: an offset in the cue's own text, in the searched text's coordinates. */
+function inward(scoped: Scoped, offset: number): number {
+  return scoped.back === null ? offset : (scoped.back[offset] ?? scoped.text.length);
 }
 
 /**
@@ -75,7 +146,7 @@ export function nextMatch(
   after: Match | null,
 ): Match | null {
   const expression = pattern(query);
-  const scope = scopeOf(cues, only);
+  const scope = scopeOf(cues, only, query);
   if (expression === null || scope.length === 0) {
     return null;
   }
@@ -91,9 +162,10 @@ export function nextMatch(
     if (here === undefined) {
       return null;
     }
-    const { cue: index, text } = here;
-    expression.lastIndex = step === 0 && resume !== null ? resume.end : 0;
-    const found = expression.exec(text);
+    // The cursor the caller holds is in the cue's own text, and with the tags out the search runs
+    // in another set of coordinates: it is carried in, and every offset that leaves is carried out.
+    expression.lastIndex = step === 0 && resume !== null ? inward(here, resume.end) : 0;
+    const found = expression.exec(here.text);
     if (found !== null) {
       // An expression that matches nothing consumes nothing: the caller resumes from `end`, so an
       // empty match would hand back the same one for ever. Reachable only with regex on.
@@ -101,9 +173,9 @@ export function nextMatch(
         return null;
       }
       return {
-        cue: index,
-        start: found.index,
-        end: found.index + found[0].length,
+        cue: here.cue,
+        start: outward(here, found.index),
+        end: outward(here, found.index + found[0].length),
         found: captured(found),
       };
     }
@@ -130,20 +202,25 @@ export function replaceEverywhere(
   if (expression === null) {
     return { edits, count };
   }
-  for (const { cue: index, text } of scopeOf(cues, only)) {
+  for (const scoped of scopeOf(cues, only, query)) {
+    const whole = cues[scoped.cue]?.text ?? scoped.text;
     // A zero-length match is skipped rather than replaced at every position, which is what the
     // single search does with one too.
-    const hits = [...text.matchAll(expression)].filter((hit) => hit[0].length > 0);
+    const hits = [...scoped.text.matchAll(expression)].filter((hit) => hit[0].length > 0);
     if (hits.length === 0) {
       continue;
     }
+    // Spliced into the cue's own text at the offsets the match maps back to, so a match that ran
+    // across an override block takes that block with it, which is what the reference does too.
     let rewritten = "";
     let cursor = 0;
     for (const hit of hits) {
-      rewritten += text.slice(cursor, hit.index) + written(query, replacement, captured(hit));
-      cursor = hit.index + hit[0].length;
+      const start = outward(scoped, hit.index);
+      const end = outward(scoped, hit.index + hit[0].length);
+      rewritten += whole.slice(cursor, start) + written(query, replacement, captured(hit));
+      cursor = end;
     }
-    edits.push({ cue: index, text: rewritten + text.slice(cursor) });
+    edits.push({ cue: scoped.cue, text: rewritten + whole.slice(cursor) });
     count += hits.length;
   }
   return { edits, count };

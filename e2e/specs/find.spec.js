@@ -79,6 +79,23 @@ const IN_EVERY_EIGHTH = "generator";
 const EIGHTH_FIRST = 7;
 const EIGHTH_STRIDE = 8;
 
+/**
+ * The fixture for the two skips (interface-spec 9.2), and what is where in it. Four cues: one with
+ * nothing in it, a comment carrying the word, a line where an italic block splits the word in half,
+ * and a line whose block sits outside it.
+ */
+/**
+ * Three and not four: the status line counts the cues a player would draw, and an ASS comment is
+ * not one of them (`summary.cue_count` is the document's `displayed_cue_count`). The grid draws all
+ * four, which is why the rows below are numbered as they are.
+ */
+const SKIPS_STATUS = "ASS · 3 cues · LF";
+const SKIPPED_WORD = "lantern";
+const IN_THE_COMMENT = 2;
+const SPLIT_BY_A_TAG = 3;
+const TAG_OUTSIDE_IT = 4;
+const SKIPS_REPLACEMENT = "beacon";
+
 function dataHome() {
   const home = process.env.SUBLORE_E2E_DATA_HOME;
   if (typeof home !== "string" || home === "") {
@@ -114,6 +131,20 @@ function longWorkingCopy() {
     );
   }
   const copy = path.join(dataHome(), "find", "large-2000.srt");
+  copyFileSync(source, copy);
+  return copy;
+}
+
+/** The four-cue ASS fixture the two skips are read on, copied the same way as the others. */
+function skipsWorkingCopy() {
+  const source = path.join(repoRoot, "fixtures", "subtitles", "ass", "clean", "skips.ass");
+  if (!existsSync(source)) {
+    throw new Error(
+      `E2E prerequisite missing: ${source} does not exist. It is committed; restore it with ` +
+        "`git checkout fixtures/subtitles`.",
+    );
+  }
+  const copy = path.join(dataHome(), "find", "skips.ass");
   copyFileSync(source, copy);
   return copy;
 }
@@ -279,6 +310,36 @@ async function typeInto(toplevel, selector, text) {
   );
 }
 
+/**
+ * Open the four-cue skips fixture and leave the band open on it.
+ *
+ * Opened again by every check that uses it rather than once: a replace all rewrites the document,
+ * and a check that read a row after another had rewritten it would be reading the wrong file.
+ */
+async function openSkips(toplevel, file) {
+  await clickElement(toplevel, ".toolbar__file-open-subtitle");
+  const chooser = await waitForChooser("Choose a subtitle");
+  await answerChooser(chooser, file, "subtitle");
+  focusWindow(toplevel.id);
+  let said = null;
+  await waitFor(
+    async () => {
+      said = await textOf(".statusbar__document");
+      return said?.includes(SKIPS_STATUS) === true ? true : null;
+    },
+    {
+      timeout: 20000,
+      // The line it did say is in the message: a status that reads differently is a different
+      // document or a different summary, and the two are not told apart by a bare timeout.
+      message: () => `the status bar to report the four-cue fixture, and it says ${said}`,
+    },
+  );
+  if (!(await present(".findbar"))) {
+    pressKey("ctrl+f");
+    await waitFor(() => present(".findbar"), { timeout: 15000, message: "the find band to open" });
+  }
+}
+
 /** Put a fresh pattern in the field, so no check inherits the one before it. */
 function search(toplevel, needle) {
   return typeInto(toplevel, ".findbar__needle", needle);
@@ -303,10 +364,12 @@ describe("the find band", () => {
   let toplevel = null;
   let copy = null;
   let longCopy = null;
+  let skipsCopy = null;
 
   before(async () => {
     copy = workingCopy();
     longCopy = longWorkingCopy();
+    skipsCopy = skipsWorkingCopy();
     toplevel = await waitFor(findToplevel, {
       timeout: 30000,
       message: `the ${windowWidth}x${windowHeight} "Sublore" toplevel to appear`,
@@ -726,5 +789,112 @@ describe("the find band", () => {
 
     pressKey("F3");
     await waitForCursor(1);
+  });
+
+  it("draws its controls in the order the reference draws them", async () => {
+    // The order inside a panel is part of the replica, and this band had the expression before the
+    // case and the scope in the middle of the two skips' place (interface-spec 9.2).
+    pressKey("ctrl+h");
+    await waitFor(
+      () => browser.execute(() => document.querySelector(".findbar__replacement") !== null),
+      { timeout: 15000, message: "the band to open in its replacing mode" },
+    );
+
+    const drawn = await browser.execute(() =>
+      Array.from(document.querySelectorAll(".findbar input, .findbar button")).map((control) =>
+        Array.from(control.classList).find((name) => name.startsWith("findbar__")),
+      ),
+    );
+    expect(drawn).toEqual([
+      "findbar__needle",
+      "findbar__replacement",
+      "findbar__case",
+      "findbar__regex",
+      "findbar__skip-comments",
+      "findbar__skip-tags",
+      "findbar__scope",
+      "findbar__next",
+      "findbar__replace",
+      "findbar__replace-all",
+      "findbar__close",
+    ]);
+  });
+
+  it("looks inside a comment cue until it is asked not to", async () => {
+    await openSkips(toplevel, skipsCopy);
+    await setBox(toplevel, ".findbar__skip-tags", false);
+    await setBox(toplevel, ".findbar__skip-comments", false);
+    // Typed last, and not only to put the pattern in: a changed query is a new search, so the walk
+    // below starts at the top of the file, and the caret ends up where Return means find next.
+    await search(toplevel, SKIPPED_WORD);
+
+    // Two of the four cues carry the word where a plain search can see it, and the split one is
+    // not among them: the walk is the comment, then the line whose tag sits outside the word.
+    pressKey("Return");
+    await waitForCursor(IN_THE_COMMENT);
+    pressKey("Return");
+    await waitForCursor(TAG_OUTSIDE_IT);
+
+    // Asked to skip them, the same walk has one cue in it and wraps onto itself.
+    await setBox(toplevel, ".findbar__skip-comments", true);
+    await search(toplevel, SKIPPED_WORD);
+    pressKey("Return");
+    await waitForCursor(TAG_OUTSIDE_IT);
+    pressKey("Return");
+    await waitForCursor(TAG_OUTSIDE_IT);
+    // The row the first walk reached first is the one this walk never reaches at all.
+    expect(await cursorRow()).toBe(TAG_OUTSIDE_IT);
+  });
+
+  it("finds a word a tag splits only when it is asked to skip the tags", async () => {
+    await openSkips(toplevel, skipsCopy);
+    await setBox(toplevel, ".findbar__skip-comments", true);
+    await setBox(toplevel, ".findbar__skip-tags", false);
+    await search(toplevel, SKIPPED_WORD);
+
+    // With the tags in the way the split line is not a match at all: the walk has one cue in it.
+    pressKey("Return");
+    await waitForCursor(TAG_OUTSIDE_IT);
+    pressKey("Return");
+    await waitForCursor(TAG_OUTSIDE_IT);
+
+    // With them skipped the split line is the first match there is, and it comes before the other.
+    await setBox(toplevel, ".findbar__skip-tags", true);
+    await search(toplevel, SKIPPED_WORD);
+    pressKey("Return");
+    await waitForCursor(SPLIT_BY_A_TAG);
+    pressKey("Return");
+    await waitForCursor(TAG_OUTSIDE_IT);
+  });
+
+  it("rewrites the real text under a skipped tag, and leaves a tag outside the match alone", async () => {
+    await openSkips(toplevel, skipsCopy);
+    const inComment = await rowText(IN_THE_COMMENT);
+
+    pressKey("ctrl+h");
+    await waitFor(
+      () => browser.execute(() => document.querySelector(".findbar__replacement") !== null),
+      { timeout: 15000, message: "the band to open in its replacing mode" },
+    );
+    await search(toplevel, SKIPPED_WORD);
+    await setBox(toplevel, ".findbar__skip-comments", true);
+    await setBox(toplevel, ".findbar__skip-tags", true);
+    await typeInto(toplevel, ".findbar__replacement", SKIPS_REPLACEMENT);
+
+    await clickElement(toplevel, ".findbar__replace-all");
+    await waitFor(
+      async () => ((await textOf(".findbar__replaced")) === "2 replaced" ? true : null),
+      {
+        timeout: 15000,
+        message: "the band to report the two it rewrote",
+      },
+    );
+
+    // The block that stood inside the match went with the match, which is what mapping the offsets
+    // back into the real text means. The one outside it is untouched.
+    expect(await rowText(SPLIT_BY_A_TAG)).toBe(`The ${SKIPS_REPLACEMENT} was empty.`);
+    expect(await rowText(TAG_OUTSIDE_IT)).toBe(`{\\b1}The ${SKIPS_REPLACEMENT} was loud.`);
+    // And the comment is the line it was: a skipped cue is skipped by the replace too.
+    expect(await rowText(IN_THE_COMMENT)).toBe(inComment);
   });
 });

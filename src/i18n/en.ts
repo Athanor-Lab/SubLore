@@ -284,6 +284,10 @@ export const en = {
     replaceLabel: "Replace with",
     matchCase: "Match case",
     regex: "Regular expression",
+    /** Comment cues are not looked in at all, by find and by replace all alike (spec 9.2). */
+    skipComments: "Skip comments",
+    /** The search runs on the line with its override blocks taken out (spec 9.2). */
+    skipTags: "Skip override tags",
     /** The selection, whatever its size: one selected cue restricts too (F4b). */
     inSelection: "Selected cues only",
     findNext: "Find next",
