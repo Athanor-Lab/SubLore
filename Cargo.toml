@@ -13,3 +13,6 @@ members = [
   "crates/sublore-project",
   "src-tauri",
 ]
+
+[workspace.lints.clippy]
+unwrap_used = "deny"

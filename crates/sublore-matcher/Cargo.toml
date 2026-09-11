@@ -9,3 +9,6 @@ publish = false
 # Deliberately empty. A term match is a walk over two string slices, and a dependency here would
 # have to cross the module boundary's licence line with it. See docs/matcher-tasks.md.
 [dependencies]
+
+[lints]
+workspace = true

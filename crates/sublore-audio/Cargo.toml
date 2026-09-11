@@ -21,3 +21,6 @@ sha2 = "0.11"
 # Temp file, fsync, rename: the one atomic write path in the repository (CONTRIBUTING.md §3.2).
 # It has no dependencies of its own, so this adds nothing else and closes no cycle.
 sublore-io = { path = "../sublore-io" }
+
+[lints]
+workspace = true

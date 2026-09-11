@@ -9,3 +9,6 @@ publish = false
 # Deliberately empty, as in sublore-formats. A dependency here would cross the boundary this crate
 # exists to keep narrow. See BACKLOG.md N8a.
 [dependencies]
+
+[lints]
+workspace = true

@@ -12,3 +12,6 @@ libloading = "0.7"
 
 [dev-dependencies]
 sublore-module-fixture = { path = "../sublore-module-fixture" }
+
+[lints]
+workspace = true

@@ -22,3 +22,6 @@ sublore-io = { path = "../sublore-io" }
 # The only HTTP client, used by exactly one function. MIT/Apache-2.0, blocking, no runtime.
 # Compression is off on purpose: a transparently decompressed body would break byte-offset resume.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
+
+[lints]
+workspace = true

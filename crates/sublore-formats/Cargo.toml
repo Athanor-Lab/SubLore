@@ -9,3 +9,6 @@ publish = false
 # Deliberately empty: the parsers are std-only, and a dependency here would have to be
 # justified as a public-interface change. See BACKLOG.md M1.1.
 [dependencies]
+
+[lints]
+workspace = true

@@ -13,3 +13,6 @@ publish = false
 # `hooks` is `hooks = []` in rusqlite's own manifest, so it pulls no new dependency and only
 # compiles more of a crate the workspace already builds. It is what `module_guard` needs.
 rusqlite = { version = "0.40", default-features = false, features = ["bundled", "hooks"] }
+
+[lints]
+workspace = true

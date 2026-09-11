@@ -10,3 +10,6 @@ publish = false
 # path dependency on the parsers this crate edits through. See BACKLOG.md M2.1.
 [dependencies]
 sublore-formats = { path = "../sublore-formats" }
+
+[lints]
+workspace = true
