@@ -404,7 +404,7 @@ jobs:
       # rule. Neither is silently skippable: both fail loudly when their prerequisite is absent.
       # `pnpm e2e:memory` and `pnpm e2e:cold-start` measure section 7's other two budgets, which
       # nothing measured before them. They are out for a different reason from the two above: both
-      # pass here, memory at 384 to 389 MB against 400 and cold start at 410 to 895 ms against 2000,
+      # pass here, memory at 384 to 389 MB against 400 and cold start at 448 to 933 ms against 2000,
       # but neither number has ever been taken on a runner. `continue-on-error` does not make that
       # safe, because `e2e-verdict.sh` reads the exit codes and turns any non-zero into a red job.
       # They go in when a runner's own figures exist, written down beside them. See

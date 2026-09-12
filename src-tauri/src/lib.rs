@@ -129,6 +129,14 @@ fn startup_files_command(state: tauri::State<'_, StartupFiles>) -> StartupFiles 
     state.inner().clone()
 }
 
+/// The page's own mark that the shell has been painted, which `e2e/scripts/cold-start-check.js`
+/// measures to: the page calls it after the browser has put the first frame up, so it is a reader
+/// for the word "interactive" in CONTRIBUTING.md section 7. See BACKLOG.md N154.
+#[tauri::command]
+fn shell_painted() {
+    log::info!("startup: the shell painted its first frame");
+}
+
 /// What the menu's Quit item and Ctrl+Q call. `AppHandle::exit` is the one quit route, and the run
 /// loop turns it into the window's own close so it meets the gate. See BACKLOG.md N6.
 #[tauri::command]
@@ -295,6 +303,7 @@ pub fn run() -> tauri::Result<()> {
             startup_files_command,
             help::open_help_link,
             title::window_title_set,
+            shell_painted,
             quit
         ])
         .setup(move |app| {
