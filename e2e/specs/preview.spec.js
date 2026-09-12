@@ -378,6 +378,11 @@ describe("the document on the video frame", () => {
     );
     expect(await textOf(".statusbar__preview-error")).toBe(null);
 
+    // mpv fills `sub-text` when it draws, and adding a track to a paused player does not make it
+    // draw: on the runner the line never came and this check sat out its whole wait. The app asks
+    // for that frame now, and this is what says so where it matters, which is there. See N101.
+    expect(appLog(dataHome())).toContain("preview: asked mpv to draw the paused frame again");
+
     // And the document is where it was. The reference compares the script's declared resolution to
     // the video's and can rewrite the resolution fields, or resample every override-tag coordinate
     // in the whole file, and mark the document modified. Opening a video is not an edit, and this
