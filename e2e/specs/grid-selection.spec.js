@@ -59,7 +59,7 @@ async function cellAt(toplevel, position, cell) {
 /** The number cell selects and never opens an editor, which is why every gesture below lands on it. */
 /** How many times the grid has been committed, which `CueList.tsx` counts on the element. */
 function gridRenders() {
-  return browser.execute(() => Number(document.documentElement.dataset.gridRenders) || 0);
+  return browser.execute(() => Number(window.__gridRenders) || 0);
 }
 
 /** Wait until the grid stops drawing on its own, so the count below is about the click. */

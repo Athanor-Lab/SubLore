@@ -92,9 +92,12 @@ export default function CueList({
   // Every commit of the grid, counted where a check can read it. Interface-spec 7.2 asks a click on
   // the row the cursor already holds to change nothing, and a render that happened for nothing is
   // invisible from outside by definition. No dependency list: this counts commits, not values.
+  //
+  // On a property and not on the element: the grid commits with the playhead, and an attribute
+  // written on `<html>` that often can cost the whole document a style recalculation. See N175.
   useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.gridRenders = String((Number(root.dataset.gridRenders) || 0) + 1);
+    const counted = window as unknown as { __gridRenders?: number };
+    counted.__gridRenders = (counted.__gridRenders ?? 0) + 1;
   });
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(0);
