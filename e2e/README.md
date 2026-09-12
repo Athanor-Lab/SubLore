@@ -411,11 +411,18 @@ Every `waitFor` in this suite takes a timeout, and every one of them is multipli
 
 This is not a way of making a red run green. What a check asserts does not change, and a check whose
 condition never becomes true still fails; it only takes longer to give up. What it buys is the
-difference between the two machines. The whole battery runs one spec at a time and takes about
-thirteen minutes on a workstation and fifteen to twenty-one on the two-core runner, and on
-2026-09-07 three pull requests in a row went red there on waits that no rerun and no local run
-reproduced: eight spec files on one, a single spec on the next, a different single spec on the third.
-A timeout that is generous here is tight there.
+difference between the two machines. On 2026-09-07 three pull requests in a row went red there on
+waits that no rerun and no local run reproduced: eight spec files on one, a single spec on the next,
+a different single spec on the third. A timeout that is generous here is tight there.
+
+**And since N24 it is tight here too.** The battery runs four workers, so four apps share the
+machine and every one of them is slower than it was alone: the paragraph above used to say the
+battery runs one spec at a time, which stopped being true. On 2026-09-12 five batteries in a row
+each dropped one spec, a different one every time, all of them on five second waits. Those thirteen
+waits are fifteen seconds now, raised at their own call sites the way the rule below says. Two were
+left alone on purpose: `asr.spec.js` looks for a dialog that may not be there at all, so its five
+seconds is a cost ceiling rather than a wait, and `video-empty.spec.js` is asking a surface to
+**stay** unmapped rather than to become it.
 
 Two things follow from that. A wait that fails even at twice the timeout is worth reading as a real
 failure rather than as slowness, and a check that needs a longer wait than the suite gives it should

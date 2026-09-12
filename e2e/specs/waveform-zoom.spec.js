@@ -106,7 +106,7 @@ async function scaleAfter(press) {
   const before = await scale();
   press();
   await waitFor(async () => (await scale()) !== before, {
-    timeout: 5000,
+    timeout: 15000,
     message: `the scale to move from ${before}`,
   });
   return scale();
@@ -205,7 +205,7 @@ describe("the waveform's zoom is in the registry", () => {
     pressKey("minus");
     pressKey("0");
     await waitFor(async () => (await valueOf(".currentline__text")) !== before, {
-      timeout: 5000,
+      timeout: 15000,
       message: "the three characters to arrive in the text box",
     });
     expect(await valueOf(".currentline__text")).toBe(`${before}+-0`);
