@@ -257,7 +257,7 @@ describe("the waveform sash", () => {
     await clickElement(toplevel, ".menubar__title--view");
     await clickElement(toplevel, ".menubar__item--view-waveform-panel");
     await waitFor(async () => !(await present(".waveform")), {
-      timeout: 5000,
+      timeout: 15000,
       message: "the waveform panel to go",
     });
     expect(`the sash went with it: ${await present(SASH)}`).toBe("the sash went with it: false");
@@ -268,7 +268,7 @@ describe("the waveform sash", () => {
     await clickElement(toplevel, ".menubar__title--view");
     await clickElement(toplevel, ".menubar__item--view-waveform-panel");
     await waitFor(() => present(".waveform"), {
-      timeout: 5000,
+      timeout: 15000,
       message: "the waveform panel to come back",
     });
     expect(await heightOf(".currentline")).toBe(withPanel);

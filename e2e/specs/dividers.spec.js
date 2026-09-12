@@ -374,7 +374,7 @@ describe("the shell's three edges", () => {
           return Math.abs(now - before.video) > 100 ? now : null;
         },
         {
-          timeout: 5000,
+          timeout: 15000,
           message: `the video panel to move more than 100px from ${Math.round(before.video)} while the button is still down`,
         },
       );

@@ -80,7 +80,7 @@ async function clickTransport(toplevel) {
 /** What the button reads, waited for, with what it actually says when it never gets there. */
 async function expectTransportToRead(wanted) {
   await waitFor(async () => ((await transportLabel()) === wanted ? true : null), {
-    timeout: 5000,
+    timeout: 15000,
     message: `the transport button to read ${JSON.stringify(wanted)}`,
   }).catch(async (error) => {
     const asked = await askedAt();

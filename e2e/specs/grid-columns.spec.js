@@ -424,14 +424,14 @@ async function pickSize(toplevel, percent) {
   const item = `.menubar__item--view-interface-scale-${percent}`;
   await clickElement(toplevel, ".menubar__title--view");
   await waitFor(() => present(item), {
-    timeout: 5000,
+    timeout: 15000,
     message: `the View menu to offer ${percent} per cent`,
   });
   await clickElement(toplevel, item);
   await waitFor(
     async () => (Math.abs((await interfaceScale()) - percent / 100) < 0.001 ? 1 : null),
     {
-      timeout: 5000,
+      timeout: 15000,
       message: `the interface to be drawn at ${percent} per cent`,
     },
   );

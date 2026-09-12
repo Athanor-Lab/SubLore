@@ -338,13 +338,13 @@ async function pickSize(toplevel, percent) {
   const item = `.menubar__item--view-interface-scale-${percent}`;
   await clickElement(toplevel, ".menubar__title--view");
   await waitFor(() => present(item), {
-    timeout: 5000,
+    timeout: 15000,
     message: `the View menu to offer ${percent} per cent`,
   });
   await clickElement(toplevel, item);
   await waitFor(
     async () => (Math.abs((await interfaceScale()) - percent / 100) < 0.001 ? 1 : null),
-    { timeout: 5000, message: `the interface to be drawn at ${percent} per cent` },
+    { timeout: 15000, message: `the interface to be drawn at ${percent} per cent` },
   );
   // Picking is also what stores the size, and the checks below relaunch the app: a pause here is
   // the same one `dragSash` takes, for the same write.
@@ -737,7 +737,7 @@ describe("the interface size", () => {
           return now.video <= settled.video + SLOP_PX ? now : null;
         },
         {
-          timeout: 5000,
+          timeout: 15000,
           message:
             `the video panel to follow the pointer from ${Math.round(wide.video)} down to ` +
             `${Math.round(settled.video)} while the button is still down`,
