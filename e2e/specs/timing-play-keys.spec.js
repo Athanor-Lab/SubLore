@@ -25,6 +25,14 @@ import { waitFor } from "../lib/proc.js";
 import { closeAnyOpenProject } from "../lib/rail.js";
 import { findToplevel } from "../lib/x11.js";
 
+/**
+ * The longest any wait in this file may be. `mochaOpts.timeout` in `e2e/wdio.conf.js`
+ * is 60000, and a wait set to that is killed by the test's own limit at the instant it would
+ * have spoken: what the runner then prints is a bare `Timeout` instead of the message below it.
+ * The worst case measured on the runner is thirty-two seconds. See BACKLOG.md N165.
+ */
+const WAIT_CEILING_MS = 45000;
+
 const OPEN_STATUS = "SRT · 3 cues · LF";
 
 /** The fixture's third cue, committed and byte-frozen, so these are facts. */
@@ -229,7 +237,7 @@ describe("the timing keys M2.5 names are exercised", () => {
         );
         return duration !== null && duration > 0 && greyed === false ? true : null;
       },
-      { timeout: 60000, message: "the player to be ready to play" },
+      { timeout: WAIT_CEILING_MS, message: "the player to be ready to play" },
     );
   });
 

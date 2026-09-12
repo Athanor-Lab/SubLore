@@ -19,6 +19,14 @@ import { requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
+/**
+ * The longest any wait in this file may be. `mochaOpts.timeout` in `e2e/wdio.conf.js`
+ * is 60000, and a wait set to that is killed by the test's own limit at the instant it would
+ * have spoken: what the runner then prints is a bare `Timeout` instead of the message below it.
+ * The worst case measured on the runner is thirty-two seconds. See BACKLOG.md N165.
+ */
+const WAIT_CEILING_MS = 45000;
+
 /** The fixture's blocks, in seconds, and whether the audio in each is a tone. Tone first. */
 const BLOCKS = [
   { from: 0, to: 10, tone: true },
@@ -223,7 +231,7 @@ describe("the waveform draws what the job produces", () => {
         return all.every((r) => (r.tone ? r.reach > 0.8 : r.painted > 0)) ? all : null;
       },
       {
-        timeout: 60000,
+        timeout: WAIT_CEILING_MS,
         message: "every block centre to be drawn",
       },
     ).catch(async (error) => {

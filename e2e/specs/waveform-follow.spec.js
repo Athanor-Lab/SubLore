@@ -17,6 +17,14 @@ import { requireWaveformFixture, windowHeight, windowWidth } from "../lib/paths.
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
+/**
+ * The longest any wait in this file may be. `mochaOpts.timeout` in `e2e/wdio.conf.js`
+ * is 60000, and a wait set to that is killed by the test's own limit at the instant it would
+ * have spoken: what the runner then prints is a bare `Timeout` instead of the message below it.
+ * The worst case measured on the runner is thirty-two seconds. See BACKLOG.md N165.
+ */
+const WAIT_CEILING_MS = 45000;
+
 /** W7: the drawn head and the player's own figure, no further apart than one position event. */
 const AGREEMENT_MS = 100;
 
@@ -358,7 +366,7 @@ describe("the waveform follows the playhead", () => {
     }, GIVE_UP_FRAMES);
 
     const times = await waitFor(() => browser.execute(() => window.__subloreView), {
-      timeout: 60000,
+      timeout: WAIT_CEILING_MS,
       message: "twenty zoom steps and twenty scroll steps to finish",
     });
     const frames = times.map((step) => step.frames).sort((a, b) => a - b);

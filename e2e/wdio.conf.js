@@ -1,8 +1,17 @@
 import console from "node:console";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import {
   asrDir,
@@ -36,6 +45,9 @@ import {
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
 const EXPECTED_TESTS = 505;
+
+/** How long mocha lets one test live. Every wait inside a test must be shorter. See N165. */
+const TEST_LIMIT_MS = 60000;
 
 // Keeps a run out of the real data dir. Created once in the launcher; workers inherit the value.
 const inherited = process.env.SUBLORE_E2E_DATA_HOME;
@@ -76,7 +88,43 @@ process.env.SUBLORE_E2E_ASR_DIR = asrDir();
 process.env.SUBLORE_WHISPER_BIN = stubBinary();
 // For the app, not the harness: no spec measures pixels, asr.spec.js runs a real extraction. At
 // load rather than in `onPrepare`, where a throw is logged and every spec runs regardless.
+/**
+ * Refuse to start if any spec waits as long as the test that contains it is allowed to live.
+ *
+ * `mochaOpts.timeout` kills a test at its limit, so a wait set to the same number is cut off at the
+ * instant it would have reported: what the runner prints is a bare `Timeout` and the message the
+ * wait composed is never seen. It happened on 2026-09-12, and four other waits carried the same
+ * number, two of them with elaborate messages that could never have been printed.
+ *
+ * The rule is a relation rather than a number: whatever the limit is, a wait lives inside it with
+ * room for the rest of the test. See BACKLOG.md N165.
+ */
+function refuseWaitsAtTheTestLimit() {
+  const specsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "specs");
+  const limit = TEST_LIMIT_MS;
+  const offenders = [];
+  for (const file of readdirSync(specsDir)) {
+    if (!file.endsWith(".spec.js")) {
+      continue;
+    }
+    const text = readFileSync(path.join(specsDir, file), "utf8");
+    for (const found of text.matchAll(/timeout:\s*(\d+)/g)) {
+      if (Number(found[1]) >= limit) {
+        offenders.push(`${file} waits ${found[1]} ms`);
+      }
+    }
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `a wait may not reach mochaOpts.timeout (${limit} ms), or the test is killed before it can ` +
+        `say what it was waiting for: ${offenders.join("; ")}. See e2e/README.md and BACKLOG.md N165.`,
+    );
+  }
+}
 requireTool("ffmpeg", "extract the audio the transcription spec transcribes");
+// At load for the same reason: in `onPrepare` a throw is logged and every spec runs regardless,
+// which is what the first version of this did, and the battery went green with the offender in it.
+refuseWaitsAtTheTestLimit();
 
 /**
  * The one spec that needs a module file beside the executable, and the fixture it needs there.
@@ -151,7 +199,7 @@ export const config = {
   specFileRetries: process.env.CI === "true" ? 1 : 0,
   capabilities: [{ "tauri:options": { application: requireAppBinary() } }],
   framework: "mocha",
-  mochaOpts: { ui: "bdd", timeout: 60000 },
+  mochaOpts: { ui: "bdd", timeout: TEST_LIMIT_MS },
   // The spec reporter prints a file's whole tick list only when that file ends, so a long spec is
   // minutes of silence. Realtime sends one line per test to the launcher as each test finishes.
   reporters: [["spec", { realtimeReporting: true }]],
