@@ -136,6 +136,27 @@ describe("a layer owns the keyboard while it is open", () => {
       timeout: 40000,
       message: "the transport to appear, which is the video being open",
     });
+    // The transport being drawn is not the player being ready, and T is greyed until it is. A press
+    // against a greyed command does nothing at all, so this file sat out its whole wait and read as
+    // a silence: green alone, red in the battery, three times. The length arriving says the media is
+    // open and the button coming alive says it can be played. Same lesson as `timing-play-keys`,
+    // paid for twice. See BACKLOG.md N173.
+    await waitFor(
+      async () => {
+        const ready = await browser.execute(() => {
+          const slider = document.querySelector(".controls__slider");
+          const button = document.querySelector(".controls__button");
+          return {
+            duration: slider === null ? null : Number(slider.getAttribute("max")),
+            greyed: button?.disabled ?? true,
+          };
+        });
+        return ready.duration !== null && ready.duration > 0 && ready.greyed === false
+          ? true
+          : null;
+      },
+      { timeout: 40000, message: "the player to be ready, which is what wakes the timing keys" },
+    );
   });
 
   it("first proves the key works with nothing over the document", async () => {
