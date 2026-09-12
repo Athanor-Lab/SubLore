@@ -40,10 +40,11 @@ const SLACK = 0.06;
  * Thirty seconds until 2026-09-12, when the first of these checks failed on the runner twice with
  * no range line in the app's log at all. The first press pays for everything the video open has not
  * finished doing, and that machine answers the preview's own question in thirty-two seconds where
- * this one takes four (N101). Sixty, for the same reason and with the same honesty: it is the
- * runner being slow, not the app being wrong.
+ * this one takes four (N101). Forty-five, for the same reason and with the same honesty: it is the
+ * runner being slow, not the app being wrong, and a wait at `mochaOpts.timeout` exactly is killed
+ * by the test's own limit before it can say anything (N164).
  */
-const RANGE_TIMEOUT_MS = 60000;
+const RANGE_TIMEOUT_MS = 45000;
 
 function dataHome() {
   const home = process.env.SUBLORE_E2E_DATA_HOME;
