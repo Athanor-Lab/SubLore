@@ -44,7 +44,7 @@ import {
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 512;
+const EXPECTED_TESTS = 513;
 
 /** How long mocha lets one test live. Every wait inside a test must be shorter. See N165. */
 const TEST_LIMIT_MS = 60000;
@@ -276,6 +276,14 @@ export const config = {
       process.env.SUBLORE_CLIPBOARD_REFUSES = "1";
     } else {
       delete process.env.SUBLORE_CLIPBOARD_REFUSES;
+    }
+    // One spec freezes the app's main thread on purpose, to prove the beat that watches it can see
+    // a stall. Four seconds: long enough to be unmistakable, short enough that the spec costs less
+    // than the checks around it. See BACKLOG.md N101.
+    if (specName(specs).startsWith("main-loop-beat")) {
+      process.env.SUBLORE_STALL_MAIN_MS = "4000";
+    } else {
+      delete process.env.SUBLORE_STALL_MAIN_MS;
     }
     // The stub sidecar is shared and read only; the model sits in the app's own data dir and so
     // follows the spec. Only the specs that transcribe get it: it is 75 MB a copy.

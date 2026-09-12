@@ -28,6 +28,15 @@ import { findToplevel } from "../lib/x11.js";
 
 const OPEN_STATUS = "SRT · 3 cues · LF";
 
+/**
+ * Room for the stall N101 records, which this file paid for on 2026-09-12: the app processed
+ * nothing for thirty-two seconds and a wait of thirty called it a defect. The same battery had
+ * `video-aspect.spec.js` silent for thirty. Forty-five, not sixty: `mochaOpts.timeout` is sixty and
+ * a wait set to it is killed at the instant it would have spoken. Not an assertion about time, and
+ * the stall itself is still open.
+ */
+const STALL_ROOM_MS = 45000;
+
 function workingCopy() {
   const source = path.join(repoRoot, "fixtures", "subtitles", "srt", "clean", "basic-lf.srt");
   if (!existsSync(source)) {
@@ -113,7 +122,7 @@ describe("a layer owns the keyboard while it is open", () => {
     focusWindow(toplevel.id);
     pressKey("t");
     await waitFor(async () => (ranges().length > before ? 1 : null), {
-      timeout: 30000,
+      timeout: STALL_ROOM_MS,
       message: "T to play a range with no layer on screen",
     });
     await clickElement(toplevel, ".controls__button");
@@ -141,7 +150,7 @@ describe("a layer owns the keyboard while it is open", () => {
     focusWindow(toplevel.id);
     pressKey("t");
     await waitFor(async () => (ranges().length > before ? 1 : null), {
-      timeout: 30000,
+      timeout: STALL_ROOM_MS,
       message: "T to play again once the panel has closed",
     });
   });
