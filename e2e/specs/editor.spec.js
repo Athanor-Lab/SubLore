@@ -695,6 +695,16 @@ describe("cue list editing", () => {
         message: "the status line to report the reopened file",
       },
     );
+    // The bar comes from the summary and the grid from the cues, so the bar can name the reopened
+    // file before a row is drawn. On the runner it did, and row 1 read null. See BACKLOG.md N172.
+    const barAt = Date.now();
+    await waitFor(async () => ((await rowText(1)) === null ? null : true), {
+      timeout: 20000,
+      message: "the grid to draw the reopened document's first row",
+    });
+    // Printed rather than asserted: the number is what says the two facts are not the same one, and
+    // it is the runner's number that matters, which only a run there can give.
+    console.log(`reopen: the status line leads the first row by ${Date.now() - barAt} ms`);
 
     expect(await rowText(1)).toBe("Keep the camera on the door.");
     await scrollTo(EDITED_POSITION);
