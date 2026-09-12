@@ -70,6 +70,45 @@ function specName(specs) {
   const first = Array.isArray(specs) ? specs[0] : specs;
   return path.basename(String(first ?? "unknown")).replace(/[^a-zA-Z0-9._-]/g, "_");
 }
+/**
+ * Say which apps stalled, whether or not it cost a test.
+ *
+ * `stall.rs` beats on the main loop and writes a line when two beats are more than three seconds
+ * apart. A stall that reddens nothing leaves no trace otherwise, because a green run throws its
+ * tree away, and on 2026-09-12 two apps in one battery went silent for thirty and thirty-two
+ * seconds while only one of them cost a spec. Printing it here makes every run a data point: this
+ * is the instrument N101 was missing, and it accumulates only if somebody reads it. Never fails the
+ * run. The stall is somebody else's entry to close.
+ */
+function reportStalls() {
+  const root = path.join(runDataHome, "spec");
+  if (!existsSync(root)) {
+    return;
+  }
+  const seen = [];
+  for (const spec of readdirSync(root)) {
+    const log = path.join(root, spec, "com.sublore.app", "logs", "sublore.log");
+    let text = "";
+    try {
+      text = readFileSync(log, "utf8");
+    } catch {
+      // A spec that never launched the app has no log, which is not an error here.
+      continue;
+    }
+    for (const found of text.matchAll(/main loop: (\d+) ms between two beats/g)) {
+      seen.push({ spec, ms: Number(found[1]) });
+    }
+  }
+  if (seen.length === 0) {
+    return;
+  }
+  seen.sort((one, two) => two.ms - one.ms);
+  console.log(
+    `E2E: the main loop stalled ${seen.length} time(s) in this run, worst first: ` +
+      `${seen.map((one) => `${one.spec} ${one.ms} ms`).join("; ")}. See BACKLOG.md N101.`,
+  );
+}
+
 /** The update check's stand-in for this worker's session, held so `afterSession` can shut it. */
 let standIn = null;
 process.env.XDG_DATA_HOME = process.env.SUBLORE_E2E_DATA_HOME;
@@ -309,6 +348,7 @@ export const config = {
   },
 
   onComplete: (exitCode, capabilities, config_, results) => {
+    reportStalls();
     // A failed run keeps its tree: what the app wrote is the evidence for why it failed. `failed`
     // is spec files that ended red, so it is zero when a retry saved the run, and the tree was
     // thrown away in exactly the run whose logs are wanted. The tally knows every test that did
