@@ -282,21 +282,19 @@ describe("a menu row that opens a list of its own", () => {
     await closeMenus();
   });
 
-  it("opens a menu from the menubar however the last check left it", async () => {
-    // A click on a menu title toggles it, so a menu left open makes the next open close it and the
-    // caller waits out its whole timeout for an item one click away. `openMenu` closes first, and
-    // this is the check that says so: the File menu is asked for with the Timing menu already up.
+  it("opens a menu that is already open, rather than toggling it shut", async () => {
+    // A click on the title of the menu that is **already** open closes it: clicking another title
+    // switches, which is why this check names the same one twice. A caller that asked for a menu
+    // somebody had left open would then wait out its whole timeout for an item one click away.
+    // `openMenu` closes first and opens after, so the answer does not depend on what came before.
     await clickElement(toplevel, ".menubar__title--timing");
     await waitFor(() => present(".menubar__menu"), {
       timeout: 15000,
       message: "the Timing menu to be left open, which is this check's own precondition",
     });
 
-    await openMenu((css) => clickElement(toplevel, css), "file");
-    await waitFor(() => present(".menubar__item--file-open-subtitle"), {
-      timeout: 15000,
-      message: "the File menu to open over the one that was already up",
-    });
+    await openMenu((css) => clickElement(toplevel, css), "timing");
+    expect(await present(".menubar__menu")).toBe(true);
 
     await closeMenus();
   });
