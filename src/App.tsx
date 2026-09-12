@@ -3332,7 +3332,9 @@ export default function App() {
         return;
       }
       // The key is ours either way, so it never reaches the page; whether it runs is the gate's.
+      // Propagation stops too: a key a command took must not also reach another handler. See N167.
       event.preventDefault();
+      event.stopPropagation();
       runCommand(latest.current, id);
     };
     window.addEventListener("keydown", handle, true);
