@@ -13,7 +13,7 @@
  * stall of about the length it was given. Every other spec in the battery is the control: none of
  * them freezes anything, and a late beat appearing in one of them is a real stall worth reading.
  */
-import { expect } from "@wdio/globals";
+import { browser, expect } from "@wdio/globals";
 
 import { appLog, dataHome, waitForLog } from "../lib/applog.js";
 import { waitFor } from "../lib/proc.js";
@@ -62,6 +62,31 @@ describe("the beat on the main loop", () => {
     const late = lateBeats();
     expect(late.length).toBeGreaterThan(0);
     const worst = Math.max(...late);
+    expect(worst).toBeGreaterThan(HELD_MS - SLACK_MS);
+    expect(worst).toBeLessThan(HELD_MS + 1000 + SLACK_MS);
+  });
+
+  it("says so separately when the page is the half that stopped", async () => {
+    // The page's own thread, blocked from inside it, which is the other half of a silence: the
+    // runner has shown the app processing nothing for a minute while the main loop kept beating,
+    // and a keystroke becomes a command in the page. No hook is needed for this one, because the
+    // harness can reach the page's thread directly. See BACKLOG.md N101.
+    await browser.execute((ms) => {
+      const until = Date.now() + ms;
+      while (Date.now() < until) {
+        // Deliberately busy: a sleep would leave the thread free, which is the opposite of this.
+      }
+    }, HELD_MS);
+
+    await waitForLog(dataHome(), /page: \d+ ms between two ticks/, {
+      timeout: 30000,
+      what: "the page to report the tick it missed",
+    });
+
+    const gaps = [...appLog(dataHome()).matchAll(/page: (\d+) ms between two ticks/g)].map(
+      (found) => Number(found[1]),
+    );
+    const worst = Math.max(...gaps);
     expect(worst).toBeGreaterThan(HELD_MS - SLACK_MS);
     expect(worst).toBeLessThan(HELD_MS + 1000 + SLACK_MS);
   });

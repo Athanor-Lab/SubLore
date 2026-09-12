@@ -49,6 +49,15 @@ pub fn watch_main_loop() {
 #[inline(always)]
 pub fn watch_main_loop() {}
 
+/// What the page says when one of its own ticks came late. The page keeps the clock; this writes it
+/// down beside the main loop's, so the two halves of a stall can be told apart: a gap here with no
+/// gap above is the web process, which is where the window's keystrokes turn into commands.
+#[tauri::command]
+pub fn page_stalled(ms: u64) {
+    let least = ms.saturating_sub(1000);
+    log::warn!("page: {ms} ms between two ticks, so the page was busy at least {least} ms");
+}
+
 /// Test hook: block the main thread once, so the beat above has something to report and a check can
 /// read it. Debug builds only, like the close gate's delay hook.
 #[cfg(all(debug_assertions, target_os = "linux"))]
