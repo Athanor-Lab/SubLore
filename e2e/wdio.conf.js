@@ -109,7 +109,7 @@ function reportStalls() {
   }
   seen.sort((one, two) => two.ms - one.ms);
   console.log(
-    `E2E: the main loop stalled ${seen.length} time(s) in this run, worst first: ` +
+    `E2E: ${seen.length} stall(s) in this run, worst first, each with the half it stopped: ` +
       `${seen.map((one) => `${one.spec} ${one.where} ${one.ms} ms`).join("; ")}. ` +
       "See BACKLOG.md N101.",
   );
