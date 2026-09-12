@@ -21,6 +21,8 @@ import { findToplevel } from "../lib/x11.js";
 
 /** Two thousand cues, far more than one screen holds. Read directly: it is never written. */
 const FIXTURE = ["srt", "clean", "large-2000.srt"];
+/** How many cues that fixture holds, counted from the file: the last row End must land on. */
+const CUES = 2000;
 /** The grid's own row height, the number the windowing is built on (CueList.tsx `ROW_HEIGHT`). */
 const ROW_HEIGHT = 28;
 
@@ -138,6 +140,41 @@ describe("paging the grid", () => {
     await waitFor(async () => ((await activeIndex()) === 0 ? 1 : null), {
       timeout: 15000,
       message: "Page Up to return to the first row",
+    });
+  });
+
+  /**
+   * Interface spec §10.1 asks for this rule to be written down: the six navigation keys reach the
+   * grid because no command claims them, which in the reference is an absence rather than a rule.
+   * Pressing them is what makes it one here, and what would go red the day a command took one.
+   *
+   * End and Home are the pair worth pressing on a file this long, because §7.3 says they go to the
+   * first and last row of the **whole file** rather than of the page, and on two thousand rows the
+   * two answers are nowhere near each other. See BACKLOG.md N166.
+   */
+  it("takes the cursor to the last row of the file and back to the first", async () => {
+    await selectRow(toplevel, 1);
+    await waitFor(async () => ((await activeIndex()) === 0 ? 1 : null), {
+      timeout: 15000,
+      message: "the cursor to be on the first row",
+    });
+
+    pressKey("End");
+    const last = await waitFor(
+      async () => {
+        const at = await activeIndex();
+        return at !== null && at > 0 ? at : null;
+      },
+      { timeout: 15000, message: "End to move the cursor off the first row" },
+    );
+    // The fixture's own count, and the reading that tells the file from the page: a page is a few
+    // dozen rows on any screen this runs on.
+    expect(last).toBe(CUES - 1);
+
+    pressKey("Home");
+    await waitFor(async () => ((await activeIndex()) === 0 ? 1 : null), {
+      timeout: 15000,
+      message: "Home to return to the first row of the file",
     });
   });
 });
