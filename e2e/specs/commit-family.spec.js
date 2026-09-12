@@ -281,6 +281,35 @@ describe("the commit family", () => {
     });
   });
 
+  /**
+   * The last command in the registry no check exercised, found by listing all 119 and grepping the
+   * specs for each: `commitKey("stay")` was written and never called. What tells it from the plain
+   * commit is the cursor, which stays where it is instead of walking on. See BACKLOG.md N170.
+   */
+  it("commits and stays on the line, where a plain commit walks on", async () => {
+    await cursorToRow(toplevel, "2");
+    await waitFor(async () => ((await gridRows())[1]?.cursor === true ? 1 : null), {
+      timeout: 20000,
+      message: "the cursor to be on the second row",
+    });
+
+    commitKey("stay");
+    // Two equal readings across a real interval: the cursor not having moved is an absence, and an
+    // absence read once is just a reading taken early.
+    await browser.pause(1500);
+    const after = await gridRows();
+    expect(after[1]?.cursor).toBe(true);
+    expect(after[2]?.cursor).toBe(false);
+
+    // And the control, so the check cannot pass on a key that did nothing at all: the plain commit
+    // on the same row does move on.
+    commitKey("plain");
+    await waitFor(async () => ((await gridRows())[2]?.cursor === true ? 1 : null), {
+      timeout: 20000,
+      message: "a plain commit to move on to the third row",
+    });
+  });
+
   it("commits the pending markers when the line changes, rather than dropping them", async () => {
     await cursorToRow(toplevel, "2");
     await waitFor(async () => ((await startColumn()) === null ? null : 1), {
