@@ -12,6 +12,7 @@ import { browser, expect } from "@wdio/globals";
 
 import { clickAt, focusWindow, pressKey } from "../lib/input.js";
 import { windowHeight, windowWidth } from "../lib/paths.js";
+import { openMenu } from "../lib/menu.js";
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
@@ -48,7 +49,7 @@ async function clickElement(toplevel, selector) {
 }
 
 async function openLanguage(toplevel) {
-  await clickElement(toplevel, ".menubar__title--view");
+  await openMenu((css) => clickElement(toplevel, css), "view");
   await waitFor(() => present(".menubar__item--view-language"), {
     timeout: 15000,
     message: "the View menu to open on its Language item",

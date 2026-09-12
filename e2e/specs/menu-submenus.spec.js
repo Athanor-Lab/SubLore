@@ -19,6 +19,7 @@ import { browser, expect } from "@wdio/globals";
 import { answerChooser, waitForChooser } from "../lib/chooser.js";
 import { clickAt, focusWindow, hoverAt, pressKey } from "../lib/input.js";
 import { takeCommands, watchCommands } from "../lib/ipc.js";
+import { openMenu } from "../lib/menu.js";
 import { repoRoot, windowHeight, windowWidth } from "../lib/paths.js";
 import { waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
@@ -277,6 +278,25 @@ describe("a menu row that opens a list of its own", () => {
     // Back on the row that opened it, not off the menu and not on the title beside it.
     expect(await hasCursor(OPENER, "menubar__submenu--cursor")).toBe(true);
     expect(await present(".menubar__menu")).toBe(true);
+
+    await closeMenus();
+  });
+
+  it("opens a menu from the menubar however the last check left it", async () => {
+    // A click on a menu title toggles it, so a menu left open makes the next open close it and the
+    // caller waits out its whole timeout for an item one click away. `openMenu` closes first, and
+    // this is the check that says so: the File menu is asked for with the Timing menu already up.
+    await clickElement(toplevel, ".menubar__title--timing");
+    await waitFor(() => present(".menubar__menu"), {
+      timeout: 15000,
+      message: "the Timing menu to be left open, which is this check's own precondition",
+    });
+
+    await openMenu((css) => clickElement(toplevel, css), "file");
+    await waitFor(() => present(".menubar__item--file-open-subtitle"), {
+      timeout: 15000,
+      message: "the File menu to open over the one that was already up",
+    });
 
     await closeMenus();
   });
