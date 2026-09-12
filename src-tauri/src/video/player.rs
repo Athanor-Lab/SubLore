@@ -1020,21 +1020,26 @@ impl Player {
                 .map_err(|error| from_mpv(error, "sub-remove"))?;
         }
 
-        match external_subtitles(&mpv)?
+        let added = match external_subtitles(&mpv)?
             .into_iter()
             .find(|track| track.filename == wanted)
         {
-            Some(track) if reread => mpv
-                .command("sub-reload", &[&track.id.to_string()])
-                .map_err(|error| from_mpv(error, "sub-reload"))?,
-            Some(_) => {}
-            None => mpv
-                .command("sub-add", &[&wanted, "select"])
-                .map_err(|error| from_mpv(error, "sub-add"))?,
-        }
+            Some(track) if reread => {
+                mpv.command("sub-reload", &[&track.id.to_string()])
+                    .map_err(|error| from_mpv(error, "sub-reload"))?;
+                false
+            }
+            Some(_) => false,
+            None => {
+                mpv.command("sub-add", &[&wanted, "select"])
+                    .map_err(|error| from_mpv(error, "sub-add"))?;
+                true
+            }
+        };
 
         mpv.set_property("sub-visibility", visible)
             .map_err(|error| from_mpv(error, "sub-visibility"))?;
+        self.draw_the_paused_frame(&mpv, added);
         let tracks = external_subtitles(&mpv)?;
         // No line covering the playhead has no `sub-text` at all. That is absence, not failure.
         let chars = mpv
@@ -1092,6 +1097,26 @@ impl Player {
             Err(error) => log::warn!("{}", pause_line(paused, Some(error))),
         }
         outcome
+    }
+
+    /// Make mpv draw the frame it is sitting on again, after a track was added under it.
+    ///
+    /// mpv fills `sub-text` when it draws, and adding a track to a paused player does not make it
+    /// draw: on a host with no GPU the line never arrived, the frame kept the picture it had, and
+    /// the event thread waited for a property change that was never coming. A zero length exact
+    /// seek makes it decode and draw that frame again. Only while paused: a running player draws by
+    /// itself, and a seek under one is a jump it walks straight back off. See BACKLOG.md N101.
+    ///
+    /// Only on the add, never on a reload: the runner's own log shows a reload drawing at once, and
+    /// a reload happens on every committed edit, which is while the translator is typing.
+    fn draw_the_paused_frame(&self, mpv: &Mpv, added: bool) {
+        if !added || mpv.get_property::<bool>("pause") != Ok(true) {
+            return;
+        }
+        match mpv.command("seek", &["0", "relative+exact"]) {
+            Ok(()) => log::info!("preview: asked mpv to draw the paused frame again"),
+            Err(error) => log::warn!("preview: the paused frame could not be drawn again: {error}"),
+        }
     }
 
     fn ask_pause(&self, paused: bool) -> Result<(), VideoError> {
