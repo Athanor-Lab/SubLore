@@ -35,6 +35,13 @@ const WAIT_CEILING_MS = 45000;
 
 const OPEN_STATUS = "SRT · 3 cues · LF";
 
+/**
+ * Where each row starts, in seconds. The fixture is committed and byte-frozen, so these are facts,
+ * and they are what the picture seeks to when the cursor lands: the video follows the cursor by
+ * default (interface-spec 3.5 item 10).
+ */
+const ROW_START = { 1: 2.12, 2: 5.0, 3: 9.1 };
+
 /** The fixture's third cue, committed and byte-frozen, so these are facts. */
 const THIRD_START = 9.1;
 const THIRD_END = 11.76;
@@ -114,6 +121,9 @@ async function clickElement(toplevel, selector) {
 
 /** The row number cell, never the text: a click on the text opens the inline editor. */
 async function cursorTo(toplevel, position) {
+  // Read before the click: the picture follows a change of line and nothing else, so a click on
+  // the row the cursor already holds seeks nowhere and there is no follow to wait for below.
+  const alreadyThere = (await gridRows())[position - 1]?.cursor === true;
   const centre = await browser.execute((wanted) => {
     const cell = Array.from(document.querySelectorAll(".cuelist__row"))
       .find((row) => row.querySelector(".cuelist__pos")?.textContent === wanted)
@@ -138,6 +148,19 @@ async function cursorTo(toplevel, position) {
   // can reach nothing at all: the app's log showed the E case with no `playback:` line whatever,
   // while D and the numpad's 3 right after it worked. See BACKLOG.md N162.
   focusWindow(toplevel.id);
+  if (alreadyThere) {
+    return;
+  }
+  // The cursor landing is not the picture having followed it, and the follow pauses and then seeks.
+  // A key pressed into the middle of that pair is a range whose target the pause takes away, which
+  // is what reddened this file on the runner twice in one run. See BACKLOG.md N171.
+  await waitFor(
+    async () => (Math.abs((await playhead()) - ROW_START[position]) < 0.3 ? true : null),
+    {
+      timeout: 20000,
+      message: `the picture to follow the cursor to ${ROW_START[position]} s`,
+    },
+  );
 }
 
 /** Every range the app has finished playing, oldest first, as pairs of numbers. */
