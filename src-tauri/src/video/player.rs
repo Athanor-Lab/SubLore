@@ -288,6 +288,11 @@ struct Shared {
     /// `sub-text` changes on every line during playback, and refreshing per line would be far too
     /// much. See BACKLOG.md N92.
     awaiting_sub_text: AtomicBool,
+    /// Held across a whole transport gesture. Play, pause, seek and a range each touch `stop_at`
+    /// and mpv's `pause`, and interleaved they can undo one another: a pause that lands between a
+    /// range setting its target and starting playback leaves the picture running with nowhere to
+    /// stop. Measured on the runner, where it ran to the end of the file. See BACKLOG.md N171.
+    transport: Mutex<()>,
 }
 
 impl Shared {
@@ -482,6 +487,7 @@ impl Player {
             picture: Mutex::new(None),
             // Nothing has asked for a line yet.
             awaiting_sub_text: AtomicBool::new(false),
+            transport: Mutex::new(()),
         });
         let stop = Arc::new(AtomicBool::new(false));
 
@@ -594,13 +600,24 @@ impl Player {
     }
 
     pub fn play(&self) -> Result<(), VideoError> {
+        let _gesture = self.gesture();
         self.clear_stop();
         self.set_pause(false)
     }
 
     pub fn pause(&self) -> Result<(), VideoError> {
+        let _gesture = self.gesture();
         self.clear_stop();
         self.set_pause(true)
+    }
+
+    /// Take the transport for one gesture. A poisoned lock means an earlier gesture panicked, and
+    /// serialising after that is still better than not serialising at all.
+    fn gesture(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.shared
+            .transport
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Play from one second to another, then pause. Both are absolute, and both are clamped into
@@ -616,6 +633,7 @@ impl Player {
     /// where a CI failure could not be told apart for that reason. See BACKLOG.md N163.
     pub fn play_range(&self, from: f64, to: f64) -> Result<(), VideoError> {
         log::info!("playback: asked mpv for the range {from:.3} to {to:.3}");
+        let _gesture = self.gesture();
         let mpv = self.handle()?;
         let duration = self.loaded_duration()?;
         if !from.is_finite() || !to.is_finite() {
@@ -642,6 +660,7 @@ impl Player {
 
     /// Absolute seconds from the start, clamped into the file's range.
     pub fn seek(&self, position: f64) -> Result<(), VideoError> {
+        let _gesture = self.gesture();
         let mpv = self.handle()?;
         let duration = self.loaded_duration()?;
         if !position.is_finite() {
