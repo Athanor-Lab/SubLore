@@ -25,6 +25,14 @@ import {
 import { ffmpegProcessesFor, waitFor } from "../lib/proc.js";
 import { findToplevel } from "../lib/x11.js";
 
+/**
+ * The longest any wait in this file may be. `mochaOpts.timeout` in `e2e/wdio.conf.js`
+ * is 60000, and a wait set to that is killed by the test's own limit at the instant it would
+ * have spoken: what the runner then prints is a bare `Timeout` instead of the message below it.
+ * The worst case measured on the runner is thirty-two seconds. See BACKLOG.md N165.
+ */
+const WAIT_CEILING_MS = 45000;
+
 /** How a track's job names itself to ffmpeg: the stream it maps is that track's index. */
 const CACHED_MAP = "-map 0:1";
 const SUPERSEDED_MAP = "-map 0:2";
@@ -71,7 +79,10 @@ function peakedToTheEnd(stream) {
   return waitForLog(
     process.env.SUBLORE_E2E_DATA_HOME,
     new RegExp(`waveform: job \\d+ peaked \\d+ ms of stream ${stream} of .*waveform-tracks\\.mkv`),
-    { timeout: 60000, what: `stream ${stream} of the two-track fixture to be peaked to the end` },
+    {
+      timeout: WAIT_CEILING_MS,
+      what: `stream ${stream} of the two-track fixture to be peaked to the end`,
+    },
   );
 }
 
