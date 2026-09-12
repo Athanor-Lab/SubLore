@@ -65,7 +65,11 @@ export function useCueSelection(count: number, openId: number): CueSelection {
       setSelected(runBetween(anchor.current, index));
     } else if (how === "plain") {
       anchor.current = index;
-      setSelected(new Set([index]));
+      // The same one row again is the same selection. A new Set with the same member is a new
+      // object, and React renders everything that reads it for nothing (interface-spec 7.2).
+      setSelected((current) =>
+        current.size === 1 && current.has(index) ? current : new Set([index]),
+      );
     }
   }, []);
 
