@@ -518,6 +518,23 @@ export default function App() {
   useEffect(() => {
     void invoke<{ videos: string[] }>("recent_read").then((recent) => setRecents(recent.videos));
   }, []);
+  // Two frames after the first commit: the first callback runs before the frame this mount is
+  // painted in, the second after the browser has put it up. That is the mark the cold start budget
+  // is measured to. See BACKLOG.md N154.
+  useEffect(() => {
+    let painted = 0;
+    const committed = requestAnimationFrame(() => {
+      painted = requestAnimationFrame(() => {
+        void invoke("shell_painted").catch((error: unknown) => {
+          console.error("the shell could not report its first paint", error);
+        });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(committed);
+      cancelAnimationFrame(painted);
+    };
+  }, []);
   useEffect(() => {
     if (state.status === "ready" && state.path !== null) {
       void invoke<{ videos: string[] }>("recent_remember", { path: state.path }).then((recent) =>
