@@ -459,6 +459,10 @@ export const en = {
     errors: {
       windowFloor:
         "Sublore could not stop the window being made too narrow for its controls. Widen the window if part of a bar is cut off.",
+      /** Both are drawn where a command's refusal goes, the right of the status bar (N169). */
+      clipboardCopyFailed:
+        "Sublore could not put the lines on the clipboard. The document has not changed.",
+      clipboardCutFailed: "Sublore could not put the lines on the clipboard, so nothing was cut.",
     },
   },
 

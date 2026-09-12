@@ -67,9 +67,33 @@ where
         .map_err(|error| format!("the clipboard call answered nothing: {error}"))?
 }
 
+/// Test hook: make the write refuse without reaching GTK, so a check can see what the app says when
+/// the clipboard will not take the text. Debug builds only, like the close gate's own delay hook.
+#[cfg(debug_assertions)]
+fn refuses() -> bool {
+    const ENV_VAR: &str = "SUBLORE_CLIPBOARD_REFUSES";
+
+    if std::env::var(ENV_VAR).as_deref() != Ok("1") {
+        return false;
+    }
+    log::warn!("clipboard: {ENV_VAR}=1, refusing the write");
+    true
+}
+
+/// Release builds carry no hook: the environment variable is never read.
+#[cfg(not(debug_assertions))]
+#[inline(always)]
+fn refuses() -> bool {
+    false
+}
+
 #[tauri::command]
 pub async fn clipboard_write(app: tauri::AppHandle, text: String) -> Result<(), String> {
-    let outcome = on_main_thread(&app, move || write_text(&text));
+    let outcome = if refuses() {
+        Err("the clipboard refused the text".to_owned())
+    } else {
+        on_main_thread(&app, move || write_text(&text))
+    };
     if let Err(error) = &outcome {
         log::warn!("clipboard: the copy failed: {error}");
     }

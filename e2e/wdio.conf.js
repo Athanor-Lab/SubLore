@@ -44,7 +44,7 @@ import {
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 509;
+const EXPECTED_TESTS = 512;
 
 /** How long mocha lets one test live. Every wait inside a test must be shorter. See N165. */
 const TEST_LIMIT_MS = 60000;
@@ -268,6 +268,14 @@ export const config = {
     // battery-wide silence would change what the waveform specs are asserting. See BACKLOG.md N13.
     if (specName(specs).startsWith("silent-machine")) {
       Object.assign(process.env, silentMachine(own));
+    }
+    // One spec runs against a clipboard that will not take the text, which is what the Windows stub
+    // is by construction and what GTK can be on a bad day. Only that one: every other spec wants the
+    // real clipboard, and two of them round trip through it. See BACKLOG.md N169.
+    if (specName(specs).startsWith("clipboard-refuses")) {
+      process.env.SUBLORE_CLIPBOARD_REFUSES = "1";
+    } else {
+      delete process.env.SUBLORE_CLIPBOARD_REFUSES;
     }
     // The stub sidecar is shared and read only; the model sits in the app's own data dir and so
     // follows the spec. Only the specs that transcribe get it: it is 75 MB a copy.

@@ -934,6 +934,8 @@ export default function App() {
   /** Whether the band stays inside the grid's selection. Off is the whole document (F4b). */
   const [inSelection, setInSelection] = useState(false);
   const [quitError, setQuitError] = useState<string | null>(null);
+  /** What a copy or a cut could not put on the clipboard. Cleared by the next one that can. */
+  const [clipboardError, setClipboardError] = useState<string | null>(null);
 
   async function pick(
     kind: ChooseKind,
@@ -998,7 +1000,13 @@ export default function App() {
     if (lines === "") {
       return;
     }
-    await invoke("clipboard_write", { text: lines }).catch(() => undefined);
+    const written = await invoke("clipboard_write", { text: lines }).then(
+      () => true,
+      () => false,
+    );
+    // The backend logs its own refusal and hands it back; dropping it here is what left the user
+    // with nothing on screen and nothing on the clipboard. See BACKLOG.md N169.
+    setClipboardError(written ? null : en.shell.errors.clipboardCopyFailed);
   }
 
   /**
@@ -1022,8 +1030,10 @@ export default function App() {
       () => false,
     );
     if (!written) {
+      setClipboardError(en.shell.errors.clipboardCutFailed);
       return;
     }
+    setClipboardError(null);
     await subtitle.deleteCues(rows);
   }
 
@@ -3623,7 +3633,9 @@ export default function App() {
           videoErrorCode={errorCode}
           projectDeleted={project.deleted}
           projectError={project.error}
-          chromeError={quitError ?? (windowFloor.failed ? en.shell.errors.windowFloor : null)}
+          chromeError={
+            quitError ?? clipboardError ?? (windowFloor.failed ? en.shell.errors.windowFloor : null)
+          }
           waveformFailed={peaks.error !== null}
           notice={notice}
           previewFailed={preview.failed}
