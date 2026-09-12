@@ -20,6 +20,7 @@ pub mod preferences;
 pub mod preview;
 pub mod project;
 pub mod recent;
+pub mod stall;
 pub mod strings;
 pub mod subtitle;
 pub mod title;
@@ -308,6 +309,10 @@ pub fn run() -> tauri::Result<()> {
         ])
         .setup(move |app| {
             crash::attach(app);
+            // Before anything else that could hold the thread: the beat is the instrument for a
+            // stall, so it has to be running before the first thing that could cause one (N101).
+            stall::watch_main_loop();
+            stall::stall_once();
             // After the app exists, because the directory a module is given comes from it, and
             // before the window asks: the scan itself ran before either (module-abi.md 4.1).
             // The session is managed first: a module is lent it for the whole of every call the
