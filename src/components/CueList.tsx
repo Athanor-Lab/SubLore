@@ -89,6 +89,13 @@ export default function CueList({
 }: CueListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  // Every commit of the grid, counted where a check can read it. Interface-spec 7.2 asks a click on
+  // the row the cursor already holds to change nothing, and a render that happened for nothing is
+  // invisible from outside by definition. No dependency list: this counts commits, not values.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.gridRenders = String((Number(root.dataset.gridRenders) || 0) + 1);
+  });
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(0);
   const [editing, setEditing] = useState<number | null>(null);

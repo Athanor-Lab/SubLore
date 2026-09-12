@@ -57,6 +57,33 @@ async function cellAt(toplevel, position, cell) {
 }
 
 /** The number cell selects and never opens an editor, which is why every gesture below lands on it. */
+/** How many times the grid has been committed, which `CueList.tsx` counts on the element. */
+function gridRenders() {
+  return browser.execute(() => Number(document.documentElement.dataset.gridRenders) || 0);
+}
+
+/** Wait until the grid stops drawing on its own, so the count below is about the click. */
+async function settle() {
+  let last = -1;
+  for (;;) {
+    const now = await gridRenders();
+    if (now === last) {
+      return;
+    }
+    last = now;
+    await browser.pause(400);
+  }
+}
+
+/** The list position the cursor is on, or null. */
+function cursorRow() {
+  return browser.execute(() => {
+    const row = document.querySelector(".cuelist__row--active");
+    const text = row?.querySelector(".cuelist__pos")?.textContent;
+    return text === undefined || text === null ? null : Number(text);
+  });
+}
+
 async function clickRow(toplevel, position, modifier = null) {
   const at = await cellAt(toplevel, position, ".cuelist__pos");
   if (modifier === null) {
@@ -225,5 +252,29 @@ describe("the grid's selection gestures", () => {
       message: "the editor to close again",
     });
     expect(await present(".statusbar__dirty")).toBe(false);
+  });
+
+  it("draws nothing again when the click lands on the row the cursor already holds", async () => {
+    // Interface-spec 7.2: announcing the same selection again is a redundant render in React, and a
+    // render that happened for nothing cannot be seen from outside. The grid counts its own commits
+    // on the element, which is what makes this readable at all. See BACKLOG.md N159.
+    await clickRow(toplevel, 2);
+    await waitFor(async () => ((await cursorRow()) === 2 ? 1 : null), {
+      timeout: 15000,
+      message: "the cursor to land on the second row",
+    });
+    await settle();
+
+    const before = await gridRenders();
+    await clickRow(toplevel, 2);
+    await browser.pause(1000);
+    expect(await gridRenders()).toBe(before);
+
+    // The control, and it is what says the counter counts: another row does draw again.
+    await clickRow(toplevel, 3);
+    await waitFor(async () => ((await gridRenders()) > before ? 1 : null), {
+      timeout: 15000,
+      message: "a click on another row to draw the grid again",
+    });
   });
 });
