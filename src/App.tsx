@@ -3301,8 +3301,25 @@ export default function App() {
     latest.current = commands;
   });
 
+  /**
+   * Whether a dialog or an open menu is on screen, held in a ref because the listener below is
+   * attached once and must read the current answer rather than the one from the render that
+   * attached it.
+   */
+  const covered = useRef(layers.covered);
+  useEffect(() => {
+    covered.current = layers.covered;
+  });
+
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
+      // A layer owns the keyboard while it is open. Without this, a bare accelerator ran its
+      // command on the document behind the dialog: measured with the video details panel on screen
+      // and T playing the line under it. The key is left alone rather than swallowed, so the menu's
+      // own arrows and a dialog's Escape still reach it. See BACKLOG.md N168.
+      if (covered.current) {
+        return;
+      }
       // A field keeps the chords a field owns, and every bare key but a function key. This is the
       // only listener that asks: the grid used to answer the same question again, for three keys.
       // Shift alone is not a modifier here, because Shift+A is still typing (F5).
