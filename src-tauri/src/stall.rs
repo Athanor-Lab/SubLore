@@ -9,7 +9,7 @@
 #[cfg(target_os = "linux")]
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "linux")]
+// Not behind a cfg: `page_stalled` is the page's own report and the page runs on every platform.
 use crate::log;
 
 /// How often the beat runs. Cheap: one wake a second on a loop that already wakes for every frame.
