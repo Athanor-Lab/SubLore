@@ -149,10 +149,15 @@ function whatDiffers(expected, line) {
  * and this machine answers in about four seconds.
  *
  * So the old limit was not measuring the app, it was measuring the runner, and an assertion nobody
- * asked for. Sixty is the measured worst case with room, and if the report never comes the message
- * still names what it last saw.
+ * asked for.
+ *
+ * Forty-five, not sixty. `mochaOpts.timeout` in `e2e/wdio.conf.js` is 60000, and a wait set to the
+ * same number is killed by the test's own limit at the instant it would have spoken: the runner
+ * then prints a bare `Timeout` and the message this file takes care to write is never seen. A wait
+ * lives inside the limit that contains it, with room for the rest of the test. Measured worst case
+ * is thirty-two seconds, so this carries about forty per cent.
  */
-const DRAWN_TIMEOUT_MS = 60000;
+const DRAWN_TIMEOUT_MS = 45000;
 
 async function waitForDrawn(expected, what, timeout = DRAWN_TIMEOUT_MS) {
   const deadline = Date.now() + timeout;
