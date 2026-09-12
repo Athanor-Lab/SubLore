@@ -269,6 +269,14 @@ export const config = {
     if (specName(specs).startsWith("silent-machine")) {
       Object.assign(process.env, silentMachine(own));
     }
+    // One spec runs against a clipboard that will not take the text, which is what the Windows stub
+    // is by construction and what GTK can be on a bad day. Only that one: every other spec wants the
+    // real clipboard, and two of them round trip through it. See BACKLOG.md N169.
+    if (specName(specs).startsWith("clipboard-refuses")) {
+      process.env.SUBLORE_CLIPBOARD_REFUSES = "1";
+    } else {
+      delete process.env.SUBLORE_CLIPBOARD_REFUSES;
+    }
     // The stub sidecar is shared and read only; the model sits in the app's own data dir and so
     // follows the spec. Only the specs that transcribe get it: it is 75 MB a copy.
     if (specName(specs).startsWith("asr")) {
