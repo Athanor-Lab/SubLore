@@ -53,6 +53,29 @@ function workingCopy() {
   return copy;
 }
 
+/**
+ * How many keydowns the page has been given, which `App.tsx` counts on the element.
+ *
+ * The difference this is here to name: a key the app dropped and a key that never arrived read
+ * exactly the same from outside, and on the runner this file has twice waited out its whole timeout
+ * for a press that produced no line at all. See BACKLOG.md N101.
+ */
+function keysSeen() {
+  return browser.execute(() => Number(document.documentElement.dataset.keysSeen) || 0);
+}
+
+/** Press a key and say which half failed: the page never saw it, or nothing came of it. */
+async function pressAndConfirmArrival(key) {
+  const before = await keysSeen();
+  pressKey(key);
+  await waitFor(async () => ((await keysSeen()) > before ? 1 : null), {
+    timeout: 10000,
+    message:
+      `the page to be given the ${key} keypress at all. It was sent through XTEST to a window ` +
+      `that holds the focus, and the page never saw a keydown`,
+  });
+}
+
 function present(selector) {
   return browser.execute((css) => document.querySelector(css) !== null, selector);
 }
@@ -113,6 +136,27 @@ describe("a layer owns the keyboard while it is open", () => {
       timeout: 40000,
       message: "the transport to appear, which is the video being open",
     });
+    // The transport being drawn is not the player being ready, and T is greyed until it is. A press
+    // against a greyed command does nothing at all, so this file sat out its whole wait and read as
+    // a silence: green alone, red in the battery, three times. The length arriving says the media is
+    // open and the button coming alive says it can be played. Same lesson as `timing-play-keys`,
+    // paid for twice. See BACKLOG.md N173.
+    await waitFor(
+      async () => {
+        const ready = await browser.execute(() => {
+          const slider = document.querySelector(".controls__slider");
+          const button = document.querySelector(".controls__button");
+          return {
+            duration: slider === null ? null : Number(slider.getAttribute("max")),
+            greyed: button?.disabled ?? true,
+          };
+        });
+        return ready.duration !== null && ready.duration > 0 && ready.greyed === false
+          ? true
+          : null;
+      },
+      { timeout: 40000, message: "the player to be ready, which is what wakes the timing keys" },
+    );
   });
 
   it("first proves the key works with nothing over the document", async () => {
@@ -120,7 +164,7 @@ describe("a layer owns the keyboard while it is open", () => {
     // which is exactly how the first version of this fooled itself.
     const before = ranges().length;
     focusWindow(toplevel.id);
-    pressKey("t");
+    await pressAndConfirmArrival("t");
     await waitFor(async () => (ranges().length > before ? 1 : null), {
       timeout: STALL_ROOM_MS,
       message: "T to play a range with no layer on screen",
@@ -137,7 +181,7 @@ describe("a layer owns the keyboard while it is open", () => {
 
     const before = ranges().length;
     focusWindow(toplevel.id);
-    pressKey("t");
+    await pressAndConfirmArrival("t");
     await browser.pause(2500);
     expect(ranges().length).toBe(before);
 
@@ -148,7 +192,7 @@ describe("a layer owns the keyboard while it is open", () => {
       message: "the details panel to close",
     });
     focusWindow(toplevel.id);
-    pressKey("t");
+    await pressAndConfirmArrival("t");
     await waitFor(async () => (ranges().length > before ? 1 : null), {
       timeout: STALL_ROOM_MS,
       message: "T to play again once the panel has closed",

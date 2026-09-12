@@ -3357,6 +3357,12 @@ export default function App() {
 
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
+      // Every keydown the page is given, counted before any road out of here. A check that presses
+      // a key and sees nothing cannot otherwise tell a key the app dropped from one that never
+      // arrived, and that difference is what the silences of N101 are made of. Straight onto the
+      // element, so it costs no render and no IPC.
+      const root = document.documentElement;
+      root.dataset.keysSeen = String((Number(root.dataset.keysSeen) || 0) + 1);
       // A layer owns the keyboard while it is open. Without this, a bare accelerator ran its
       // command on the document behind the dialog: measured with the video details panel on screen
       // and T playing the line under it. The key is left alone rather than swallowed, so the menu's
