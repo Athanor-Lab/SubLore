@@ -44,7 +44,7 @@ import {
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 506;
+const EXPECTED_TESTS = 508;
 
 /** How long mocha lets one test live. Every wait inside a test must be shorter. See N165. */
 const TEST_LIMIT_MS = 60000;
