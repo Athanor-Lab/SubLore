@@ -53,6 +53,29 @@ function workingCopy() {
   return copy;
 }
 
+/**
+ * How many keydowns the page has been given, which `App.tsx` counts on the element.
+ *
+ * The difference this is here to name: a key the app dropped and a key that never arrived read
+ * exactly the same from outside, and on the runner this file has twice waited out its whole timeout
+ * for a press that produced no line at all. See BACKLOG.md N101.
+ */
+function keysSeen() {
+  return browser.execute(() => Number(document.documentElement.dataset.keysSeen) || 0);
+}
+
+/** Press a key and say which half failed: the page never saw it, or nothing came of it. */
+async function pressAndConfirmArrival(key) {
+  const before = await keysSeen();
+  pressKey(key);
+  await waitFor(async () => ((await keysSeen()) > before ? 1 : null), {
+    timeout: 10000,
+    message:
+      `the page to be given the ${key} keypress at all. It was sent through XTEST to a window ` +
+      `that holds the focus, and the page never saw a keydown`,
+  });
+}
+
 function present(selector) {
   return browser.execute((css) => document.querySelector(css) !== null, selector);
 }
@@ -120,7 +143,7 @@ describe("a layer owns the keyboard while it is open", () => {
     // which is exactly how the first version of this fooled itself.
     const before = ranges().length;
     focusWindow(toplevel.id);
-    pressKey("t");
+    await pressAndConfirmArrival("t");
     await waitFor(async () => (ranges().length > before ? 1 : null), {
       timeout: STALL_ROOM_MS,
       message: "T to play a range with no layer on screen",
@@ -137,7 +160,7 @@ describe("a layer owns the keyboard while it is open", () => {
 
     const before = ranges().length;
     focusWindow(toplevel.id);
-    pressKey("t");
+    await pressAndConfirmArrival("t");
     await browser.pause(2500);
     expect(ranges().length).toBe(before);
 
@@ -148,7 +171,7 @@ describe("a layer owns the keyboard while it is open", () => {
       message: "the details panel to close",
     });
     focusWindow(toplevel.id);
-    pressKey("t");
+    await pressAndConfirmArrival("t");
     await waitFor(async () => (ranges().length > before ? 1 : null), {
       timeout: STALL_ROOM_MS,
       message: "T to play again once the panel has closed",
