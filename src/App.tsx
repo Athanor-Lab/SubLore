@@ -518,6 +518,23 @@ export default function App() {
   useEffect(() => {
     void invoke<{ videos: string[] }>("recent_read").then((recent) => setRecents(recent.videos));
   }, []);
+  // The page's own beat, the twin of the one `stall.rs` keeps on the main loop. It says nothing
+  // while it is healthy and reports the gap when a tick was late, so a silence can be put on one
+  // side or the other: the page is where a keystroke becomes a command. See BACKLOG.md N101.
+  useEffect(() => {
+    let last = Date.now();
+    const beat = window.setInterval(() => {
+      const now = Date.now();
+      const gap = now - last;
+      last = now;
+      if (gap >= 3000) {
+        void invoke("page_stalled", { ms: gap }).catch((error: unknown) => {
+          console.error("the page could not report its own stall", error);
+        });
+      }
+    }, 1000);
+    return () => window.clearInterval(beat);
+  }, []);
   // Two frames after the first commit: the first callback runs before the frame this mount is
   // painted in, the second after the browser has put it up. That is the mark the cold start budget
   // is measured to. See BACKLOG.md N154.

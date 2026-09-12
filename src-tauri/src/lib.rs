@@ -305,6 +305,7 @@ pub fn run() -> tauri::Result<()> {
             help::open_help_link,
             title::window_title_set,
             shell_painted,
+            stall::page_stalled,
             quit
         ])
         .setup(move |app| {

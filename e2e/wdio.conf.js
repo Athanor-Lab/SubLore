@@ -44,7 +44,7 @@ import {
  * Every spec that exists must run. WebdriverIO does not reliably fail a run that executed nothing,
  * so the count is asserted here. Bump it when you add a test; see e2e/README.md.
  */
-const EXPECTED_TESTS = 513;
+const EXPECTED_TESTS = 514;
 
 /** How long mocha lets one test live. Every wait inside a test must be shorter. See N165. */
 const TEST_LIMIT_MS = 60000;
@@ -73,8 +73,8 @@ function specName(specs) {
 /**
  * Say which apps stalled, whether or not it cost a test.
  *
- * `stall.rs` beats on the main loop and writes a line when two beats are more than three seconds
- * apart. A stall that reddens nothing leaves no trace otherwise, because a green run throws its
+ * `stall.rs` beats on the main loop and `App.tsx` beats in the page, and each writes a line when
+ * two of its own beats are more than three seconds apart. A stall that reddens nothing leaves no trace otherwise, because a green run throws its
  * tree away, and on 2026-09-12 two apps in one battery went silent for thirty and thirty-two
  * seconds while only one of them cost a spec. Printing it here makes every run a data point: this
  * is the instrument N101 was missing, and it accumulates only if somebody reads it. Never fails the
@@ -96,7 +96,12 @@ function reportStalls() {
       continue;
     }
     for (const found of text.matchAll(/main loop: (\d+) ms between two beats/g)) {
-      seen.push({ spec, ms: Number(found[1]) });
+      seen.push({ spec, where: "main loop", ms: Number(found[1]) });
+    }
+    // The page's own beat, which is the half that matters for a keystroke: the runner has shown the
+    // app acting on one a minute late with the main loop beating throughout.
+    for (const found of text.matchAll(/page: (\d+) ms between two ticks/g)) {
+      seen.push({ spec, where: "page", ms: Number(found[1]) });
     }
   }
   if (seen.length === 0) {
@@ -104,8 +109,9 @@ function reportStalls() {
   }
   seen.sort((one, two) => two.ms - one.ms);
   console.log(
-    `E2E: the main loop stalled ${seen.length} time(s) in this run, worst first: ` +
-      `${seen.map((one) => `${one.spec} ${one.ms} ms`).join("; ")}. See BACKLOG.md N101.`,
+    `E2E: ${seen.length} stall(s) in this run, worst first, each with the half it stopped: ` +
+      `${seen.map((one) => `${one.spec} ${one.where} ${one.ms} ms`).join("; ")}. ` +
+      "See BACKLOG.md N101.",
   );
 }
 
