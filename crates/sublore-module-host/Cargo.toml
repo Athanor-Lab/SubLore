@@ -8,7 +8,7 @@ sublore-module-api = { path = "../sublore-module-api" }
 # Pinned to 0.7 to match what the lock already carries through libappindicator-sys: 0.8 would put a
 # second copy of the same dlopen wrapper in the graph. ISC, so GPL-compatible. See
 # docs/module-loader-tasks.md L2.
-libloading = "0.7"
+libloading = "0.9"
 
 [dev-dependencies]
 sublore-module-fixture = { path = "../sublore-module-fixture" }
