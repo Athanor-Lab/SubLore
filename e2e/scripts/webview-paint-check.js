@@ -20,7 +20,7 @@
  * 698 to 2102 ms in both configurations. It is a starting point for CONTRIBUTING.md §7's cold start, not
  * an answer to it.
  *
- * Not in the CI job: `ubuntu-latest` has no NVIDIA module, so the branch under test cannot be taken
+ * Not in the CI job: `ubuntu-24.04` has no NVIDIA module, so the branch under test cannot be taken
  * there, and what WebKit's DMABUF renderer does under that runner's llvmpipe has never been
  * measured. Stating the gap rather than leaving it silent (gate 2 register, L7 F3).
  */

@@ -204,7 +204,9 @@ jobs:
 
   e2e:
     name: e2e smoke (ubuntu)
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: 26.04 renamed webkit2gtk-driver, and moving the battery to a
+    # new release is a change of its own, not a side effect of a runner label (N177).
+    runs-on: ubuntu-24.04
     # The longest job here: 16 minutes measured on 2026-09-01, and every check inside it has its own
     # wait. This is the backstop for a runner that stops answering, not a budget for the suite.
     timeout-minutes: 45
@@ -397,7 +399,7 @@ jobs:
       # Three behavioural checks are deliberately not steps here, and this is the record of that
       # decision rather than an oversight (gate 2 register, `package.json:19`, `ci.yml:196`).
       # `pnpm e2e:webview` needs /sys/module/nvidia for the branch it tests to be taken at all; on
-      # ubuntu-latest it would assert "not applied" and prove only that llvmpipe paints, which the
+      # ubuntu-24.04 it would assert "not applied" and prove only that llvmpipe paints, which the
       # smoke test above already covers. It runs on the owner's machine.
       # `pnpm e2e:wayland` needs a real Wayland socket; without one mpv falls back to X11 and the
       # check would be green for the wrong reason, so it refuses to run instead. Same owner-machine
