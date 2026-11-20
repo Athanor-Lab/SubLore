@@ -57,7 +57,7 @@ Video playback is libmpv, embedded. It must be present at build time and at run 
 
 - Debian and Ubuntu: `sudo apt install libmpv-dev`
 - Fedora: `sudo dnf install mpv-libs-devel`
-- Windows: there is no package. Download a `mpv-dev-x86_64-*.7z` build from [mpv-winbuild-cmake releases](https://github.com/shinchiro/mpv-winbuild-cmake/releases), generate `mpv.lib` from `libmpv-2.dll` with `dumpbin`/`lib`, and point `LIBMPV_LIB_DIR` at the folder holding it. `.github/workflows/ci.yml` does exactly this and is the reference. `libmpv-2.dll` must also be on `PATH` when the app or the tests run; packaging it next to the executable comes with M0.3.
+- Windows: there is no package. Download a `mpv-dev-x86_64-*.7z` build from [shinchiro's SourceForge folder](https://sourceforge.net/projects/mpv-player-windows/files/libmpv/), generate `mpv.lib` from `libmpv-2.dll` with `dumpbin`/`lib`, and point `LIBMPV_LIB_DIR` at the folder holding it. `.github/workflows/ci.yml` does exactly this and is the reference. `libmpv-2.dll` must also be on `PATH` when the app or the tests run; packaging it next to the executable comes with M0.3.
 
 Sublore runs on X11. On a Wayland desktop it uses XWayland, because libmpv embeds into an X11 window id.
 
