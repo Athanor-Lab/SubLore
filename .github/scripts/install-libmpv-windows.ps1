@@ -2,11 +2,12 @@
 # import library the archive does not ship. Two jobs need it, so it lives here rather than being
 # copied into the second one. See BACKLOG.md M0.2 and M0.3.
 $ErrorActionPreference = "Stop"
-$tag  = "20260814"
-$file = "mpv-dev-x86_64-20260814-git-7b8915bc1d.7z"
-$sha  = "0af22b28e920620036d3ae08fd9283156dc9af0420bf4df84b0e02282094599c"
+$file = "mpv-dev-x86_64-20260809-git-dd5d17d328.7z"
+$sha  = "c6aebf40bb722efe79090bfeb61e68625f0837770347e5a8b610aef78900cf12"
 $dir  = "$env:RUNNER_TEMP\mpv-dev"
-Invoke-WebRequest -Uri "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/$tag/$file" -OutFile mpv-dev.7z
+# SourceForge keeps every weekly build; the GitHub release the old pin used was pruned (N176).
+# The Wget user agent gets the archive itself instead of SourceForge's HTML download page.
+Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/mpv-player-windows/libmpv/$file" -UserAgent "Wget" -MaximumRetryCount 3 -RetryIntervalSec 10 -OutFile mpv-dev.7z
 if ((Get-FileHash mpv-dev.7z -Algorithm SHA256).Hash -ne $sha.ToUpper()) { throw "libmpv archive checksum mismatch" }
 # $ErrorActionPreference does not cover a native command's exit code, so a failed extraction
 # would surface below as "found 0 mpv_* exports", which names the wrong thing.
